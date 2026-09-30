@@ -9,7 +9,9 @@ export const ROOT = resolve(__dirname, '..', '..')
 export function python(): string {
   const win = process.platform === 'win32'
   const venv = join(ROOT, 'worker', '.venv', win ? 'Scripts/python.exe' : 'bin/python')
-  return process.env.OTK_PYTHON ?? (existsSync(venv) ? venv : win ? 'python' : 'python3')
+  // OTK_TEST_PYTHON: the interpreter the *tests* use for helpers (e.g. the bundled one
+  // when testing a packaged build). OTK_PYTHON is what the app is told to use in dev runs.
+  return process.env.OTK_TEST_PYTHON ?? process.env.OTK_PYTHON ?? (existsSync(venv) ? venv : win ? 'python' : 'python3')
 }
 
 /** Run Python with the worker on the path and return parsed JSON printed by the snippet. */
@@ -25,7 +27,7 @@ export function py<T = unknown>(code: string, ...args: string[]): T {
 export function makePhoto(path: string, w = 1200, h = 900): void {
   py(`import sys, json
 sys.path.insert(0, ${JSON.stringify(join(ROOT, 'worker', 'tests'))})
-from conftest import photo_array
+from imagegen import photo_array
 from PIL import Image
 Image.fromarray(photo_array(int(sys.argv[2]), int(sys.argv[3]))).save(sys.argv[1], quality=95)
 print(json.dumps(True))`, path, String(w), String(h))

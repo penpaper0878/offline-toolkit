@@ -1,0 +1,41 @@
+# Windows installer (NSIS, per-user, no admin rights) and the unpacked app
+# that the release workflow zips as the portable build.
+appId: local.offline-toolkit
+productName: Offline Toolkit
+copyright: Personal use only
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**
+  - package.json
+  - "!**/*.map"
+asar: true
+extraResources:
+  - from: resources
+    to: resources
+  - from: worker
+    to: worker
+    filter:
+      - otk_worker/**
+      - sitecustomize.py
+      - "!**/__pycache__/**"
+  - from: build/python-win
+    to: engines/python
+win:
+  icon: build/icon.ico
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Offline Toolkit
+  deleteAppDataOnUninstall: false
+  artifactName: Offline-Toolkit-Setup-${version}.${ext}
+linux:
+  target: [dir]
+  icon: build/icon.png

@@ -1,0 +1,76 @@
+name: Windows build
+
+# Builds the Windows installer and portable ZIP on a real Windows machine,
+# smoke-tests the packaged .exe, and (for version tags) publishes a GitHub
+# release with both files. Run manually from the Actions tab, or push a tag
+# like v0.1.0.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: npm ci
+      - name: Bundle Python 3.11 (embeddable) with the worker's packages
+        run: node scripts/bundle-python-win.mjs
+      - run: npm run build
+      - name: Build the installer (NSIS, per-user, no admin rights)
+        run: npx electron-builder --win nsis --publish never
+      - name: Smoke-test the packaged app
+        shell: pwsh
+        run: |
+          $env:OTK_PACKAGED_EXE = Join-Path $pwd 'dist\win-unpacked\Offline Toolkit.exe'
+          $env:OTK_TEST_PYTHON = Join-Path $pwd 'dist\win-unpacked\resources\engines\python\python.exe'
+          npx playwright test tests/e2e/packaged.spec.ts
+      - name: Make the portable ZIP
+        shell: pwsh
+        run: |
+          $ver = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          Set-Content -Path 'dist\win-unpacked\portable.txt' -Value 'Portable mode: settings, presets and logs are kept in the "data" folder next to this file. Delete this file to use %APPDATA% instead.'
+          Compress-Archive -Path 'dist\win-unpacked\*' -DestinationPath "dist\Offline-Toolkit-$ver-portable-win-x64.zip"
+          Get-ChildItem dist -File | Format-Table Name, Length
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-toolkit-windows
+          path: |
+            dist/*.exe
+            dist/*-portable-win-x64.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: packaged-test-results
+          path: test-results/
+          if-no-files-found: ignore
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: true
+          name: Offline Toolkit ${{ github.ref_name }}
+          files: |
+            dist/Offline-Toolkit-Setup-*.exe
+            dist/*-portable-win-x64.zip
+          body: |
+            Windows 10/11, 64-bit. Personal use.
+
+            **Contains:** Module 1 (Image Resizer & Compressor). The other modules arrive in later phases.
+
+            - `Offline-Toolkit-Setup-*.exe`: installer. Installs for your user only, no admin rights needed.
+            - `*-portable-win-x64.zip`: portable. Unzip anywhere and run `Offline Toolkit.exe`. Settings stay in the `data` folder next to it.
+
+            The app is not code-signed. On first start Windows SmartScreen may say "Windows protected your PC": choose **More info → Run anyway**.
+            Everything works offline; the app makes no network connections (Settings → Run offline self-test).

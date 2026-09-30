@@ -12,6 +12,17 @@ A fully offline desktop app for **personal use (not for redistribution)**. Elect
 
 Design documents: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/ENGINES.md](docs/ENGINES.md) · [docs/CONVERSION_MATRIX.md](docs/CONVERSION_MATRIX.md) · [docs/TEST_REPORT.md](docs/TEST_REPORT.md)
 
+## Download (Windows 10/11, 64-bit)
+
+Get the latest build from the **[Releases page](https://github.com/penpaper0878/offline-toolkit/releases)**:
+
+- **`Offline-Toolkit-Setup-<version>.exe`**: installer. It installs for your user only (`%LOCALAPPDATA%\Programs\Offline Toolkit`), needs no admin rights, and adds Start-menu and desktop shortcuts.
+- **`Offline-Toolkit-<version>-portable-win-x64.zip`**: portable. Unzip anywhere (e.g. a USB stick) and run `Offline Toolkit.exe`. Settings, presets and logs stay in a `data` folder next to it.
+
+The builds are made and smoke-tested on a Windows machine by `.github/workflows/release.yml`. Python and every library are bundled, so nothing else needs installing. The app is not code-signed, so on first start Windows SmartScreen may say *"Windows protected your PC"*: choose **More info → Run anyway**.
+
+To build it yourself on Windows: `npm ci`, then `npm run dist:win` (needs Python 3.11 and the internet once). The output lands in `dist\`.
+
 ## Run it (development)
 
 Prerequisites: **Node.js 22+** and **Python 3.11+** (from python.org on Windows). Setup needs the internet once, to install packages; the app itself never uses it.

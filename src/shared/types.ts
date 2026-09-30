@@ -206,6 +206,7 @@ export interface AppInfo {
   platform: string
   worker: Record<string, unknown> | null
   workerError: string | null
+  pythonPath: string
   dataDir: string
   portable: boolean
 }

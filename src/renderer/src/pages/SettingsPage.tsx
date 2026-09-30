@@ -81,6 +81,7 @@ export function SettingsPage() {
               <div><dt>App</dt><dd>{info.version}{info.portable ? ' (portable)' : ''}</dd></div>
               <div><dt>Electron / Chromium / Node</dt><dd>{info.electron} / {info.chrome} / {info.node}</dd></div>
               <div><dt>Platform</dt><dd>{info.platform}</dd></div>
+              <div><dt>Python used</dt><dd dir="auto" data-testid="python-path">{info.pythonPath}</dd></div>
               <div><dt>Python worker</dt><dd>{info.worker ? `Python ${String(info.worker.python)}, Pillow ${String(info.worker.pillow)}, HEIC ${info.worker.heif ? 'yes' : 'no'}, network guard ${info.worker.netguard ? 'on' : 'OFF'}` : <span className="error-text">{info.workerError}</span>}</dd></div>
             </dl>
           ) : <span className="spinner small" />}

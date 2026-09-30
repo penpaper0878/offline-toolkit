@@ -15,15 +15,11 @@
     "test:py": "node scripts/run-python.mjs -m pytest -q worker/tests",
     "test:e2e": "npm run build && playwright test",
     "test:all": "npm run typecheck && npm test && npm run test:py && npm run test:e2e",
-    "test:offline": "bash scripts/test-offline.sh"
+    "test:offline": "bash scripts/test-offline.sh",
+    "dist:win": "node scripts/bundle-python-win.mjs && electron-vite build && electron-builder --win nsis --publish never"
   },
   "dependencies": {
-    "ajv": "8.20.0",
-    "konva": "10.7.0",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "react-konva": "19.3.0",
-    "zustand": "5.0.15"
+    "ajv": "8.20.0"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
@@ -32,9 +28,16 @@
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "5.2.0",
     "electron": "44.5.1",
+    "electron-builder": "26.15.3",
     "electron-vite": "5.0.0",
+    "konva": "10.7.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-konva": "19.3.0",
     "typescript": "5.9.3",
     "vite": "7.3.6",
-    "vitest": "5.0.3"
-  }
+    "vitest": "5.0.3",
+    "zustand": "5.0.15"
+  },
+  "author": "Offline Toolkit (personal use)"
 }

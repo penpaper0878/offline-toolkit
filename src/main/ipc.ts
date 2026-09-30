@@ -8,7 +8,7 @@ import type {
 } from '@shared/types'
 import type { EventLog } from './log'
 import { recordViolation } from './offline-guard'
-import { dataDir, isPortable, previewDir } from './paths'
+import { dataDir, isPortable, previewDir, pythonExecutable } from './paths'
 import { fileUrl, forgetFile } from './protocol'
 import { runOfflineSelfTest } from './selftest'
 import { type Store, ValidationError } from './store'
@@ -72,7 +72,7 @@ export function registerIpc({ store, pool, log, getWindow }: Deps): void {
     }
     return {
       version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome,
-      node: process.versions.node, platform: `${process.platform} ${process.arch}`, worker, workerError,
+      node: process.versions.node, platform: `${process.platform} ${process.arch}`, worker, workerError, pythonPath: pythonExecutable(),
       dataDir: dataDir(), portable: isPortable()
     }
   }, log)

@@ -20,8 +20,21 @@ Updated at the end of each phase. Every result below is from an actual run. Anyt
 | Conversion matrix up to date | `python scripts/gen_matrix.py --check` | **pass** |
 | End-to-end, real Electron app + real Python worker (Playwright) | `npm run test:e2e` | **2 / 2 pass** |
 | Offline run: pytest + end-to-end inside a network namespace with **no network interfaces** (only loopback, which Playwright needs for its debugging connection) | `npm run test:offline` | **115 / 115 + 2 / 2 pass** |
-| Windows (CI: `windows-latest`) | `.github/workflows/ci.yml` | **not run here.** The workflow is committed. It runs on GitHub Actions when you push, if Actions is enabled for the repository. |
+| Windows 11 / Server (GitHub Actions `windows-latest`, CI run 36747879326) | typecheck, vitest, pytest, Playwright E2E | **all pass** (31 vitest, 115 pytest, 2 E2E) |
+| Ubuntu (GitHub Actions `ubuntu-latest`, same run) | the same suites + the no-network run | **all pass** |
+| Packaged Windows app (installer build + smoke test of the built `.exe` with its bundled Python) | `.github/workflows/release.yml` | see *Windows packaging* below |
 | macOS | — | **not run** |
+
+### Windows packaging
+
+`release.yml` runs on a Windows runner and does four things:
+
+1. Bundles the official CPython 3.11.9 embeddable package with the worker's win_amd64 wheels.
+2. Builds the NSIS installer.
+3. Launches the packaged `Offline Toolkit.exe` with `tests/e2e/packaged.spec.ts`. The test checks that the app uses its **bundled** Python, that the network guard is on, that HEIC works and that the offline self-test passes. It then resizes a photo and a HEIC file and checks 240×240 px @200 DPI on disk.
+4. Makes the portable ZIP and publishes both files as a GitHub release.
+
+The same test steps were dry-run here against the development build (pass). The result on Windows is recorded in the release run.
 
 ### What the tests prove (spec → test)
 

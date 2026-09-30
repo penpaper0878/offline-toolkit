@@ -71,10 +71,14 @@ export class WorkerProcess extends EventEmitter {
     delete env.http_proxy
     delete env.https_proxy
     delete env.no_proxy
+    // A PYTHONHOME or startup file from the user's own Python must not leak in.
+    delete env.PYTHONHOME
+    delete env.PYTHONSTARTUP
+    env.PYTHONNOUSERSITE = '1'
     this.starting = new Promise<void>((resolve, reject) => {
       let proc: ChildProcessWithoutNullStreams
       try {
-        proc = spawn(python, ['-X', 'utf8', '-u', '-m', 'otk_worker'], { cwd: workerDir, env, windowsHide: true })
+        proc = spawn(python, ['-s', '-X', 'utf8', '-u', '-m', 'otk_worker'], { cwd: workerDir, env, windowsHide: true })
       } catch (e) {
         this.starting = null
         reject(new WorkerError(`Could not start the Python worker (${python}): ${(e as Error).message}`, 'worker_start'))

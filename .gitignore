@@ -14,3 +14,5 @@ worker/.venv/
 test-results/
 playwright-report/
 *.tsbuildinfo
+build/cache/
+build/python-win/
