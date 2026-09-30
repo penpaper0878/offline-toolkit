@@ -1,0 +1,61 @@
+{
+  "$comment": "Shared by worker/tests/test_units.py and src/shared/units.test.ts. px = inches x DPI; 1 in = 2.54 cm = 25.4 mm; half-up rounding. Values worked out by hand.",
+  "resolve": [
+    { "name": "3 cm at 200 DPI (spec example)", "in": { "width": 3, "height": 3, "unit": "cm", "dpi": 200 },
+      "px": [236, 236], "exactPx": [236.22047244094488, 236.22047244094488], "dpi": [200, 200], "errorMm": [-0.028, -0.028] },
+    { "name": "240 px at 200 DPI = 3.048 cm (spec example)", "in": { "width": 240, "height": 240, "unit": "px", "dpi": 200 },
+      "px": [240, 240], "exactPx": [240, 240], "dpi": [200, 200], "actualMm": [30.48, 30.48] },
+    { "name": "Passport 35x45 mm at 300 DPI", "in": { "width": 35, "height": 45, "unit": "mm", "dpi": 300 },
+      "px": [413, 531], "exactPx": [413.38582677165354, 531.496062992126], "dpi": [300, 300], "errorMm": [-0.0326666667, -0.042] },
+    { "name": "US 2x2 in at 300 DPI", "in": { "width": 2, "height": 2, "unit": "in", "dpi": 300 },
+      "px": [600, 600], "exactPx": [600, 600], "dpi": [300, 300], "errorMm": [0, 0] },
+    { "name": "51 mm is not 2 in", "in": { "width": 51, "height": 51, "unit": "mm", "dpi": 300 },
+      "px": [602, 602], "exactPx": [602.3622047244095, 602.3622047244095], "dpi": [300, 300] },
+    { "name": "Float noise: 2.54 cm at 100 DPI is exactly 100 px", "in": { "width": 2.54, "height": 1.27, "unit": "cm", "dpi": 100 },
+      "px": [100, 50], "exactPx": [100, 50], "dpi": [100, 100], "errorMm": [0, 0] },
+    { "name": "Half-up rounding: 50.5 px -> 51", "in": { "width": 1.27, "height": 1.27, "unit": "cm", "dpi": 101 },
+      "px": [51, 51], "exactPx": [50.5, 50.5], "dpi": [101, 101] },
+    { "name": "fitDpi stores the density that makes 3x4 cm exact", "in": { "width": 3, "height": 4, "unit": "cm", "dpi": 200, "fitDpi": true },
+      "px": [236, 315], "exactPx": [236.22047244094488, 314.96062992125985], "dpi": [199.81333333333333, 200.025], "errorMm": [0, 0] },
+    { "name": "10x15 cm at 1200 DPI", "in": { "width": 10, "height": 15, "unit": "cm", "dpi": 1200 },
+      "px": [4724, 7087], "exactPx": [4724.409448818898, 7086.614173228346], "dpi": [1200, 1200] },
+    { "name": "Signature 140x60 px", "in": { "width": 140, "height": 60, "unit": "px", "dpi": 200 },
+      "px": [140, 60], "exactPx": [140, 60], "dpi": [200, 200], "actualMm": [17.78, 7.62] }
+  ],
+  "pxToLength": [
+    { "px": 240, "unit": "cm", "dpi": 200, "out": 3.048 },
+    { "px": 236, "unit": "mm", "dpi": 200, "out": 29.972 },
+    { "px": 600, "unit": "in", "dpi": 300, "out": 2 },
+    { "px": 413, "unit": "mm", "dpi": 300, "out": 34.96733333333333 }
+  ],
+  "lengthToPx": [
+    { "value": 3, "unit": "cm", "dpi": 200, "out": 236.22047244094488 },
+    { "value": 25.4, "unit": "mm", "dpi": 72, "out": 72 },
+    { "value": 1.5, "unit": "in", "dpi": 1200, "out": 1800 },
+    { "value": 123, "unit": "px", "dpi": 300, "out": 123 }
+  ],
+  "pngPhys": [
+    { "dpi": 72, "ppm": 2835, "readback": 72.009 },
+    { "dpi": 200, "ppm": 7874, "readback": 199.9996 },
+    { "dpi": 300, "ppm": 11811, "readback": 299.9994 }
+  ],
+  "jfif": [
+    { "dpi": 200, "out": 200 },
+    { "dpi": 199.6, "out": 200 },
+    { "dpi": 200.025, "out": 200 },
+    { "dpi": 72.5, "out": 73 }
+  ],
+  "bytes": [
+    { "value": 20, "unit": "KB", "base": 1024, "out": 20480 },
+    { "value": 50, "unit": "KB", "base": 1024, "out": 51200 },
+    { "value": 1.5, "unit": "MB", "base": 1000, "out": 1500000 },
+    { "value": 0.5, "unit": "MB", "base": 1024, "out": 524288 }
+  ],
+  "errors": [
+    { "in": { "width": 0, "height": 10, "unit": "px", "dpi": 200 } },
+    { "in": { "width": 10.5, "height": 10, "unit": "px", "dpi": 200 } },
+    { "in": { "width": 10, "height": 10, "unit": "pt", "dpi": 200 } },
+    { "in": { "width": 10, "height": 10, "unit": "cm", "dpi": 0 } },
+    { "in": { "width": 0.001, "height": 10, "unit": "mm", "dpi": 72 } }
+  ]
+}

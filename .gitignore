@@ -10,3 +10,6 @@ __pycache__/
 .pytest_cache/
 .venv/
 *.log
+worker/.venv/
+test-results/
+playwright-report/

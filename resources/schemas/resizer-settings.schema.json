@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "otk://schemas/resizer-settings.schema.json",
+  "title": "Image resizer settings",
+  "description": "Settings for one resize job or preset (Module 1). Width/height are in 'unit'; px values must be whole numbers.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["width", "height", "unit", "dpi", "fit", "format"],
+  "properties": {
+    "width": { "type": "number", "exclusiveMinimum": 0, "maximum": 100000, "description": "Target width in 'unit'." },
+    "height": { "type": "number", "exclusiveMinimum": 0, "maximum": 100000, "description": "Target height in 'unit'." },
+    "unit": { "enum": ["px", "cm", "mm", "in"] },
+    "dpi": { "type": "number", "minimum": 72, "maximum": 1200, "description": "Dots per inch written into the file (and used to turn cm/mm/in into pixels)." },
+    "sizeMode": { "enum": ["exactPixels", "exactPhysical"], "default": "exactPixels", "description": "What stays fixed when you change DPI: the pixel size or the physical size." },
+    "fitDpi": { "type": "boolean", "default": false, "description": "Physical units only: store the density that makes the physical size exact after rounding to whole pixels." },
+    "lockAspect": { "type": "boolean", "default": true },
+    "fit": { "enum": ["crop", "pad", "stretch"], "description": "crop = fill and cut off the excess, pad = fit inside and fill the rest with padColor, stretch = change proportions." },
+    "padColor": { "type": "string", "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$", "default": "#FFFFFF", "description": "Padding colour, and the background used when transparency must be flattened for JPEG." },
+    "format": { "enum": ["jpeg", "png", "webp"] },
+    "quality": { "type": "integer", "minimum": 1, "maximum": 100, "default": 90, "description": "JPEG/WEBP quality when no maximum size is set." },
+    "sizeRange": {
+      "description": "Target file size. Leave out (or null) for no target.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["unit"],
+          "properties": {
+            "min": { "type": ["number", "null"], "minimum": 0 },
+            "max": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+            "unit": { "enum": ["KB", "MB"] }
+          }
+        }
+      ]
+    },
+    "subsampling": { "enum": ["auto", "4:4:4", "4:2:0"], "default": "auto", "description": "JPEG chroma subsampling. auto lets the size search pick the better-looking option." },
+    "stripMetadata": { "type": "boolean", "default": true, "description": "Remove camera, GPS, XMP, comments and colour profile. DPI is always kept." },
+    "allowPadding": { "type": "boolean", "default": false, "description": "If the best quality is still below the minimum size, add harmless padding (pixels untouched)." },
+    "allowQuantize": { "type": "boolean", "default": false, "description": "PNG only: allow reducing colours (lossy) to reach the maximum size." },
+    "webpLossless": { "enum": ["auto", "never"], "default": "auto" },
+    "saveOutOfRange": { "type": "boolean", "default": false, "description": "Save the closest result even when the size range cannot be met." },
+    "naming": { "type": "string", "minLength": 1, "maxLength": 200, "default": "{name}_{w}x{h}", "description": "Output name. Tokens: {name} {w} {h} {dpi} {n}." }
+  }
+}
