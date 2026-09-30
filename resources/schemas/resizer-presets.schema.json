@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "otk://schemas/resizer-presets.schema.json",
+  "title": "Image resizer presets",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "presets"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "const": 1 },
+    "deletedDefaults": { "type": "array", "items": { "type": "string" }, "description": "Shipped presets you deleted (so updates don't bring them back)." },
+    "presets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "settings"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "description": { "type": "string", "maxLength": 500 },
+          "settings": { "$ref": "otk://schemas/resizer-settings.schema.json" }
+        }
+      }
+    }
+  }
+}

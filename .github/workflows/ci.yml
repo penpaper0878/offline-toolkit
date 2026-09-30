@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: npm ci
+      - run: npm run setup:py
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:py
+      - run: npm run build
+      - name: End-to-end tests (Linux, virtual display)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" npx playwright test
+      - name: End-to-end tests (Windows)
+        if: runner.os == 'Windows'
+        run: npx playwright test
+      - name: Offline run (Linux network namespace, no network interfaces)
+        if: runner.os == 'Linux'
+        run: sudo --preserve-env=PATH bash -c 'sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true; ./scripts/test-offline.sh'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.os }}
+          path: test-results/
+          if-no-files-found: ignore

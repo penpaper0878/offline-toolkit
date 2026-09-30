@@ -1,0 +1,5 @@
+# Worker runtime dependencies (Phase 1). Full hashed lock for packaging comes in Phase 5.
+pillow==12.3.0
+numpy==2.4.6
+pi-heif==1.4.0
+jsonschema==4.26.0

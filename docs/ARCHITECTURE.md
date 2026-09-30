@@ -1,6 +1,13 @@
 # Offline Toolkit — Phase 0: architecture
 
-Status: **decisions confirmed on 2026-09-30** (§0); waiting for "continue" to start Phase 1. No module code is written yet. The Module 2 route planner is written and tested, because the conversion matrix is generated from it (see [CONVERSION_MATRIX.md](CONVERSION_MATRIX.md)).
+Status: decisions confirmed on 2026-09-30 (§0). **Phase 1 (Module 1) is implemented**; test results are in [TEST_REPORT.md](TEST_REPORT.md). The Module 2 route planner is written and tested, because the conversion matrix is generated from it (see [CONVERSION_MATRIX.md](CONVERSION_MATRIX.md)).
+
+**Phase 1 implementation notes (differences from the plan below, all intentional):**
+
+- **Workers.** Two workers run instead of a RAM-sized pool: one for interactive previews and one for batches, so a long batch never blocks the preview. The RAM-aware scheduler and the job journal (resume) come with Module 2, where jobs are long.
+- **CSP-blocked requests are recorded.** The page's Content-Security-Policy stops fetches before Chromium's request hook sees them, so those violations are forwarded to the offline audit too.
+- **Sandbox exception for tests.** Electron's sandbox is forced on for every process unless `--no-sandbox` is passed explicitly. Chromium requires that switch when running as root, which only happens in CI containers.
+- **Offline proof on Linux.** `scripts/test-offline.sh` brings up only the loopback interface inside the network namespace, because Playwright drives Electron over a local debugging connection. No other interface exists.
 
 Companion documents:
 

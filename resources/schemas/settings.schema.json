@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "otk://schemas/settings.schema.json",
+  "title": "Offline Toolkit settings",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "theme", "sizeUnitBase", "workers", "resizer", "logging"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "const": 1 },
+    "theme": { "enum": ["system", "light", "dark"] },
+    "sizeUnitBase": { "enum": [1000, 1024], "description": "1 KB = 1024 bytes (as Windows shows sizes) or 1000 bytes." },
+    "workers": { "oneOf": [{ "const": "auto" }, { "type": "integer", "minimum": 1, "maximum": 4 }] },
+    "resizer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["settings", "outputDir", "zip", "lastPresetId"],
+      "properties": {
+        "settings": { "$ref": "otk://schemas/resizer-settings.schema.json" },
+        "outputDir": { "type": ["string", "null"] },
+        "zip": { "type": "boolean" },
+        "lastPresetId": { "type": ["string", "null"] }
+      }
+    },
+    "logging": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hashPaths"],
+      "properties": { "hashPaths": { "type": "boolean", "description": "Replace file paths in the event log with short hashes." } }
+    }
+  }
+}

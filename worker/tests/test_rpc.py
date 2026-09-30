@@ -19,7 +19,8 @@ WORKER_DIR = Path(__file__).resolve().parents[1]
 
 class Worker:
     def __init__(self):
-        env = {**os.environ, "PYTHONPATH": str(WORKER_DIR), "PYTHONUTF8": "1"}
+        # As the app starts it: guard always on, whatever the parent process uses.
+        env = {**os.environ, "PYTHONPATH": str(WORKER_DIR), "PYTHONUTF8": "1", "OTK_NETGUARD": "1"}
         self.p = subprocess.Popen([sys.executable, "-m", "otk_worker"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE, text=True, encoding="utf-8", env=env)
         self.next_id = 0

@@ -1,0 +1,20 @@
+{
+  "$schema": "../schemas/settings.schema.json",
+  "version": 1,
+  "theme": "system",
+  "sizeUnitBase": 1024,
+  "workers": "auto",
+  "resizer": {
+    "settings": {
+      "width": 240, "height": 240, "unit": "px", "dpi": 200, "sizeMode": "exactPixels", "fitDpi": false, "lockAspect": true,
+      "fit": "crop", "padColor": "#FFFFFF", "format": "jpeg", "quality": 90,
+      "sizeRange": { "min": 20, "max": 50, "unit": "KB" },
+      "subsampling": "auto", "stripMetadata": true, "allowPadding": false, "allowQuantize": false,
+      "webpLossless": "auto", "saveOutOfRange": false, "naming": "{name}_{w}x{h}"
+    },
+    "outputDir": null,
+    "zip": false,
+    "lastPresetId": "photo-240"
+  },
+  "logging": { "hashPaths": false }
+}
