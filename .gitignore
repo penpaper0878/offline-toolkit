@@ -13,3 +13,4 @@ __pycache__/
 worker/.venv/
 test-results/
 playwright-report/
+*.tsbuildinfo
