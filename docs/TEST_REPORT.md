@@ -21,11 +21,31 @@ Updated at the end of each phase. Every result below is from an actual run. Anyt
 | End-to-end, real app + worker (Playwright): resizer ×2, converter (Word/HTML/TXT → PDF; Word + a password-protected PDF → PDF/A-2b, reports opened) | `npm run test:e2e` | **3 / 3 pass** |
 | Ubuntu CI (`ubuntu-latest`): all of the above except the full matrix, plus the no-network run | `.github/workflows/ci.yml`, run 36864613139 | **all pass** (32 vitest, 186 pytest, 3 E2E, no-network run) |
 | Windows CI (`windows-latest`) with the bundled Windows engines | same run | **all pass** (32 vitest, 186 pytest including the 43 routes with the Windows engines, 3 E2E including the converter) |
-| Packaged Windows app (installer + portable, engines bundled, smoke test converts to PDF/A-2b) | `.github/workflows/release.yml` | see *Windows packaging (Phase 2)* below |
+| Packaged Windows app (installer + portable, engines bundled, smoke test converts to PDF/A-2b) | `.github/workflows/release.yml`, run 36866447954 | **pass**: published as pre-release v0.2.0 (details below) |
 
 ### Windows packaging (Phase 2)
 
-The v0.2.0 build (installer, portable ZIP, smoke test of the packaged app converting to PDF/A-2b with the bundled engines) was started from this commit; its result is recorded here when it finishes.
+**Release v0.2.0 (`release.yml`, run 36866447954): every step passed.**
+
+- The smoke test ran against the packaged `Offline Toolkit.exe` (not skipped, 15.5 s), and checked that:
+  - the app uses its bundled Python;
+  - all 7 engines are found and are the bundled copies;
+  - the offline self-test passes;
+  - the resizer works, including HEIC;
+  - a Word file and an HTML page convert to PDF/A-2b, with veraPDF passing both.
+- Bundled engines in this build (`manifest.json`):
+  - LibreOffice 26.2.6.3
+  - Ghostscript 10.08.0
+  - Tesseract 5.5.3 + `tessdata_fast` (17 languages)
+  - OpenJDK 21.0.9 + veraPDF 1.28.2
+  - Pandoc 3.8.2.1
+  - resvg 0.45.1
+- Files (published as pre-release [v0.2.0](https://github.com/penpaper0878/offline-toolkit/releases/tag/v0.2.0)):
+  - `Offline-Toolkit-Setup-0.2.0.exe`: **568 MB** installer
+  - `Offline-Toolkit-0.2.0-portable-win-x64.zip`: **790 MB** portable ZIP
+
+  Most of the growth from v0.1.0 (129 / 188 MB) is LibreOffice, Pandoc and the Java runtime.
+- The builds are not code-signed.
 
 ### The matrix in numbers
 

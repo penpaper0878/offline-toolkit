@@ -12,12 +12,12 @@ Sizes are rough figures for Windows x64, unpacked. **Total ≈ 1.5–1.9 GB inst
 
 | Engine | Version | Source (build time) | Size on Windows (unpacked) |
 |---|---|---|---|
-| LibreOffice | current "fresh" release at build time (version in the manifest) | Chocolatey `libreoffice-fresh`, program folder copied; help and spelling dictionaries removed | ≈ 600 MB |
+| LibreOffice | current "fresh" release at build time (26.2.6.3 in v0.2.0) | Chocolatey `libreoffice-fresh`, program folder copied; help and spelling dictionaries removed | ≈ 600 MB |
 | Pandoc | 3.8.2.1 (official build) | PyPI wheel `pypandoc_binary==1.16.2` (hash-checked by PyPI). Distribution builds such as Debian's lack the embedded data files and fail under `--sandbox` | ≈ 200 MB |
-| Ghostscript | current release at build time | Chocolatey `ghostscript`; `doc/` and `examples/` removed | ≈ 70 MB |
-| Tesseract | 5.x (UB Mannheim build) | Chocolatey `tesseract` | ≈ 50 MB |
+| Ghostscript | current release at build time (10.08.0 in v0.2.0) | Chocolatey `ghostscript`; `doc/` and `examples/` removed | ≈ 70 MB |
+| Tesseract | 5.x, UB Mannheim build (5.5.3 in v0.2.0) | Chocolatey `tesseract` | ≈ 50 MB |
 | tessdata_fast | `main` branch at build time | eng, osd, hin, mar, san, nep, ben, guj, pan, tam, tel, kan, mal, ori, urd, ara, heb | ≈ 40 MB |
-| Java runtime | Temurin 21 JRE | Chocolatey `temurin21jre` (not jlink-trimmed yet: Phase 5) | ≈ 130 MB |
+| Java runtime | Temurin 21 JRE (21.0.9 in v0.2.0) | Chocolatey `temurin21jre` (not jlink-trimmed yet: Phase 5) | ≈ 130 MB |
 | veraPDF | 1.28.2 greenfield (CLI + its jars) | Maven Central, each jar SHA-1-checked | ≈ 20 MB |
 | resvg | 0.45.1 | GitHub release `resvg-win64.zip` | ≈ 4 MB |
 
@@ -29,7 +29,7 @@ Python packages added in Phase 2 (all pinned in `worker/requirements.txt`): PyMu
 - **Chromium prints HTML, TXT, EPUB and SVG to PDF** inside the app (a hidden, sandboxed window that can only read the job folder). No separate browser is bundled.
 - **No bundled fonts yet.** Conversions use the fonts LibreOffice ships (Liberation, Carlito, Caladea, DejaVu, Noto Sans/Serif and others) plus the fonts installed in Windows. The Noto families for the UI and Module 3 arrive in Phase 5 / Module 3. The verification report names every font substitution.
 - **sRGB ICC v2:** the profile shipped inside pikepdf is used for the PDF/A OutputIntent.
-- **Total for the Phase 2 Windows build:** roughly 1.1 GB unpacked; the installer and ZIP are listed in [TEST_REPORT.md](TEST_REPORT.md) with their real sizes.
+- **Download size of v0.2.0:** 568 MB installer, 790 MB portable ZIP (see [TEST_REPORT.md](TEST_REPORT.md)). The per-engine sizes above are estimates.
 
 ## 1. Runtimes and CLI engines
 

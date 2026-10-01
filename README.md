@@ -19,7 +19,7 @@ Get the latest build from the **[Releases page](https://github.com/penpaper0878/
 - **`Offline-Toolkit-Setup-<version>.exe`**: installer. It installs for your user only (`%LOCALAPPDATA%\Programs\Offline Toolkit`), needs no admin rights, and adds Start-menu and desktop shortcuts.
 - **`Offline-Toolkit-<version>-portable-win-x64.zip`**: portable. Unzip anywhere (e.g. a USB stick) and run `Offline Toolkit.exe`. Settings, presets and logs stay in a `data` folder next to it.
 
-The builds are made and smoke-tested on a Windows machine by `.github/workflows/release.yml`. Python and every library are bundled, so nothing else needs installing. The app is not code-signed, so on first start Windows SmartScreen may say *"Windows protected your PC"*: choose **More info → Run anyway**.
+Since v0.2.0 the download is large (installer 568 MB, ZIP 790 MB) because LibreOffice, Pandoc, Ghostscript, Tesseract and a Java runtime for veraPDF are bundled, so conversion works without installing anything. The builds are made and smoke-tested on a Windows machine by `.github/workflows/release.yml`. Python and every library are bundled, so nothing else needs installing. The app is not code-signed, so on first start Windows SmartScreen may say *"Windows protected your PC"*: choose **More info → Run anyway**.
 
 To build it yourself on Windows: `npm ci`, then `npm run dist:win` (needs Python 3.11 and the internet once). The output lands in `dist\`.
 
