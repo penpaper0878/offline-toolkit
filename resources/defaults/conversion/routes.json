@@ -53,17 +53,7 @@
       "summary": "pdf2docx: rebuilt paragraphs, styles, tables (incl. merged cells) and images; RTL or rotated text switches to the document-model route",
       "losses": ["Headers/footers become body text", "Complex vector art embedded as pictures"] },
 
-    { "id": "lo_pdf_import_docx", "from": ["pdf"], "to": ["docx"], "engine": "libreoffice",
-      "modes": { "exact": 1.6 },
-      "summary": "LibreOffice writer_pdf_import: every line as a positioned frame, drawings as shapes",
-      "losses": ["Paragraphs split into per-line frames (appearance kept, editing awkward)"] },
-
-    { "id": "lo_pdf_import_pptx", "from": ["pdf"], "to": ["pptx"], "engine": "libreoffice",
-      "modes": { "exact": 1.5 },
-      "summary": "LibreOffice impress_pdf_import: one slide per page, positioned text and shapes",
-      "losses": ["Text split into per-line boxes"] },
-
-    { "id": "pdf_extract", "from": ["pdf"], "to": ["docmodel"], "engine": "pymupdf",
+            { "id": "pdf_extract", "from": ["pdf"], "to": ["docmodel"], "engine": "pymupdf",
       "modes": { "exact": 0.5, "editable": 0.5 },
       "summary": "Extract text spans with styles, images (original streams), drawings, tables, links, outline" },
 
@@ -127,8 +117,11 @@
       "summary": "Fixed-layout EPUB 3: page image with invisible OCR text" },
 
     { "id": "docmodel_pptx", "from": ["docmodel"], "to": ["pptx"], "engine": "python",
-      "modes": { "editable": 1.0 },
-      "summary": "Native text boxes, pictures, tables and shapes at original positions" },
+      "modes": { "exact": 1.0, "editable": 1.0 },
+      "summary": "One slide per page with native text boxes, pictures, tables and vector shapes at their original positions (exact: a box per line; editable: a box per paragraph)" },
+    { "id": "docmodel_docx_exact", "from": ["docmodel"], "to": ["docx"], "engine": "python",
+      "modes": { "exact": 1.2 },
+      "summary": "Pages of the original size with positioned text boxes, pictures and shapes" },
     { "id": "docmodel_xlsx", "from": ["docmodel"], "to": ["xlsx"], "engine": "python",
       "modes": { "exact": 1.0, "editable": 1.0 },
       "summary": "Tables to sheets (merged cells, conservative number typing: '001234' stays text), other text to a 'Text' sheet" },
@@ -247,15 +240,14 @@
     { "id": "svg_pptx_picture", "from": ["svg"], "to": ["pptx"], "engine": "python",
       "modes": { "exact": 1.0 },
       "summary": "Vector SVG picture with PNG fallback ('Convert to Shape' works in PowerPoint 365)" },
-    { "id": "svg_pptx_shapes", "from": ["svg"], "to": ["pptx"], "engine": "libreoffice",
-      "modes": { "editable": 1.5 },
-      "summary": "LibreOffice SVG import: native shapes and text boxes" },
-    { "id": "svg_docx_picture", "from": ["svg"], "to": ["docx"], "engine": "python",
+        { "id": "svg_docx_picture", "from": ["svg"], "to": ["docx"], "engine": "python",
       "modes": { "exact": 1.0, "editable": 1.0 },
       "summary": "Vector SVG picture with PNG fallback (Word 2016+ shows vector)" }
   ],
   "overrides": [
     { "source": "svg", "target": "xlsx", "modes": ["exact", "editable"], "chain": ["svg", "pdf", "docmodel", "xlsx"],
-      "reason": "The cheaper SVG > HTML > XLSX chain only reads <table> elements and an inline SVG has none; going through PDF lets table detection work on the drawn grid." }
+      "reason": "The cheaper SVG > HTML > XLSX chain only reads <table> elements and an inline SVG has none; going through PDF lets table detection work on the drawn grid." },
+    { "source": "svg", "target": "pptx", "modes": ["editable"], "chain": ["svg", "pdf", "docmodel", "pptx"],
+      "reason": "Pandoc drops inline SVG, so SVG > HTML > PPTX would lose the drawing; going through PDF rebuilds it as native shapes and text boxes." }
   ]
 }

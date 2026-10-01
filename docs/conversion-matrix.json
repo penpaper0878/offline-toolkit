@@ -95,17 +95,24 @@
    "mode": "exact",
    "chain": [
     "pdf",
+    "docmodel",
     "docx"
    ],
    "steps": [
     {
-     "edge": "lo_pdf_import_docx",
-     "engine": "libreoffice",
+     "edge": "pdf_extract",
+     "engine": "pymupdf",
      "from": "pdf",
+     "to": "docmodel"
+    },
+    {
+     "edge": "docmodel_docx_exact",
+     "engine": "python",
+     "from": "docmodel",
      "to": "docx"
     }
    ],
-   "cost": 1.6,
+   "cost": 1.7,
    "override": null,
    "potentialLosses": [
     {
@@ -118,12 +125,10 @@
     },
     {
      "feature": "attachments",
-     "level": "reduced"
+     "level": "lost"
     }
    ],
-   "stepLosses": [
-    "Paragraphs split into per-line frames (appearance kept, editing awkward)"
-   ]
+   "stepLosses": []
   },
   {
    "source": "pdf",
@@ -266,13 +271,20 @@
    "mode": "exact",
    "chain": [
     "pdf",
+    "docmodel",
     "pptx"
    ],
    "steps": [
     {
-     "edge": "lo_pdf_import_pptx",
-     "engine": "libreoffice",
+     "edge": "pdf_extract",
+     "engine": "pymupdf",
      "from": "pdf",
+     "to": "docmodel"
+    },
+    {
+     "edge": "docmodel_pptx",
+     "engine": "python",
+     "from": "docmodel",
      "to": "pptx"
     }
    ],
@@ -289,12 +301,10 @@
     },
     {
      "feature": "attachments",
-     "level": "reduced"
+     "level": "lost"
     }
    ],
-   "stepLosses": [
-    "Text split into per-line boxes"
-   ]
+   "stepLosses": []
   },
   {
    "source": "pdf",
@@ -1697,6 +1707,7 @@
    "chain": [
     "pdfa1b",
     "pdf",
+    "docmodel",
     "docx"
    ],
    "steps": [
@@ -1707,13 +1718,19 @@
      "to": "pdf"
     },
     {
-     "edge": "lo_pdf_import_docx",
-     "engine": "libreoffice",
+     "edge": "pdf_extract",
+     "engine": "pymupdf",
      "from": "pdf",
+     "to": "docmodel"
+    },
+    {
+     "edge": "docmodel_docx_exact",
+     "engine": "python",
+     "from": "docmodel",
      "to": "docx"
     }
    ],
-   "cost": 1.6,
+   "cost": 1.7,
    "override": null,
    "potentialLosses": [
     {
@@ -1725,9 +1742,7 @@
      "level": "reduced"
     }
    ],
-   "stepLosses": [
-    "Paragraphs split into per-line frames (appearance kept, editing awkward)"
-   ]
+   "stepLosses": []
   },
   {
    "source": "pdfa1b",
@@ -1880,6 +1895,7 @@
    "chain": [
     "pdfa1b",
     "pdf",
+    "docmodel",
     "pptx"
    ],
    "steps": [
@@ -1890,9 +1906,15 @@
      "to": "pdf"
     },
     {
-     "edge": "lo_pdf_import_pptx",
-     "engine": "libreoffice",
+     "edge": "pdf_extract",
+     "engine": "pymupdf",
      "from": "pdf",
+     "to": "docmodel"
+    },
+    {
+     "edge": "docmodel_pptx",
+     "engine": "python",
+     "from": "docmodel",
      "to": "pptx"
     }
    ],
@@ -1908,9 +1930,7 @@
      "level": "reduced"
     }
    ],
-   "stepLosses": [
-    "Text split into per-line boxes"
-   ]
+   "stepLosses": []
   },
   {
    "source": "pdfa1b",
@@ -2525,6 +2545,7 @@
    "chain": [
     "pdfa2b",
     "pdf",
+    "docmodel",
     "docx"
    ],
    "steps": [
@@ -2535,13 +2556,19 @@
      "to": "pdf"
     },
     {
-     "edge": "lo_pdf_import_docx",
-     "engine": "libreoffice",
+     "edge": "pdf_extract",
+     "engine": "pymupdf",
      "from": "pdf",
+     "to": "docmodel"
+    },
+    {
+     "edge": "docmodel_docx_exact",
+     "engine": "python",
+     "from": "docmodel",
      "to": "docx"
     }
    ],
-   "cost": 1.6,
+   "cost": 1.7,
    "override": null,
    "potentialLosses": [
     {
@@ -2551,11 +2578,13 @@
     {
      "feature": "vector",
      "level": "reduced"
+    },
+    {
+     "feature": "attachments",
+     "level": "lost"
     }
    ],
-   "stepLosses": [
-    "Paragraphs split into per-line frames (appearance kept, editing awkward)"
-   ]
+   "stepLosses": []
   },
   {
    "source": "pdfa2b",
@@ -2716,6 +2745,7 @@
    "chain": [
     "pdfa2b",
     "pdf",
+    "docmodel",
     "pptx"
    ],
    "steps": [
@@ -2726,9 +2756,15 @@
      "to": "pdf"
     },
     {
-     "edge": "lo_pdf_import_pptx",
-     "engine": "libreoffice",
+     "edge": "pdf_extract",
+     "engine": "pymupdf",
      "from": "pdf",
+     "to": "docmodel"
+    },
+    {
+     "edge": "docmodel_pptx",
+     "engine": "python",
+     "from": "docmodel",
      "to": "pptx"
     }
    ],
@@ -2742,11 +2778,13 @@
     {
      "feature": "bookmarks",
      "level": "reduced"
+    },
+    {
+     "feature": "attachments",
+     "level": "lost"
     }
    ],
-   "stepLosses": [
-    "Text split into per-line boxes"
-   ]
+   "stepLosses": []
   },
   {
    "source": "pdfa2b",
@@ -3416,6 +3454,7 @@
    "chain": [
     "pdfa3b",
     "pdf",
+    "docmodel",
     "docx"
    ],
    "steps": [
@@ -3426,13 +3465,19 @@
      "to": "pdf"
     },
     {
-     "edge": "lo_pdf_import_docx",
-     "engine": "libreoffice",
+     "edge": "pdf_extract",
+     "engine": "pymupdf",
      "from": "pdf",
+     "to": "docmodel"
+    },
+    {
+     "edge": "docmodel_docx_exact",
+     "engine": "python",
+     "from": "docmodel",
      "to": "docx"
     }
    ],
-   "cost": 1.6,
+   "cost": 1.7,
    "override": null,
    "potentialLosses": [
     {
@@ -3445,12 +3490,10 @@
     },
     {
      "feature": "attachments",
-     "level": "reduced"
+     "level": "lost"
     }
    ],
-   "stepLosses": [
-    "Paragraphs split into per-line frames (appearance kept, editing awkward)"
-   ]
+   "stepLosses": []
   },
   {
    "source": "pdfa3b",
@@ -3615,6 +3658,7 @@
    "chain": [
     "pdfa3b",
     "pdf",
+    "docmodel",
     "pptx"
    ],
    "steps": [
@@ -3625,9 +3669,15 @@
      "to": "pdf"
     },
     {
-     "edge": "lo_pdf_import_pptx",
-     "engine": "libreoffice",
+     "edge": "pdf_extract",
+     "engine": "pymupdf",
      "from": "pdf",
+     "to": "docmodel"
+    },
+    {
+     "edge": "docmodel_pptx",
+     "engine": "python",
+     "from": "docmodel",
      "to": "pptx"
     }
    ],
@@ -3644,12 +3694,10 @@
     },
     {
      "feature": "attachments",
-     "level": "reduced"
+     "level": "lost"
     }
    ],
-   "stepLosses": [
-    "Text split into per-line boxes"
-   ]
+   "stepLosses": []
   },
   {
    "source": "pdfa3b",
@@ -4458,6 +4506,7 @@
    "chain": [
     "docx",
     "pdf",
+    "docmodel",
     "pptx"
    ],
    "steps": [
@@ -4468,9 +4517,15 @@
      "to": "pdf"
     },
     {
-     "edge": "lo_pdf_import_pptx",
-     "engine": "libreoffice",
+     "edge": "pdf_extract",
+     "engine": "pymupdf",
      "from": "pdf",
+     "to": "docmodel"
+    },
+    {
+     "edge": "docmodel_pptx",
+     "engine": "python",
+     "from": "docmodel",
      "to": "pptx"
     }
    ],
@@ -4496,11 +4551,13 @@
     {
      "feature": "footnotes",
      "level": "reduced"
+    },
+    {
+     "feature": "attachments",
+     "level": "lost"
     }
    ],
-   "stepLosses": [
-    "Text split into per-line boxes"
-   ]
+   "stepLosses": []
   },
   {
    "source": "docx",
@@ -5361,6 +5418,7 @@
    "chain": [
     "doc",
     "pdf",
+    "docmodel",
     "pptx"
    ],
    "steps": [
@@ -5371,9 +5429,15 @@
      "to": "pdf"
     },
     {
-     "edge": "lo_pdf_import_pptx",
-     "engine": "libreoffice",
+     "edge": "pdf_extract",
+     "engine": "pymupdf",
      "from": "pdf",
+     "to": "docmodel"
+    },
+    {
+     "edge": "docmodel_pptx",
+     "engine": "python",
+     "from": "docmodel",
      "to": "pptx"
     }
    ],
@@ -5399,11 +5463,13 @@
     {
      "feature": "footnotes",
      "level": "reduced"
+    },
+    {
+     "feature": "attachments",
+     "level": "lost"
     }
    ],
-   "stepLosses": [
-    "Text split into per-line boxes"
-   ]
+   "stepLosses": []
   },
   {
    "source": "doc",
@@ -6241,6 +6307,7 @@
    "chain": [
     "xlsx",
     "pdf",
+    "docmodel",
     "pptx"
    ],
    "steps": [
@@ -6251,9 +6318,15 @@
      "to": "pdf"
     },
     {
-     "edge": "lo_pdf_import_pptx",
-     "engine": "libreoffice",
+     "edge": "pdf_extract",
+     "engine": "pymupdf",
      "from": "pdf",
+     "to": "docmodel"
+    },
+    {
+     "edge": "docmodel_pptx",
+     "engine": "python",
+     "from": "docmodel",
      "to": "pptx"
     }
    ],
@@ -6275,11 +6348,13 @@
     {
      "feature": "number_formats",
      "level": "reduced"
+    },
+    {
+     "feature": "attachments",
+     "level": "lost"
     }
    ],
-   "stepLosses": [
-    "Text split into per-line boxes"
-   ]
+   "stepLosses": []
   },
   {
    "source": "xlsx",
@@ -7140,6 +7215,7 @@
    "chain": [
     "xls",
     "pdf",
+    "docmodel",
     "pptx"
    ],
    "steps": [
@@ -7150,9 +7226,15 @@
      "to": "pdf"
     },
     {
-     "edge": "lo_pdf_import_pptx",
-     "engine": "libreoffice",
+     "edge": "pdf_extract",
+     "engine": "pymupdf",
      "from": "pdf",
+     "to": "docmodel"
+    },
+    {
+     "edge": "docmodel_pptx",
+     "engine": "python",
+     "from": "docmodel",
      "to": "pptx"
     }
    ],
@@ -7174,11 +7256,13 @@
     {
      "feature": "number_formats",
      "level": "reduced"
+    },
+    {
+     "feature": "attachments",
+     "level": "lost"
     }
    ],
-   "stepLosses": [
-    "Text split into per-line boxes"
-   ]
+   "stepLosses": []
   },
   {
    "source": "xls",
@@ -9761,6 +9845,7 @@
    "chain": [
     "html",
     "pdf",
+    "docmodel",
     "pptx"
    ],
    "steps": [
@@ -9771,9 +9856,15 @@
      "to": "pdf"
     },
     {
-     "edge": "lo_pdf_import_pptx",
-     "engine": "libreoffice",
+     "edge": "pdf_extract",
+     "engine": "pymupdf",
      "from": "pdf",
+     "to": "docmodel"
+    },
+    {
+     "edge": "docmodel_pptx",
+     "engine": "python",
+     "from": "docmodel",
      "to": "pptx"
     }
    ],
@@ -9797,9 +9888,7 @@
      "level": "reduced"
     }
    ],
-   "stepLosses": [
-    "Text split into per-line boxes"
-   ]
+   "stepLosses": []
   },
   {
    "source": "html",
@@ -11191,6 +11280,7 @@
     "epub",
     "html",
     "pdf",
+    "docmodel",
     "pptx"
    ],
    "steps": [
@@ -11207,9 +11297,15 @@
      "to": "pdf"
     },
     {
-     "edge": "lo_pdf_import_pptx",
-     "engine": "libreoffice",
+     "edge": "pdf_extract",
+     "engine": "pymupdf",
      "from": "pdf",
+     "to": "docmodel"
+    },
+    {
+     "edge": "docmodel_pptx",
+     "engine": "python",
+     "from": "docmodel",
      "to": "pptx"
     }
    ],
@@ -11241,9 +11337,7 @@
      "level": "reduced"
     }
    ],
-   "stepLosses": [
-    "Text split into per-line boxes"
-   ]
+   "stepLosses": []
   },
   {
    "source": "epub",
@@ -13125,18 +13219,32 @@
    "mode": "editable",
    "chain": [
     "svg",
+    "pdf",
+    "docmodel",
     "pptx"
    ],
    "steps": [
     {
-     "edge": "svg_pptx_shapes",
-     "engine": "libreoffice",
+     "edge": "chromium_pdf",
+     "engine": "chromium",
      "from": "svg",
+     "to": "pdf"
+    },
+    {
+     "edge": "pdf_extract",
+     "engine": "pymupdf",
+     "from": "pdf",
+     "to": "docmodel"
+    },
+    {
+     "edge": "docmodel_pptx",
+     "engine": "python",
+     "from": "docmodel",
      "to": "pptx"
     }
    ],
-   "cost": 1.5,
-   "override": null,
+   "cost": 2.5,
+   "override": "Pandoc drops inline SVG, so SVG > HTML > PPTX would lose the drawing; going through PDF rebuilds it as native shapes and text boxes.",
    "potentialLosses": [],
    "stepLosses": []
   },

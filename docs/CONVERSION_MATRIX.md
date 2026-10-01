@@ -40,23 +40,23 @@ Number of steps per route: `exact / editable`, or one number when the target has
 
 | Source \ Target | PDF | PDF/A-1b | PDF/A-2b | PDF/A-3b | DOCX | XLSX | PPTX | HTML | TXT | EPUB | PNG | JPEG | SVG |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **PDF** | · | 1 | 1 | 1 | 1 / 1 | 2 / 2 | 1 / 2 | 1 / 2 | 1 | 1 / 3 | 1 | 1 | 1 / 1 |
+| **PDF** | · | 1 | 1 | 1 | 2 / 1 | 2 / 2 | 2 / 2 | 1 / 2 | 1 | 1 / 3 | 1 | 1 | 1 / 1 |
 | **Scanned PDF** | 1 | 1 | 1 | 1 | 2 / 2ᵒ | 2 / 2ᵒ | 2 / 2ᵒ | 2 / 2ᵒ | 2ᵒ | 2 / 3ᵒ | 1 | 1 | 1 / 2ᵒ |
-| **PDF/A-1b** | 1 | · | 1 | 1 | 2 / 2 | 3 / 3 | 2 / 3 | 2 / 3 | 2 | 2 / 4 | 2 | 2 | 2 / 2 |
-| **PDF/A-2b** | 1 | 2 | · | 1 | 2 / 2 | 3 / 3 | 2 / 3 | 2 / 3 | 2 | 2 / 4 | 2 | 2 | 2 / 2 |
-| **PDF/A-3b** | 1 | 2 | 2 | · | 2 / 2 | 3 / 3 | 2 / 3 | 2 / 3 | 2 | 2 / 4 | 2 | 2 | 2 / 2 |
-| **DOCX** | 1 | 1 | 1 | 1 | · | 1 / 1 | 2 / 1 | 2 / 1 | 1 | 2 / 1 | 2 | 2 | 2 / 2 |
-| **DOC** | 1 | 1 | 1 | 1 | 1 / 1 | 2 / 2 | 2 / 2 | 2 / 2 | 2 | 2 / 2 | 2 | 2 | 2 / 2 |
-| **XLSX** | 1 | 1 | 1 | 1 | 2 / 1 | · | 2 / 1 | 1 / 1 | 1 | 2 / 2 | 2 | 2 | 2 / 2 |
-| **XLS** | 1 | 1 | 1 | 1 | 2 / 2 | 1 / 1 | 2 / 2 | 1 / 2 | 2 | 2 / 3 | 2 | 2 | 2 / 2 |
+| **PDF/A-1b** | 1 | · | 1 | 1 | 3 / 2 | 3 / 3 | 3 / 3 | 2 / 3 | 2 | 2 / 4 | 2 | 2 | 2 / 2 |
+| **PDF/A-2b** | 1 | 2 | · | 1 | 3 / 2 | 3 / 3 | 3 / 3 | 2 / 3 | 2 | 2 / 4 | 2 | 2 | 2 / 2 |
+| **PDF/A-3b** | 1 | 2 | 2 | · | 3 / 2 | 3 / 3 | 3 / 3 | 2 / 3 | 2 | 2 / 4 | 2 | 2 | 2 / 2 |
+| **DOCX** | 1 | 1 | 1 | 1 | · | 1 / 1 | 3 / 1 | 2 / 1 | 1 | 2 / 1 | 2 | 2 | 2 / 2 |
+| **DOC** | 1 | 1 | 1 | 1 | 1 / 1 | 2 / 2 | 3 / 2 | 2 / 2 | 2 | 2 / 2 | 2 | 2 | 2 / 2 |
+| **XLSX** | 1 | 1 | 1 | 1 | 2 / 1 | · | 3 / 1 | 1 / 1 | 1 | 2 / 2 | 2 | 2 | 2 / 2 |
+| **XLS** | 1 | 1 | 1 | 1 | 2 / 2 | 1 / 1 | 3 / 2 | 1 / 2 | 2 | 2 / 3 | 2 | 2 | 2 / 2 |
 | **PPTX** | 1 | 1 | 1 | 1 | 1 / 1 | 1 / 1 | · | 1 / 1 | 1 | 2 / 2 | 2 | 2 | 2 / 2 |
 | **PPT** | 1 | 1 | 1 | 1 | 2 / 2 | 2 / 2 | 1 / 1 | 2 / 2 | 2 | 2 / 3 | 2 | 2 | 2 / 2 |
-| **HTML** | 1 | 2 | 2 | 2 | 1 / 1 | 1 / 1 | 2 / 1 | · | 1 | 2 / 1 | 2 | 2 | 2 / 2 |
+| **HTML** | 1 | 2 | 2 | 2 | 1 / 1 | 1 / 1 | 3 / 1 | · | 1 | 2 / 1 | 2 | 2 | 2 / 2 |
 | **TXT** | 2 | 3 | 3 | 3 | 1 / 1 | 1 / 1 | 1 / 1 | 1 / 1 | · | 3 / 2 | 3 | 3 | 3 / 3 |
-| **EPUB** | 2 | 3 | 3 | 3 | 2 / 1 | 2 / 2 | 3 / 1 | 1 / 1 | 1 | · | 3 | 3 | 3 / 3 |
+| **EPUB** | 2 | 3 | 3 | 3 | 2 / 1 | 2 / 2 | 4 / 1 | 1 / 1 | 1 | · | 3 | 3 | 3 / 3 |
 | **PNG** | 2 | 2 | 2 | 2 | 2 / 2ᵒ | 2 / 2ᵒ | 2 / 2ᵒ | 2 / 2ᵒ | 2ᵒ | 2 / 3ᵒ | · | 1 | 1 / 2ᵒ |
 | **JPEG** | 2 | 2 | 2 | 2 | 2 / 2ᵒ | 2 / 2ᵒ | 2 / 2ᵒ | 2 / 2ᵒ | 2ᵒ | 2 / 3ᵒ | 1 | · | 1 / 2ᵒ |
-| **SVG** | 1 | 2 | 2 | 2 | 1 / 1 | 3 / 3* | 1 / 1 | 1 / 1 | 1 | 2 / 2 | 1 | 2 | · |
+| **SVG** | 1 | 2 | 2 | 2 | 1 / 1 | 3 / 3* | 1 / 3* | 1 / 1 | 1 | 2 / 2 | 1 | 2 | · |
 
 ## Routes by source format
 
@@ -67,11 +67,11 @@ Number of steps per route: `exact / editable`, or one number when the target has
 | PDF/A-1b | — | PDF → PDF/A-1b<br><sub>[`gs_pdfa`](#e-gs_pdfa) (Ghostscript)</sub> | **Lost:** Attachments · Encryption, JavaScript and non-print actions removed (not allowed in PDF/A) · Fonts not embedded in the source are substituted (listed in report) · Transparency flattened · Layers (optional content) merged |
 | PDF/A-2b | — | PDF → PDF/A-2b<br><sub>[`gs_pdfa`](#e-gs_pdfa) (Ghostscript)</sub> | **Partial:** Attachments · Encryption, JavaScript and non-print actions removed (not allowed in PDF/A) · Fonts not embedded in the source are substituted (listed in report) |
 | PDF/A-3b | — | PDF → PDF/A-3b<br><sub>[`gs_pdfa`](#e-gs_pdfa) (Ghostscript)</sub> | Encryption, JavaScript and non-print actions removed (not allowed in PDF/A) · Fonts not embedded in the source are substituted (listed in report) |
-| DOCX | exact | PDF → DOCX<br><sub>[`lo_pdf_import_docx`](#e-lo_pdf_import_docx) (LibreOffice)</sub> | **Partial:** Fonts, Vector graphics, Attachments · Paragraphs split into per-line frames (appearance kept, editing awkward) |
+| DOCX | exact | PDF → docmodel → DOCX<br><sub>[`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_docx_exact`](#e-docmodel_docx_exact) (Toolkit)</sub> | **Lost:** Attachments · **Partial:** Fonts, Vector graphics |
 | DOCX | editable | PDF → DOCX<br><sub>[`pdf2docx`](#e-pdf2docx) (pdf2docx)</sub> | **Partial:** Fonts, Vector graphics, Attachments · Headers/footers become body text · Complex vector art embedded as pictures |
 | XLSX | exact | PDF → docmodel → XLSX<br><sub>[`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_xlsx`](#e-docmodel_xlsx) (Toolkit)</sub> | **Lost:** Bookmarks/TOC, Attachments · **Partial:** Fonts, Images, Vector graphics |
 | XLSX | editable | PDF → docmodel → XLSX<br><sub>[`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_xlsx`](#e-docmodel_xlsx) (Toolkit)</sub> | **Lost:** Bookmarks/TOC, Attachments · **Partial:** Fonts, Images, Vector graphics |
-| PPTX | exact | PDF → PPTX<br><sub>[`lo_pdf_import_pptx`](#e-lo_pdf_import_pptx) (LibreOffice)</sub> | **Partial:** Fonts, Bookmarks/TOC, Attachments · Text split into per-line boxes |
+| PPTX | exact | PDF → docmodel → PPTX<br><sub>[`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_pptx`](#e-docmodel_pptx) (Toolkit)</sub> | **Lost:** Attachments · **Partial:** Fonts, Bookmarks/TOC |
 | PPTX | editable | PDF → docmodel → PPTX<br><sub>[`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_pptx`](#e-docmodel_pptx) (Toolkit)</sub> | **Lost:** Attachments · **Partial:** Fonts, Bookmarks/TOC |
 | HTML | exact | PDF → HTML<br><sub>[`pdf_html_pages`](#e-pdf_html_pages) (PyMuPDF)</sub> | **Lost:** Headers/footers, Attachments · **Partial:** Fonts, Metadata |
 | HTML | editable | PDF → docmodel → HTML<br><sub>[`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_html`](#e-docmodel_html) (Toolkit)</sub> | **Lost:** Headers/footers, Attachments · **Partial:** Fonts, Metadata |
@@ -116,11 +116,11 @@ Number of steps per route: `exact / editable`, or one number when the target has
 | PDF | — | PDF/A-1b → PDF<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf)</sub> | None expected |
 | PDF/A-2b | — | PDF/A-1b → PDF/A-2b<br><sub>[`pdfa_upgrade`](#e-pdfa_upgrade) (pikepdf)</sub> | None expected |
 | PDF/A-3b | — | PDF/A-1b → PDF/A-3b<br><sub>[`pdfa_upgrade`](#e-pdfa_upgrade) (pikepdf)</sub> | None expected |
-| DOCX | exact | PDF/A-1b → PDF → DOCX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`lo_pdf_import_docx`](#e-lo_pdf_import_docx) (LibreOffice)</sub> | **Partial:** Fonts, Vector graphics · Paragraphs split into per-line frames (appearance kept, editing awkward) |
+| DOCX | exact | PDF/A-1b → PDF → docmodel → DOCX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_docx_exact`](#e-docmodel_docx_exact) (Toolkit)</sub> | **Partial:** Fonts, Vector graphics |
 | DOCX | editable | PDF/A-1b → PDF → DOCX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf2docx`](#e-pdf2docx) (pdf2docx)</sub> | **Partial:** Fonts, Vector graphics · Headers/footers become body text · Complex vector art embedded as pictures |
 | XLSX | exact | PDF/A-1b → PDF → docmodel → XLSX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_xlsx`](#e-docmodel_xlsx) (Toolkit)</sub> | **Lost:** Bookmarks/TOC · **Partial:** Fonts, Images, Vector graphics |
 | XLSX | editable | PDF/A-1b → PDF → docmodel → XLSX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_xlsx`](#e-docmodel_xlsx) (Toolkit)</sub> | **Lost:** Bookmarks/TOC · **Partial:** Fonts, Images, Vector graphics |
-| PPTX | exact | PDF/A-1b → PDF → PPTX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`lo_pdf_import_pptx`](#e-lo_pdf_import_pptx) (LibreOffice)</sub> | **Partial:** Fonts, Bookmarks/TOC · Text split into per-line boxes |
+| PPTX | exact | PDF/A-1b → PDF → docmodel → PPTX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_pptx`](#e-docmodel_pptx) (Toolkit)</sub> | **Partial:** Fonts, Bookmarks/TOC |
 | PPTX | editable | PDF/A-1b → PDF → docmodel → PPTX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_pptx`](#e-docmodel_pptx) (Toolkit)</sub> | **Partial:** Fonts, Bookmarks/TOC |
 | HTML | exact | PDF/A-1b → PDF → HTML<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf_html_pages`](#e-pdf_html_pages) (PyMuPDF)</sub> | **Lost:** Headers/footers · **Partial:** Fonts, Metadata |
 | HTML | editable | PDF/A-1b → PDF → docmodel → HTML<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_html`](#e-docmodel_html) (Toolkit)</sub> | **Lost:** Headers/footers · **Partial:** Fonts, Metadata |
@@ -139,11 +139,11 @@ Number of steps per route: `exact / editable`, or one number when the target has
 | PDF | — | PDF/A-2b → PDF<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf)</sub> | None expected |
 | PDF/A-1b | — | PDF/A-2b → PDF → PDF/A-1b<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`gs_pdfa`](#e-gs_pdfa) (Ghostscript)</sub> | **Lost:** Attachments · Encryption, JavaScript and non-print actions removed (not allowed in PDF/A) · Fonts not embedded in the source are substituted (listed in report) · Transparency flattened · Layers (optional content) merged |
 | PDF/A-3b | — | PDF/A-2b → PDF/A-3b<br><sub>[`pdfa_upgrade`](#e-pdfa_upgrade) (pikepdf)</sub> | None expected |
-| DOCX | exact | PDF/A-2b → PDF → DOCX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`lo_pdf_import_docx`](#e-lo_pdf_import_docx) (LibreOffice)</sub> | **Partial:** Fonts, Vector graphics · Paragraphs split into per-line frames (appearance kept, editing awkward) |
+| DOCX | exact | PDF/A-2b → PDF → docmodel → DOCX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_docx_exact`](#e-docmodel_docx_exact) (Toolkit)</sub> | **Lost:** Attachments · **Partial:** Fonts, Vector graphics |
 | DOCX | editable | PDF/A-2b → PDF → DOCX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf2docx`](#e-pdf2docx) (pdf2docx)</sub> | **Partial:** Fonts, Vector graphics · Headers/footers become body text · Complex vector art embedded as pictures |
 | XLSX | exact | PDF/A-2b → PDF → docmodel → XLSX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_xlsx`](#e-docmodel_xlsx) (Toolkit)</sub> | **Lost:** Bookmarks/TOC, Attachments · **Partial:** Fonts, Images, Vector graphics |
 | XLSX | editable | PDF/A-2b → PDF → docmodel → XLSX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_xlsx`](#e-docmodel_xlsx) (Toolkit)</sub> | **Lost:** Bookmarks/TOC, Attachments · **Partial:** Fonts, Images, Vector graphics |
-| PPTX | exact | PDF/A-2b → PDF → PPTX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`lo_pdf_import_pptx`](#e-lo_pdf_import_pptx) (LibreOffice)</sub> | **Partial:** Fonts, Bookmarks/TOC · Text split into per-line boxes |
+| PPTX | exact | PDF/A-2b → PDF → docmodel → PPTX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_pptx`](#e-docmodel_pptx) (Toolkit)</sub> | **Lost:** Attachments · **Partial:** Fonts, Bookmarks/TOC |
 | PPTX | editable | PDF/A-2b → PDF → docmodel → PPTX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_pptx`](#e-docmodel_pptx) (Toolkit)</sub> | **Lost:** Attachments · **Partial:** Fonts, Bookmarks/TOC |
 | HTML | exact | PDF/A-2b → PDF → HTML<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf_html_pages`](#e-pdf_html_pages) (PyMuPDF)</sub> | **Lost:** Headers/footers, Attachments · **Partial:** Fonts, Metadata |
 | HTML | editable | PDF/A-2b → PDF → docmodel → HTML<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_html`](#e-docmodel_html) (Toolkit)</sub> | **Lost:** Headers/footers, Attachments · **Partial:** Fonts, Metadata |
@@ -162,11 +162,11 @@ Number of steps per route: `exact / editable`, or one number when the target has
 | PDF | — | PDF/A-3b → PDF<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf)</sub> | None expected |
 | PDF/A-1b | — | PDF/A-3b → PDF → PDF/A-1b<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`gs_pdfa`](#e-gs_pdfa) (Ghostscript)</sub> | **Lost:** Attachments · Encryption, JavaScript and non-print actions removed (not allowed in PDF/A) · Fonts not embedded in the source are substituted (listed in report) · Transparency flattened · Layers (optional content) merged |
 | PDF/A-2b | — | PDF/A-3b → PDF → PDF/A-2b<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`gs_pdfa`](#e-gs_pdfa) (Ghostscript)</sub> | **Partial:** Attachments · Encryption, JavaScript and non-print actions removed (not allowed in PDF/A) · Fonts not embedded in the source are substituted (listed in report) |
-| DOCX | exact | PDF/A-3b → PDF → DOCX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`lo_pdf_import_docx`](#e-lo_pdf_import_docx) (LibreOffice)</sub> | **Partial:** Fonts, Vector graphics, Attachments · Paragraphs split into per-line frames (appearance kept, editing awkward) |
+| DOCX | exact | PDF/A-3b → PDF → docmodel → DOCX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_docx_exact`](#e-docmodel_docx_exact) (Toolkit)</sub> | **Lost:** Attachments · **Partial:** Fonts, Vector graphics |
 | DOCX | editable | PDF/A-3b → PDF → DOCX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf2docx`](#e-pdf2docx) (pdf2docx)</sub> | **Partial:** Fonts, Vector graphics, Attachments · Headers/footers become body text · Complex vector art embedded as pictures |
 | XLSX | exact | PDF/A-3b → PDF → docmodel → XLSX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_xlsx`](#e-docmodel_xlsx) (Toolkit)</sub> | **Lost:** Bookmarks/TOC, Attachments · **Partial:** Fonts, Images, Vector graphics |
 | XLSX | editable | PDF/A-3b → PDF → docmodel → XLSX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_xlsx`](#e-docmodel_xlsx) (Toolkit)</sub> | **Lost:** Bookmarks/TOC, Attachments · **Partial:** Fonts, Images, Vector graphics |
-| PPTX | exact | PDF/A-3b → PDF → PPTX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`lo_pdf_import_pptx`](#e-lo_pdf_import_pptx) (LibreOffice)</sub> | **Partial:** Fonts, Bookmarks/TOC, Attachments · Text split into per-line boxes |
+| PPTX | exact | PDF/A-3b → PDF → docmodel → PPTX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_pptx`](#e-docmodel_pptx) (Toolkit)</sub> | **Lost:** Attachments · **Partial:** Fonts, Bookmarks/TOC |
 | PPTX | editable | PDF/A-3b → PDF → docmodel → PPTX<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_pptx`](#e-docmodel_pptx) (Toolkit)</sub> | **Lost:** Attachments · **Partial:** Fonts, Bookmarks/TOC |
 | HTML | exact | PDF/A-3b → PDF → HTML<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf_html_pages`](#e-pdf_html_pages) (PyMuPDF)</sub> | **Lost:** Headers/footers, Attachments · **Partial:** Fonts, Metadata |
 | HTML | editable | PDF/A-3b → PDF → docmodel → HTML<br><sub>[`pdfa_read`](#e-pdfa_read) (pikepdf), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_html`](#e-docmodel_html) (Toolkit)</sub> | **Lost:** Headers/footers, Attachments · **Partial:** Fonts, Metadata |
@@ -188,7 +188,7 @@ Number of steps per route: `exact / editable`, or one number when the target has
 | PDF/A-3b | — | DOCX → PDF/A-3b<br><sub>[`lo_to_pdfa`](#e-lo_to_pdfa) (LibreOffice)</sub> | **Partial:** Table structure, Merged cells, Headers/footers, Footnotes |
 | XLSX | exact | DOCX → XLSX<br><sub>[`docx_xlsx`](#e-docx_xlsx) (Toolkit)</sub> | **Lost:** Bookmarks/TOC · **Partial:** Images, Headers/footers, Footnotes |
 | XLSX | editable | DOCX → XLSX<br><sub>[`docx_xlsx`](#e-docx_xlsx) (Toolkit)</sub> | **Lost:** Bookmarks/TOC · **Partial:** Images, Headers/footers, Footnotes |
-| PPTX | exact | DOCX → PDF → PPTX<br><sub>[`lo_to_pdf`](#e-lo_to_pdf) (LibreOffice), [`lo_pdf_import_pptx`](#e-lo_pdf_import_pptx) (LibreOffice)</sub> | **Partial:** Table structure, Merged cells, Bookmarks/TOC, Headers/footers, Footnotes · Text split into per-line boxes |
+| PPTX | exact | DOCX → PDF → docmodel → PPTX<br><sub>[`lo_to_pdf`](#e-lo_to_pdf) (LibreOffice), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_pptx`](#e-docmodel_pptx) (Toolkit)</sub> | **Lost:** Attachments · **Partial:** Table structure, Merged cells, Bookmarks/TOC, Headers/footers, Footnotes |
 | PPTX | editable | DOCX → PPTX<br><sub>[`pandoc_to_pptx`](#e-pandoc_to_pptx) (Pandoc)</sub> | **Partial:** Bookmarks/TOC, Headers/footers, Footnotes |
 | HTML | exact | DOCX → PDF → HTML<br><sub>[`lo_to_pdf`](#e-lo_to_pdf) (LibreOffice), [`pdf_html_pages`](#e-pdf_html_pages) (PyMuPDF)</sub> | **Lost:** Headers/footers, Attachments · **Partial:** Table structure, Merged cells, Footnotes, Metadata |
 | HTML | editable | DOCX → HTML<br><sub>[`pandoc_to_html`](#e-pandoc_to_html) (Pandoc)</sub> | **Lost:** Headers/footers, Attachments · **Partial:** Footnotes, Metadata |
@@ -212,7 +212,7 @@ Number of steps per route: `exact / editable`, or one number when the target has
 | DOCX | editable | DOC → DOCX<br><sub>[`legacy_to_ooxml`](#e-legacy_to_ooxml) (LibreOffice)</sub> | VBA macros are not carried into macro-free .docx/.xlsx/.pptx (listed in report) |
 | XLSX | exact | DOC → DOCX → XLSX<br><sub>[`legacy_to_ooxml`](#e-legacy_to_ooxml) (LibreOffice), [`docx_xlsx`](#e-docx_xlsx) (Toolkit)</sub> | **Lost:** Bookmarks/TOC · **Partial:** Images, Headers/footers, Footnotes · VBA macros are not carried into macro-free .docx/.xlsx/.pptx (listed in report) |
 | XLSX | editable | DOC → DOCX → XLSX<br><sub>[`legacy_to_ooxml`](#e-legacy_to_ooxml) (LibreOffice), [`docx_xlsx`](#e-docx_xlsx) (Toolkit)</sub> | **Lost:** Bookmarks/TOC · **Partial:** Images, Headers/footers, Footnotes · VBA macros are not carried into macro-free .docx/.xlsx/.pptx (listed in report) |
-| PPTX | exact | DOC → PDF → PPTX<br><sub>[`lo_to_pdf`](#e-lo_to_pdf) (LibreOffice), [`lo_pdf_import_pptx`](#e-lo_pdf_import_pptx) (LibreOffice)</sub> | **Partial:** Table structure, Merged cells, Bookmarks/TOC, Headers/footers, Footnotes · Text split into per-line boxes |
+| PPTX | exact | DOC → PDF → docmodel → PPTX<br><sub>[`lo_to_pdf`](#e-lo_to_pdf) (LibreOffice), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_pptx`](#e-docmodel_pptx) (Toolkit)</sub> | **Lost:** Attachments · **Partial:** Table structure, Merged cells, Bookmarks/TOC, Headers/footers, Footnotes |
 | PPTX | editable | DOC → DOCX → PPTX<br><sub>[`legacy_to_ooxml`](#e-legacy_to_ooxml) (LibreOffice), [`pandoc_to_pptx`](#e-pandoc_to_pptx) (Pandoc)</sub> | **Partial:** Bookmarks/TOC, Headers/footers, Footnotes · VBA macros are not carried into macro-free .docx/.xlsx/.pptx (listed in report) |
 | HTML | exact | DOC → PDF → HTML<br><sub>[`lo_to_pdf`](#e-lo_to_pdf) (LibreOffice), [`pdf_html_pages`](#e-pdf_html_pages) (PyMuPDF)</sub> | **Lost:** Headers/footers, Attachments · **Partial:** Table structure, Merged cells, Footnotes, Metadata |
 | HTML | editable | DOC → DOCX → HTML<br><sub>[`legacy_to_ooxml`](#e-legacy_to_ooxml) (LibreOffice), [`pandoc_to_html`](#e-pandoc_to_html) (Pandoc)</sub> | **Lost:** Headers/footers, Attachments · **Partial:** Footnotes, Metadata · VBA macros are not carried into macro-free .docx/.xlsx/.pptx (listed in report) |
@@ -234,7 +234,7 @@ Number of steps per route: `exact / editable`, or one number when the target has
 | PDF/A-3b | — | XLSX → PDF/A-3b<br><sub>[`lo_to_pdfa`](#e-lo_to_pdfa) (LibreOffice)</sub> | **Lost:** Formulas · **Partial:** Table structure, Merged cells, Number formats |
 | DOCX | exact | XLSX → HTML → DOCX<br><sub>[`lo_calc_html`](#e-lo_calc_html) (LibreOffice), [`html_docx_lo`](#e-html_docx_lo) (LibreOffice)</sub> | **Lost:** Formulas, Headers/footers, Attachments · **Partial:** Number formats, Metadata · CSS flex/grid layout approximated (Word has no equivalent) |
 | DOCX | editable | XLSX → DOCX<br><sub>[`xlsx_docx`](#e-xlsx_docx) (Toolkit)</sub> | **Lost:** Formulas · **Partial:** Number formats |
-| PPTX | exact | XLSX → PDF → PPTX<br><sub>[`lo_to_pdf`](#e-lo_to_pdf) (LibreOffice), [`lo_pdf_import_pptx`](#e-lo_pdf_import_pptx) (LibreOffice)</sub> | **Lost:** Formulas · **Partial:** Table structure, Merged cells, Number formats · Text split into per-line boxes |
+| PPTX | exact | XLSX → PDF → docmodel → PPTX<br><sub>[`lo_to_pdf`](#e-lo_to_pdf) (LibreOffice), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_pptx`](#e-docmodel_pptx) (Toolkit)</sub> | **Lost:** Formulas, Attachments · **Partial:** Table structure, Merged cells, Number formats |
 | PPTX | editable | XLSX → PPTX<br><sub>[`xlsx_pptx`](#e-xlsx_pptx) (Toolkit)</sub> | **Lost:** Formulas · **Partial:** Number formats |
 | HTML | exact | XLSX → HTML<br><sub>[`lo_calc_html`](#e-lo_calc_html) (LibreOffice)</sub> | **Lost:** Headers/footers, Attachments · **Partial:** Formulas, Number formats, Metadata |
 | HTML | editable | XLSX → HTML<br><sub>[`xlsx_html_semantic`](#e-xlsx_html_semantic) (Toolkit)</sub> | **Lost:** Headers/footers, Attachments · **Partial:** Formulas, Number formats, Metadata |
@@ -258,7 +258,7 @@ Number of steps per route: `exact / editable`, or one number when the target has
 | DOCX | editable | XLS → XLSX → DOCX<br><sub>[`legacy_to_ooxml`](#e-legacy_to_ooxml) (LibreOffice), [`xlsx_docx`](#e-xlsx_docx) (Toolkit)</sub> | **Lost:** Formulas · **Partial:** Number formats · VBA macros are not carried into macro-free .docx/.xlsx/.pptx (listed in report) |
 | XLSX | exact | XLS → XLSX<br><sub>[`legacy_to_ooxml`](#e-legacy_to_ooxml) (LibreOffice)</sub> | VBA macros are not carried into macro-free .docx/.xlsx/.pptx (listed in report) |
 | XLSX | editable | XLS → XLSX<br><sub>[`legacy_to_ooxml`](#e-legacy_to_ooxml) (LibreOffice)</sub> | VBA macros are not carried into macro-free .docx/.xlsx/.pptx (listed in report) |
-| PPTX | exact | XLS → PDF → PPTX<br><sub>[`lo_to_pdf`](#e-lo_to_pdf) (LibreOffice), [`lo_pdf_import_pptx`](#e-lo_pdf_import_pptx) (LibreOffice)</sub> | **Lost:** Formulas · **Partial:** Table structure, Merged cells, Number formats · Text split into per-line boxes |
+| PPTX | exact | XLS → PDF → docmodel → PPTX<br><sub>[`lo_to_pdf`](#e-lo_to_pdf) (LibreOffice), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_pptx`](#e-docmodel_pptx) (Toolkit)</sub> | **Lost:** Formulas, Attachments · **Partial:** Table structure, Merged cells, Number formats |
 | PPTX | editable | XLS → XLSX → PPTX<br><sub>[`legacy_to_ooxml`](#e-legacy_to_ooxml) (LibreOffice), [`xlsx_pptx`](#e-xlsx_pptx) (Toolkit)</sub> | **Lost:** Formulas · **Partial:** Number formats · VBA macros are not carried into macro-free .docx/.xlsx/.pptx (listed in report) |
 | HTML | exact | XLS → HTML<br><sub>[`lo_calc_html`](#e-lo_calc_html) (LibreOffice)</sub> | **Lost:** Headers/footers, Attachments · **Partial:** Formulas, Number formats, Metadata |
 | HTML | editable | XLS → XLSX → HTML<br><sub>[`legacy_to_ooxml`](#e-legacy_to_ooxml) (LibreOffice), [`xlsx_html_semantic`](#e-xlsx_html_semantic) (Toolkit)</sub> | **Lost:** Headers/footers, Attachments · **Partial:** Formulas, Number formats, Metadata · VBA macros are not carried into macro-free .docx/.xlsx/.pptx (listed in report) |
@@ -328,7 +328,7 @@ Number of steps per route: `exact / editable`, or one number when the target has
 | DOCX | editable | HTML → DOCX<br><sub>[`html_docx_pandoc`](#e-html_docx_pandoc) (Pandoc)</sub> | **Lost:** Formulas · **Partial:** Vector graphics |
 | XLSX | exact | HTML → XLSX<br><sub>[`html_xlsx`](#e-html_xlsx) (Toolkit)</sub> | **Lost:** Bookmarks/TOC · **Partial:** Images, Vector graphics |
 | XLSX | editable | HTML → XLSX<br><sub>[`html_xlsx`](#e-html_xlsx) (Toolkit)</sub> | **Lost:** Bookmarks/TOC · **Partial:** Images, Vector graphics |
-| PPTX | exact | HTML → PDF → PPTX<br><sub>[`chromium_pdf`](#e-chromium_pdf) (Chromium), [`lo_pdf_import_pptx`](#e-lo_pdf_import_pptx) (LibreOffice)</sub> | **Lost:** Formulas · **Partial:** Table structure, Merged cells, Bookmarks/TOC · Text split into per-line boxes |
+| PPTX | exact | HTML → PDF → docmodel → PPTX<br><sub>[`chromium_pdf`](#e-chromium_pdf) (Chromium), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_pptx`](#e-docmodel_pptx) (Toolkit)</sub> | **Lost:** Formulas · **Partial:** Table structure, Merged cells, Bookmarks/TOC |
 | PPTX | editable | HTML → PPTX<br><sub>[`pandoc_to_pptx`](#e-pandoc_to_pptx) (Pandoc)</sub> | **Lost:** Formulas · **Partial:** Bookmarks/TOC |
 | TXT | — | HTML → TXT<br><sub>[`pandoc_plain`](#e-pandoc_plain) (Pandoc)</sub> | **Lost:** Fonts, Images, Vector graphics, Merged cells, Formulas, Bookmarks/TOC, Metadata · **Partial:** Table structure, Hyperlinks |
 | EPUB | exact | HTML → PDF → EPUB<br><sub>[`chromium_pdf`](#e-chromium_pdf) (Chromium), [`pdf_fxl_epub`](#e-pdf_fxl_epub) (Toolkit)</sub> | **Lost:** Formulas · **Partial:** Table structure, Merged cells |
@@ -373,7 +373,7 @@ Number of steps per route: `exact / editable`, or one number when the target has
 | DOCX | editable | EPUB → DOCX<br><sub>[`pandoc_to_docx`](#e-pandoc_to_docx) (Pandoc)</sub> | **Partial:** Fonts, Vector graphics |
 | XLSX | exact | EPUB → HTML → XLSX<br><sub>[`epub_html_join`](#e-epub_html_join) (Toolkit), [`html_xlsx`](#e-html_xlsx) (Toolkit)</sub> | **Lost:** Bookmarks/TOC · **Partial:** Fonts, Images, Vector graphics, Footnotes, Metadata |
 | XLSX | editable | EPUB → HTML → XLSX<br><sub>[`epub_html_join`](#e-epub_html_join) (Toolkit), [`html_xlsx`](#e-html_xlsx) (Toolkit)</sub> | **Lost:** Bookmarks/TOC · **Partial:** Fonts, Images, Vector graphics, Footnotes, Metadata |
-| PPTX | exact | EPUB → HTML → PDF → PPTX<br><sub>[`epub_html_join`](#e-epub_html_join) (Toolkit), [`chromium_pdf`](#e-chromium_pdf) (Chromium), [`lo_pdf_import_pptx`](#e-lo_pdf_import_pptx) (LibreOffice)</sub> | **Partial:** Fonts, Table structure, Merged cells, Bookmarks/TOC, Footnotes, Metadata · Text split into per-line boxes |
+| PPTX | exact | EPUB → HTML → PDF → docmodel → PPTX<br><sub>[`epub_html_join`](#e-epub_html_join) (Toolkit), [`chromium_pdf`](#e-chromium_pdf) (Chromium), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_pptx`](#e-docmodel_pptx) (Toolkit)</sub> | **Partial:** Fonts, Table structure, Merged cells, Bookmarks/TOC, Footnotes, Metadata |
 | PPTX | editable | EPUB → PPTX<br><sub>[`pandoc_to_pptx`](#e-pandoc_to_pptx) (Pandoc)</sub> | **Partial:** Fonts, Bookmarks/TOC, Footnotes |
 | HTML | exact | EPUB → HTML<br><sub>[`epub_html_join`](#e-epub_html_join) (Toolkit)</sub> | **Partial:** Fonts, Footnotes, Metadata |
 | HTML | editable | EPUB → HTML<br><sub>[`epub_html_join`](#e-epub_html_join) (Toolkit)</sub> | **Partial:** Fonts, Footnotes, Metadata |
@@ -442,7 +442,7 @@ Number of steps per route: `exact / editable`, or one number when the target has
 | XLSX | exact | SVG → PDF → docmodel → XLSX<br><sub>[`chromium_pdf`](#e-chromium_pdf) (Chromium), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_xlsx`](#e-docmodel_xlsx) (Toolkit)</sub><br>*Pinned:* The cheaper SVG > HTML > XLSX chain only reads <table> elements and an inline SVG has none; going through PDF lets table detection work on the drawn grid. | **Partial:** Images, Vector graphics |
 | XLSX | editable | SVG → PDF → docmodel → XLSX<br><sub>[`chromium_pdf`](#e-chromium_pdf) (Chromium), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_xlsx`](#e-docmodel_xlsx) (Toolkit)</sub><br>*Pinned:* The cheaper SVG > HTML > XLSX chain only reads <table> elements and an inline SVG has none; going through PDF lets table detection work on the drawn grid. | **Partial:** Images, Vector graphics |
 | PPTX | exact | SVG → PPTX<br><sub>[`svg_pptx_picture`](#e-svg_pptx_picture) (Toolkit)</sub> | None expected |
-| PPTX | editable | SVG → PPTX<br><sub>[`svg_pptx_shapes`](#e-svg_pptx_shapes) (LibreOffice)</sub> | None expected |
+| PPTX | editable | SVG → PDF → docmodel → PPTX<br><sub>[`chromium_pdf`](#e-chromium_pdf) (Chromium), [`pdf_extract`](#e-pdf_extract) (PyMuPDF), [`docmodel_pptx`](#e-docmodel_pptx) (Toolkit)</sub><br>*Pinned:* Pandoc drops inline SVG, so SVG > HTML > PPTX would lose the drawing; going through PDF rebuilds it as native shapes and text boxes. | None expected |
 | HTML | exact | SVG → HTML<br><sub>[`svg_html`](#e-svg_html) (Toolkit)</sub> | **Lost:** Headers/footers |
 | HTML | editable | SVG → HTML<br><sub>[`svg_html`](#e-svg_html) (Toolkit)</sub> | **Lost:** Headers/footers |
 | TXT | — | SVG → TXT<br><sub>[`svg_txt`](#e-svg_txt) (Toolkit)</sub> | **Lost:** Fonts, Images, Vector graphics, Merged cells, Headers/footers, Metadata · **Partial:** Hyperlinks |
@@ -463,8 +463,6 @@ Number of steps per route: `exact / editable`, or one number when the target has
 | <a id="e-gs_pdfa"></a>`gs_pdfa` | PDF→PDF/A-1b, PDF→PDF/A-2b, PDF→PDF/A-3b, Scanned PDF→PDF/A-1b, Scanned PDF→PDF/A-2b, Scanned PDF→PDF/A-3b | Ghostscript | exact 1 | Ghostscript PDF/A (sRGB output intent, fonts embedded, JPEG pass-through, no downsampling) + pikepdf XMP fix-up; OCRmyPDF does OCR and PDF/A in one pass for scans | Encryption, JavaScript and non-print actions removed (not allowed in PDF/A); Fonts not embedded in the source are substituted (listed in report); Layers (optional content) merged; Transparency flattened |
 | <a id="e-pdfa_upgrade"></a>`pdfa_upgrade` | PDF/A-1b→PDF/A-2b, PDF/A-1b→PDF/A-3b, PDF/A-2b→PDF/A-3b | pikepdf | exact 0.3 | Content untouched: update pdfaid:part in XMP and re-validate with veraPDF; Ghostscript route if validation fails | — |
 | <a id="e-pdf2docx"></a>`pdf2docx` | PDF→DOCX | pdf2docx | editable 1.5 | pdf2docx: rebuilt paragraphs, styles, tables (incl. merged cells) and images; RTL or rotated text switches to the document-model route | Complex vector art embedded as pictures; Headers/footers become body text |
-| <a id="e-lo_pdf_import_docx"></a>`lo_pdf_import_docx` | PDF→DOCX | LibreOffice | exact 1.6 | LibreOffice writer_pdf_import: every line as a positioned frame, drawings as shapes | Paragraphs split into per-line frames (appearance kept, editing awkward) |
-| <a id="e-lo_pdf_import_pptx"></a>`lo_pdf_import_pptx` | PDF→PPTX | LibreOffice | exact 1.5 | LibreOffice impress_pdf_import: one slide per page, positioned text and shapes | Text split into per-line boxes |
 | <a id="e-pdf_extract"></a>`pdf_extract` | PDF→docmodel | PyMuPDF | exact 0.5, editable 0.5 | Extract text spans with styles, images (original streams), drawings, tables, links, outline | — |
 | <a id="e-pdf_text"></a>`pdf_text` | PDF→TXT | PyMuPDF | exact 0.6 | Reading-order text, form feed between pages, ligatures expanded | — |
 | <a id="e-pdf_render"></a>`pdf_render` | PDF→PNG, PDF→JPEG | PyMuPDF | exact 1, editable 1 | Render each page at the chosen DPI (default 300); one image per page, zipped | — |
@@ -483,7 +481,8 @@ Number of steps per route: `exact / editable`, or one number when the target has
 | <a id="e-ocr_txt"></a>`ocr_txt` | ocrmodel→TXT | Toolkit | exact 0.5 | OCR text in reading order | — |
 | <a id="e-ocr_svg_editable"></a>`ocr_svg_editable` | ocrmodel→SVG | Toolkit | editable 1 | Layered SVG: vectorised graphics (vtracer), live <text>, photo layers | — |
 | <a id="e-ocr_fxl_epub"></a>`ocr_fxl_epub` | ocrmodel→EPUB | Toolkit | exact 1.2 | Fixed-layout EPUB 3: page image with invisible OCR text | — |
-| <a id="e-docmodel_pptx"></a>`docmodel_pptx` | docmodel→PPTX | Toolkit | editable 1 | Native text boxes, pictures, tables and shapes at original positions | — |
+| <a id="e-docmodel_pptx"></a>`docmodel_pptx` | docmodel→PPTX | Toolkit | exact 1, editable 1 | One slide per page with native text boxes, pictures, tables and vector shapes at their original positions (exact: a box per line; editable: a box per paragraph) | — |
+| <a id="e-docmodel_docx_exact"></a>`docmodel_docx_exact` | docmodel→DOCX | Toolkit | exact 1.2 | Pages of the original size with positioned text boxes, pictures and shapes | — |
 | <a id="e-docmodel_xlsx"></a>`docmodel_xlsx` | docmodel→XLSX | Toolkit | exact 1, editable 1 | Tables to sheets (merged cells, conservative number typing: '001234' stays text), other text to a 'Text' sheet | — |
 | <a id="e-docmodel_html"></a>`docmodel_html` | docmodel→HTML | Toolkit | editable 1 | Semantic HTML: headings from font statistics, lists, tables, images, links | — |
 | <a id="e-docmodel_docx"></a>`docmodel_docx` | docmodel→DOCX | Toolkit | editable 2 | Fallback for right-to-left or rotated text: reflowed DOCX with bidi paragraphs | — |
@@ -520,5 +519,4 @@ Number of steps per route: `exact / editable`, or one number when the target has
 | <a id="e-svg_html"></a>`svg_html` | SVG→HTML | Toolkit | exact 0.5, editable 0.5 | SVG inlined in an HTML page (text stays text) | — |
 | <a id="e-svg_txt"></a>`svg_txt` | SVG→TXT | Toolkit | exact 0.5 | <text>/<tspan>, <title> and <desc> in document order | — |
 | <a id="e-svg_pptx_picture"></a>`svg_pptx_picture` | SVG→PPTX | Toolkit | exact 1 | Vector SVG picture with PNG fallback ('Convert to Shape' works in PowerPoint 365) | — |
-| <a id="e-svg_pptx_shapes"></a>`svg_pptx_shapes` | SVG→PPTX | LibreOffice | editable 1.5 | LibreOffice SVG import: native shapes and text boxes | — |
 | <a id="e-svg_docx_picture"></a>`svg_docx_picture` | SVG→DOCX | Toolkit | exact 1, editable 1 | Vector SVG picture with PNG fallback (Word 2016+ shows vector) | — |

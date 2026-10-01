@@ -66,7 +66,9 @@ def test_single_mode_targets_ignore_editable(cat):
 
 @pytest.mark.parametrize("source,target,mode,edges", [
     ("pdf", "docx", "editable", ["pdf2docx"]),
-    ("pdf", "docx", "exact", ["lo_pdf_import_docx"]),
+    ("pdf", "docx", "exact", ["pdf_extract", "docmodel_docx_exact"]),
+    ("pdf", "pptx", "exact", ["pdf_extract", "docmodel_pptx"]),
+    ("svg", "pptx", "editable", ["chromium_pdf", "pdf_extract", "docmodel_pptx"]),
     ("docx", "pdfa2b", "exact", ["lo_to_pdfa"]),
     ("pdfa1b", "pdfa2b", "exact", ["pdfa_upgrade"]),
     ("pdfa3b", "pdfa1b", "exact", ["pdfa_read", "gs_pdfa"]),
