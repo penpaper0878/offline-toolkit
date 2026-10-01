@@ -437,6 +437,7 @@ def check_fonts(src: Extract, out: Extract, sit: Situation) -> Check:
     installed = fontnames.installed_families()
     if installed is not None:
         installed = installed | {n.replace(" ", "") for n in installed}
+    web_source = src.format in ("html", "epub", "svg")
     subs = []
     for fam in sorted(requested):
         n = fontnames.norm(fam)
@@ -447,6 +448,10 @@ def check_fonts(src: Extract, out: Extract, sit: Situation) -> Check:
             subs.append({"requested": fam, "used": used.get(compat) or used.get(compat.replace(" ", "")), "kind": "metric-compatible"})
         elif installed is not None and (n in installed or n.replace(" ", "") in installed):
             subs.append({"requested": fam, "used": None, "kind": "fallback for missing characters"})
+        elif web_source:
+            # A style sheet names its own fallbacks and a web page has no fixed layout: opened on this computer
+            # it shows exactly what the output shows.
+            subs.append({"requested": fam, "used": None, "kind": "browser fallback"})
         elif pdf_out:
             subs.append({"requested": fam, "used": None, "kind": "not installed"})
         else:
@@ -470,7 +475,9 @@ def check_fonts(src: Extract, out: Extract, sit: Situation) -> Check:
         return Check("fonts", label, EXPECTED, "The output names font(s) that are not installed on this computer: "
                      + ", ".join(missing_here) + "; Word/PowerPoint substitutes them when they are missing.", details)
     if soft:
-        parts = [f"{s['requested']} → {s['used']}" if s["used"] else f"{s['requested']} (fallback for some characters)"
+        parts = [f"{s['requested']} → {s['used']}" if s["used"] else
+                 f"{s['requested']} (not installed; the page's own fallback font was used, as a browser here would)"
+                 if s["kind"] == "browser fallback" else f"{s['requested']} (fallback for some characters)"
                  for s in soft]
         return Check("fonts", label, EXPECTED, "Substitution: " + ", ".join(parts) + ".", details)
     if not requested:
@@ -495,7 +502,7 @@ def check_appearance(src: Extract, out: Extract, sit: Situation, out_render=None
     if len(a) != len(b):
         return Check("appearance", label, FAIL, f"{len(a)} source page(s) but {len(b)} rendered output page(s).",
                      {"sourcePages": len(a), "outputPages": len(b)})
-    scores, shifts, changed = [], [], {}
+    scores, shifts, changed, snapshots = [], [], {}, []
     for i, (x, y) in enumerate(zip(a, b), start=1):
         if x.size != y.size:
             if abs(x.width - y.width) > 0.03 * x.width or abs(x.height - y.height) > 0.03 * x.height:
@@ -510,10 +517,13 @@ def check_appearance(src: Extract, out: Extract, sit: Situation, out_render=None
             k = 72 / dpi
             changed[i] = [{"x": round(r[0] * k, 1), "y": round(r[1] * k, 1), "w": round(r[2] * k, 1),
                            "h": round(r[3] * k, 1), "pixels": r[4]} for r in regions[:10]]
+            for r in regions[:max(0, 3 - len(snapshots))]:
+                snapshots.append({"page": i, **changed[i][regions.index(r)], "png": _snapshot(x, y, r)})
     worst = min(scores) if scores else 1.0
     details = {"ssim": scores, "threshold": 0.98, "dpi": dpi, "alignment": shifts,
                "alignmentRule": "whole page, then per 96 px tile, each shifted at most 2 px",
                "changedRegions": {str(k): v for k, v in changed.items()},
+               "snapshots": snapshots,
                "changedRegionRule": f"ink on one side with under 35% of its darkness within 2 px on the other, at least {MIN_CHANGED_PX} px "
                                     f"at {dpi} DPI (positions in points from the top left)"}
     if worst >= 0.98 and not changed:
@@ -538,6 +548,31 @@ def _soften(img):
     """A light blur: renderers place edges with different sub-pixel rounding; that is not a visible change."""
     from PIL import ImageFilter
     return img.filter(ImageFilter.GaussianBlur(0.7))
+
+
+def _snapshot(x, y, region, margin: int = 24, width: int = 360) -> str:
+    """Source above output around a changed region, as a small base64 PNG for the report."""
+    import base64
+    import io
+
+    from PIL import Image, ImageDraw
+
+    x0, y0, w, h, _ = region
+    box = (max(0, x0 - margin), max(0, y0 - margin), min(x.width, x0 + w + margin), min(y.height, y0 + h + margin))
+    a, b = x.crop(box).convert("RGB"), y.crop(box).convert("RGB")
+    scale = min(2.0, width / max(1, a.width))
+    a = a.resize((max(1, round(a.width * scale)), max(1, round(a.height * scale))))
+    b = b.resize(a.size)
+    sheet = Image.new("RGB", (a.width, a.height * 2 + 6), (220, 38, 38))
+    sheet.paste(a, (0, 0))
+    sheet.paste(b, (0, a.height + 6))
+    d = ImageDraw.Draw(sheet)
+    rx0, ry0 = (x0 - box[0]) * scale, (y0 - box[1]) * scale
+    for top in (0, a.height + 6):
+        d.rectangle([rx0, top + ry0, rx0 + w * scale, top + ry0 + h * scale], outline=(220, 38, 38))
+    buf = io.BytesIO()
+    sheet.save(buf, "PNG", optimize=True)
+    return base64.b64encode(buf.getvalue()).decode()
 
 
 MIN_CHANGED_PX = 40   # at 100 DPI: a short word, a 1 cm hairline, a table rule; well above anti-aliasing noise

@@ -133,16 +133,20 @@ def pptx_run_props(run, span, invisible: bool = False) -> None:
     for tag in ("a:latin", "a:ea", "a:cs"):
         for old in rpr.findall(qn(tag)):
             rpr.remove(old)
+    from lxml import etree
+
     if invisible or span.alpha < 0.01:
-        from pptx.oxml import parse_xml
         for old in rpr.findall(qn("a:solidFill")):
             rpr.remove(old)
-        rpr.insert(0, parse_xml(f'<a:solidFill {XMLNS}><a:srgbClr val="000000"><a:alpha val="0"/></a:srgbClr></a:solidFill>'))
+        # Built in place (not parsed from a string) so no namespace declarations are repeated on every run.
+        fill = etree.Element(qn("a:solidFill"))
+        clr = etree.SubElement(fill, qn("a:srgbClr"), val="000000")
+        etree.SubElement(clr, qn("a:alpha"), val="0")
+        rpr.insert(0, fill)
     else:
         f.color.rgb = RGBColor.from_string(span.color.lstrip("#").upper())
-    from pptx.oxml import parse_xml
     for tag in ("latin", "ea", "cs"):
-        rpr.append(parse_xml(f'<a:{tag} {XMLNS} typeface="{attr(fam)}"/>'))
+        etree.SubElement(rpr, qn(f"a:{tag}"), typeface=fam)
     if span.link:
         run.hyperlink.address = span.link
 

@@ -237,3 +237,18 @@ def test_appearance_hairlines_lighter_is_fine_missing_is_not():
     assert not regions, "a rule drawn lighter (another resolution) is the same rule"
     _, _, regions = compare._compare_page(page(0), page(None), ssim)
     assert regions and regions[0][2] > 300, "a missing table rule must be found"
+
+
+def test_missing_web_font_is_the_pages_own_fallback_but_missing_document_font_fails():
+    from otk_worker.converter.verify.extract import Extract
+
+    def sit(src_fmt):
+        return compare.Situation(src_fmt, "pdf", "exact", {}, {}, {}, [], [])
+
+    out = Extract("pdf", fonts_used={"DejaVu Sans": True})
+    html = Extract("html", fonts_requested={"No Such Font Family 7"})
+    c = compare.check_fonts(html, out, sit("html"))
+    assert c.status == compare.EXPECTED and "fallback" in c.summary, c.summary
+    docx = Extract("docx", fonts_requested={"No Such Font Family 7"})
+    c = compare.check_fonts(docx, out, sit("docx"))
+    assert c.status == compare.FAIL, c.summary

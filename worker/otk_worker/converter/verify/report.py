@@ -52,6 +52,16 @@ def _details(check: dict) -> str:
     elif check["id"] == "appearance" and d.get("ssim"):
         rows.append("<p>SSIM per page (1.0 = identical, needs ≥ 0.98): "
                     + ", ".join(f"{i + 1}: {s:.3f}" for i, s in enumerate(d["ssim"])) + "</p>")
+        regions = d.get("changedRegions") or {}
+        if regions:
+            rows.append("<h4>Areas with ink on one side only</h4><ul>" + "".join(
+                f"<li>Page {_esc(pg)}: {len(rs)} area(s), e.g. at {rs[0]['x']:.0f}, {rs[0]['y']:.0f} pt "
+                f"({rs[0]['w']:.0f} × {rs[0]['h']:.0f} pt)</li>" for pg, rs in regions.items()) + "</ul>")
+        for snap in d.get("snapshots") or []:
+            rows.append(f"<figure><img alt='Source above, output below, page {_esc(snap['page'])}' "
+                        f"src='data:image/png;base64,{snap['png']}' style='max-width:100%;border:1px solid #ccc'/>"
+                        f"<figcaption>Page {_esc(snap['page'])} at {snap['x']:.0f}, {snap['y']:.0f} pt: "
+                        "source above, output below.</figcaption></figure>")
     else:
         if d:
             rows.append(f"<pre>{_esc(json.dumps(d, ensure_ascii=False, indent=1)[:6000])}</pre>")

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import time
 from pathlib import Path
 
@@ -92,6 +93,10 @@ def test_route(samples, tmp_path, src, target, mode):
     assert r.status == "done", r.message
     assert Path(r.output).exists() and Path(r.report).exists()
     if r.verdict == "review":
+        if key not in KNOWN_REVIEW:  # keep the report (with its before/after crops) in the CI artifact
+            keep = ROOT / "test-results" / "matrix-failures"
+            keep.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(r.report, keep / f"{key}.report.html")
         assert key in KNOWN_REVIEW, f"{key} needs review: {row.get('failed')}"
 
 
