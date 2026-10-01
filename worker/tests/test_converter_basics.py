@@ -281,3 +281,24 @@ def test_spaces_drawn_twice_are_one_space(tmp_path):
     model = docmodel.extract(pdf, tmp_path / "m")
     texts = [ln.text for p in model.pages for b in p.blocks for ln in b.lines]
     assert texts == ["Hello world again"], texts
+
+
+def test_space_drawn_twice_inside_one_line_is_one_space():
+    """The Arabic line of a LibreOffice PDF made on Windows, as PyMuPDF reads it (from the CI log): the first
+    span is a Lucida Sans Unicode space drawn on top of the Tahoma space between the first two words."""
+    from otk_worker.converter import docmodel
+
+    def span(font, chars):
+        return {"span": {"font": font}, "text": "".join(c for c, _, _ in chars),
+                "chars": [{"c": c, "bbox": [x0, 167.2, x1, 184.1]} for c, x0, x1 in chars]}
+
+    line = {"dir": (1.0, 0.0), "bbox": [89.9, 167.2, 214.0, 184.1], "spans": [
+        span("LucidaSansUnicode", [(" ", 186.1, 189.5)]),
+        span("Tahoma", [("م", 208.4, 214.0), ("ر", 203.8, 208.4), ("ح", 196.6, 203.8), ("ب", 192.7, 196.6), ("ا", 189.4, 192.7)]),
+        span("Tahoma", [(" ", 186.0, 189.4)]),
+        span("Tahoma", [("ن", 131.4, 134.4), ("ص", 118.6, 131.4)]),
+    ]}
+    out = docmodel._drop_repeated_spaces(line)
+    assert "".join(s["text"] for s in out["spans"]) == "مرحبا نص"
+    alone = {"dir": (1.0, 0.0), "bbox": [0, 0, 10, 10], "spans": [span("Tahoma", [(" ", 1.0, 4.0)])]}
+    assert docmodel._drop_repeated_spaces(alone) is alone, "a line of spaces only is left to the orphan merge"

@@ -275,6 +275,26 @@ def _insert_orphans(host: dict, orphans: list[dict], rtl: bool) -> None:
             host["spans"][si]["text"] = "".join(c["c"] for c in host["spans"][si]["chars"])
 
 
+def _drop_repeated_spaces(line: dict) -> dict:
+    """A whitespace-only span whose spaces sit on spaces of another span in the same line is a second
+    drawing of them (LibreOffice on Windows, Arabic: once in the line's font, once in a fallback font).
+    The copy in the font of the line's words is kept."""
+    ws = [sp for sp in line["spans"] if _WS.match(sp["text"])]
+    if not ws or len(ws) == len(line["spans"]):
+        return line
+    word_fonts = {sp["span"].get("font") for sp in line["spans"] if sp not in ws}
+    # Decide in priority order (same font as the words first), then rebuild in the original order.
+    kept: dict[int, dict] = {}
+    for sp in sorted(ws, key=lambda sp: sp["span"].get("font") not in word_fonts):
+        others = {"spans": [o for o in line["spans"] if o not in ws] + list(kept.values())}
+        chars = [c for c in sp["chars"] if not _space_already_there(others, c)]
+        if chars:
+            kept[id(sp)] = sp if len(chars) == len(sp["chars"]) else {**sp, "chars": chars,
+                                                                     "text": "".join(c["c"] for c in chars)}
+    spans = [kept.get(id(sp)) if sp in ws else sp for sp in line["spans"]]
+    return {**line, "spans": [sp for sp in spans if sp is not None]}
+
+
 def _page_lines(page) -> list[tuple[int, dict]]:
     """(block number, line) pairs with orphan whitespace merged back into its line."""
     import pymupdf
@@ -289,7 +309,7 @@ def _page_lines(page) -> list[tuple[int, dict]]:
         for ln in b["lines"]:
             spans = _spans_from_raw(ln)
             if spans:
-                lines.append((bi, {"dir": ln["dir"], "bbox": ln["bbox"], "spans": spans}))
+                lines.append((bi, _drop_repeated_spaces({"dir": ln["dir"], "bbox": ln["bbox"], "spans": spans})))
     hosts = [(bi, ln) for bi, ln in lines if not all(_WS.match(s["text"]) for s in ln["spans"])]
     orphans = [(bi, ln) for bi, ln in lines if all(_WS.match(s["text"]) for s in ln["spans"])]
     for _, orph in orphans:
