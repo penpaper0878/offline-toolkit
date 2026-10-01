@@ -184,3 +184,56 @@ def test_engine_status_reports_bundled_versions(tmp_path, monkeypatch):
     assert st["pandoc"]["bundled"] and st["pandoc"]["version"] == "pandoc 3.8.2.1"
     # Only bundled engines carry the bundle's version; one found on PATH is whatever is installed there.
     assert "version" not in st["gs"]
+
+
+def _page_with_lines(drift: float = 0.0, drop_word: bool = False, move_line: int = 0):
+    """A 100-DPI 'page' of text lines drawn word by word; `drift` px is added gradually along each line."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    try:
+        font = ImageFont.truetype("DejaVuSans.ttf", 15)
+    except OSError:
+        font = ImageFont.load_default(15)
+    img = Image.new("RGB", (850, 1100), "white")
+    d = ImageDraw.Draw(img)
+    words = "The quarterly figures show steady growth across every region with the strongest gains".split()
+    for row in range(20):
+        x, y = 60.0, 80 + row * 22 + (move_line if row == 7 else 0)
+        for i, wd in enumerate(words):
+            if not (drop_word and row == 7 and i == 5):
+                d.text((round(x + drift * x / 850), y), wd, fill="black", font=font)
+            x += d.textlength(wd + " ", font=font)
+    return img
+
+
+def test_appearance_tolerates_glyph_drift_but_not_changes():
+    from otk_worker.common.ssim import ssim
+
+    ref = _page_with_lines()
+    score, _, regions = compare._compare_page(ref, _page_with_lines(drift=2.0), ssim)
+    assert score >= 0.98 and not regions, "up to 2 px of drift along a line is how renderers differ, not a change"
+    score, _, regions = compare._compare_page(ref, _page_with_lines(drop_word=True), ssim)
+    assert regions, "a missing word must be found even though SSIM barely moves"
+    x, y, w, h, _ = regions[0]
+    assert 70 <= y + h / 2 <= 270 and w >= 30, regions[0]
+    _, _, regions = compare._compare_page(ref, _page_with_lines(move_line=6), ssim)
+    assert regions, "a line moved by 6 px must be found"
+    score, _, regions = compare._compare_page(ref, _page_with_lines(drift=8.0), ssim)
+    assert regions or score < 0.98, "drift beyond the 2 px tolerance must be found"
+
+
+def test_appearance_hairlines_lighter_is_fine_missing_is_not():
+    from PIL import Image, ImageDraw
+
+    from otk_worker.common.ssim import ssim
+
+    def page(shade):
+        img = Image.new("RGB", (850, 1100), "white")
+        if shade is not None:
+            ImageDraw.Draw(img).line([(100, 400), (500, 400)], fill=(shade,) * 3, width=1)
+        return img
+
+    _, _, regions = compare._compare_page(page(0), page(110), ssim)
+    assert not regions, "a rule drawn lighter (another resolution) is the same rule"
+    _, _, regions = compare._compare_page(page(0), page(None), ssim)
+    assert regions and regions[0][2] > 300, "a missing table rule must be found"

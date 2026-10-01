@@ -45,6 +45,7 @@ class Span:
     origin: list[float] = field(default_factory=list)
     alpha: float = 1.0
     link: str | None = None
+    ascent: float | None = None   # the font's layout ascent (em) when its program is embedded; see font_ascents()
 
 
 @dataclass
@@ -583,6 +584,49 @@ def _shapes(page, page_area: float) -> list[Shape]:
     return out
 
 
+def _strip_subset(name: str) -> str:
+    return name.split("+", 1)[1] if len(name) > 7 and name[6] == "+" else name
+
+
+def font_ascents(doc, page) -> dict[str, float]:
+    """For each embedded TrueType/OpenType font on the page: how far below the top of a word-processor text
+    box the first baseline sits, in em. Measured in LibreOffice Writer (tests/test_converter_basics.py):
+    ascender + line gap, both from the typographic metrics when the font sets USE_TYPO_METRICS, else from
+    hhea (else the Windows ascent). PyMuPDF's line boxes use the PDF's /Ascent instead, which for fonts such
+    as Caladea is 0.15 em taller, so text boxes placed from them land too high."""
+    import io
+    import logging
+
+    from fontTools.ttLib import TTFont
+
+    logging.getLogger("fontTools").setLevel(logging.ERROR)   # subset fonts have odd timestamps
+    out: dict[str, float] = {}
+    for f in page.get_fonts(full=True):
+        xref, ext, base = f[0], f[1], _strip_subset(f[3])
+        if base in out or ext not in ("ttf", "otf", "cff", "ttc"):
+            continue
+        try:
+            buf = doc.extract_font(xref)[3]
+            if not buf:
+                continue
+            tt = TTFont(io.BytesIO(buf), lazy=True)
+            upm = tt["head"].unitsPerEm or 1000
+            os2 = tt["OS/2"] if "OS/2" in tt else None
+            hhea = tt["hhea"] if "hhea" in tt else None
+            if os2 is not None and os2.fsSelection & (1 << 7) and os2.sTypoAscender > 0:
+                asc = os2.sTypoAscender + max(0, os2.sTypoLineGap)
+            elif hhea is not None and hhea.ascent > 0:
+                asc = hhea.ascent + max(0, hhea.lineGap)
+            elif os2 is not None and os2.usWinAscent > 0:
+                asc = os2.usWinAscent
+            else:
+                continue
+            out[base] = round(asc / upm, 4)
+        except Exception:
+            continue
+    return out
+
+
 def extract(pdf_path: Path, out_dir: Path, *, password: str | None = None, scanned: list[int] | None = None,
             ocr_page: Callable | None = None, check: Callable[[], None] = lambda: None,
             progress: Callable[[float, str], None] = lambda f, m: None) -> DocModel:
@@ -614,6 +658,12 @@ def extract(pdf_path: Path, out_dir: Path, *, password: str | None = None, scann
                 pg.links.append(Link(bbox=_r(lk["from"]), page=int(lk["page"])))
         pg.tables = _tables(page)
         pg.blocks = _lines_to_blocks(_split_by_links(_split_by_cells(_page_lines(page), pg.tables), pg.links))
+        ascents = font_ascents(doc, page)
+        if ascents:
+            for blk in pg.blocks:
+                for ln in blk.lines:
+                    for sp in ln.spans:
+                        sp.ascent = ascents.get(_strip_subset(sp.font))
         # Images, in paint order.
         log = page.get_bboxlog()
         img_z = [i for i, (kind, _) in enumerate(log) if kind == "fill-image"]
@@ -730,6 +780,8 @@ def scale_page(p: Page, s: float, dx: float = 0.0, dy: float = 0.0) -> None:
             for sp in ln.spans:
                 sp.bbox = box(sp.bbox)
                 sp.size = round(sp.size * s, 2)
+                if len(sp.origin) == 2:
+                    sp.origin = [round(sp.origin[0] * s + dx, 2), round(sp.origin[1] * s + dy, 2)]
     for img in p.images:
         img.bbox = box(img.bbox)
     for sh in p.shapes:

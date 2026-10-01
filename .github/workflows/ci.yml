@@ -25,6 +25,11 @@ jobs:
       # Electron 44 fetches its binary on first use, not at install time; the worker's tests print with it.
       - name: Fetch the Electron binary
         run: node -e "console.log(require('electron'))"
+      # The standalone print (tests only; the app prints in its own window) keeps Chromium's sandbox, which on
+      # runners without unprivileged user namespaces needs the setuid helper.
+      - name: Electron sandbox helper (Linux)
+        if: runner.os == 'Linux'
+        run: sudo chown root:root node_modules/electron/dist/chrome-sandbox && sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
       - run: npm run setup:py
 
       # Conversion engines (Module 2). Linux: distribution packages + pinned downloads.
@@ -93,6 +98,11 @@ jobs:
       # Electron 44 fetches its binary on first use, not at install time; the worker's tests print with it.
       - name: Fetch the Electron binary
         run: node -e "console.log(require('electron'))"
+      # The standalone print (tests only; the app prints in its own window) keeps Chromium's sandbox, which on
+      # runners without unprivileged user namespaces needs the setuid helper.
+      - name: Electron sandbox helper (Linux)
+        if: runner.os == 'Linux'
+        run: sudo chown root:root node_modules/electron/dist/chrome-sandbox && sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
       - run: npm run setup:py
       - run: |
           sudo apt-get update

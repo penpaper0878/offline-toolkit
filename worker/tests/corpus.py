@@ -14,6 +14,7 @@ import base64
 import io
 import shutil
 import subprocess
+import sys
 import zipfile
 from pathlib import Path
 
@@ -22,6 +23,8 @@ from PIL import Image, ImageDraw, ImageFont
 TITLE = "Quarterly Report"
 EN = "Sales rose *sharply* in Q3 # while costs_fell by 4.5 percent."
 HI = "नमस्ते दुनिया यह हिंदी पाठ है"
+# The Devanagari font a Hindi document on this platform would name (Windows ships Nirmala UI, not Noto).
+HI_FONT = "Nirmala UI" if sys.platform == "win32" else "Noto Sans Devanagari"
 AR = "مرحبا بالعالم هذا نص عربي"
 LINK = "https://example.com/report"
 TABLE = [["Region", "Code", "Amount"], ["North", "001234", "3.50"], ["South", "004321", "12.25"]]
@@ -98,8 +101,8 @@ def make_docx(path: Path, pic: Path) -> Path:
     doc.add_paragraph(EN)
     p = doc.add_paragraph()
     r = p.add_run(HI)
-    r.font.name = "Noto Sans Devanagari"
-    r._r.rPr.rFonts.set(qn("w:cs"), "Noto Sans Devanagari")  # Word sets the complex-script font for Hindi
+    r.font.name = HI_FONT
+    r._r.rPr.rFonts.set(qn("w:cs"), HI_FONT)  # Word sets the complex-script font for Hindi
     p = doc.add_paragraph()
     p.paragraph_format.alignment = 2
     p._p.get_or_add_pPr().append(OxmlElement("w:bidi"))
@@ -376,7 +379,8 @@ def build(out: Path, *, legacy: bool = True, pdfa: bool = True) -> dict[str, Pat
     s["epub"] = make_epub(out / "book.epub", pic)
     s["pdf_encrypted"] = encrypt_pdf(s["pdf"], out / "locked.pdf")
     s["docx_encrypted"] = encrypt_office(s["docx"], out / "locked.docx")
-    if legacy and shutil.which("soffice"):
+    from otk_worker.converter import engines
+    if legacy and engines.find("soffice"):
         from otk_worker.converter import libreoffice as lo
         for key, src, filt in (("doc", s["docx"], lo.DOC), ("xls", s["xlsx"], lo.XLS), ("ppt", s["pptx"], lo.PPT)):
             got = legacy_via_lo(src, out, filt)

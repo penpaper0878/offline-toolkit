@@ -43,9 +43,21 @@ def _visible_images(page: Page, mode: str):
         yield img
 
 
-def _line_box(line: Line, slack: float = 1.12) -> tuple[float, float, float, float]:
+def _line_box(line: Line, slack: float = 1.12, *, slides: bool = False) -> tuple[float, float, float, float]:
+    """Text box for one line, placed so the box's first baseline lands on the line's baseline.
+
+    Where that baseline sits below the box top was measured in LibreOffice: in a presentation text box it is
+    1.0 em for every font; in a word-processor text box it is the font's ascender + line gap (Span.ascent,
+    known when the font is embedded). Without either, the line's own box is used."""
     x0, y0, x1, y1 = line.bbox
     w = (x1 - x0) * slack + 2
+    spans = [sp for sp in line.spans if sp.text.strip()]
+    # OCR words carry the bottom of their box, not a baseline, so OCR lines keep their box.
+    if spans and line.conf is None and all(len(sp.origin) == 2 for sp in spans):
+        if slides:
+            y0 = min(sp.origin[1] - sp.size for sp in spans)
+        elif all(sp.ascent for sp in spans):
+            y0 = min(sp.origin[1] - sp.ascent * sp.size for sp in spans)
     if line.rtl:
         return x1 - w, y0, x1, y1 + 0.15 * (y1 - y0)
     return x0, y0, x0 + w, y1 + 0.15 * (y1 - y0)
@@ -159,7 +171,7 @@ def _pptx_line(slide, ln: Line) -> None:
         box, angle = _rotated_box(ln)
         ooxml.pptx_text_box(slide, [spans], box, wrap=False, rtl=ln.rtl, angle=angle, invisible=invisible)
     else:
-        ooxml.pptx_text_box(slide, [spans], _line_box(ln), wrap=False, rtl=ln.rtl, invisible=invisible)
+        ooxml.pptx_text_box(slide, [spans], _line_box(ln, slides=True), wrap=False, rtl=ln.rtl, invisible=invisible)
 
 
 def _para_spans(blk: Block) -> list[Span]:

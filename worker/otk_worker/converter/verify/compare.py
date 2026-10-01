@@ -495,33 +495,89 @@ def check_appearance(src: Extract, out: Extract, sit: Situation, out_render=None
     if len(a) != len(b):
         return Check("appearance", label, FAIL, f"{len(a)} source page(s) but {len(b)} rendered output page(s).",
                      {"sourcePages": len(a), "outputPages": len(b)})
-    scores, shifts = [], []
-    for x, y in zip(a, b):
+    scores, shifts, changed = [], [], {}
+    for i, (x, y) in enumerate(zip(a, b), start=1):
         if x.size != y.size:
             if abs(x.width - y.width) > 0.03 * x.width or abs(x.height - y.height) > 0.03 * x.height:
                 scores.append(0.0)
                 shifts.append(None)
                 continue
             y = y.resize(x.size)
-        score, shift = _aligned_ssim(x, y, ssim)
+        score, shift, regions = _compare_page(x, y, ssim)
         scores.append(round(score, 4))
         shifts.append(shift)
+        if regions:
+            k = 72 / dpi
+            changed[i] = [{"x": round(r[0] * k, 1), "y": round(r[1] * k, 1), "w": round(r[2] * k, 1),
+                           "h": round(r[3] * k, 1), "pixels": r[4]} for r in regions[:10]]
     worst = min(scores) if scores else 1.0
-    details = {"ssim": scores, "threshold": 0.98, "dpi": dpi, "alignment": shifts}
-    if worst >= 0.98:
+    details = {"ssim": scores, "threshold": 0.98, "dpi": dpi, "alignment": shifts,
+               "alignmentRule": "whole page, then per 96 px tile, each shifted at most 2 px",
+               "changedRegions": {str(k): v for k, v in changed.items()},
+               "changedRegionRule": f"ink on one side with under 35% of its darkness within 2 px on the other, at least {MIN_CHANGED_PX} px "
+                                    f"at {dpi} DPI (positions in points from the top left)"}
+    if worst >= 0.98 and not changed:
         return Check("appearance", label, PASS, f"Every page looks the same (lowest SSIM {worst:.3f}).", details)
     reason = sit.expected_checks.get("appearance")
     if reason:
         return Check("appearance", label, EXPECTED, reason, details)
-    bad = [i + 1 for i, s in enumerate(scores) if s < 0.98]
+    bad = sorted({i + 1 for i, s in enumerate(scores) if s < 0.98} | set(changed))
+    why = []
+    if worst < 0.98:
+        why.append(f"lowest SSIM {worst:.3f}, needs ≥ 0.98")
+    if changed:
+        first = next(iter(changed))
+        r = changed[first][0]
+        why.append(f"{sum(len(v) for v in changed.values())} area(s) where one side has ink and the other has none, "
+                   f"e.g. page {first} at {r['x']:.0f}, {r['y']:.0f} pt")
     return Check("appearance", label, FAIL, f"Page(s) {', '.join(map(str, bad[:20]))} look different "
-                 f"(lowest SSIM {worst:.3f}, needs ≥ 0.98).", details)
+                 f"({'; '.join(why)}).", details)
 
 
 def _soften(img):
     """A light blur: renderers place edges with different sub-pixel rounding; that is not a visible change."""
     from PIL import ImageFilter
     return img.filter(ImageFilter.GaussianBlur(0.7))
+
+
+MIN_CHANGED_PX = 40   # at 100 DPI: a short word, a 1 cm hairline, a table rule; well above anti-aliasing noise
+
+
+def _compare_page(x, y, ssim_fn, radius: int = 2):
+    """(SSIM after alignment, the alignment used, changed regions). SSIM averages over the page, so a missing
+    word barely moves it; the changed-region test catches that kind of loss."""
+    score, shift = _aligned_ssim(x, y, ssim_fn, radius)
+    sx, sy = _soften(x), _soften(y)
+    ax = np.asarray(sx.convert("L"), dtype=np.float32)
+    ay = np.asarray(sy.convert("L"), dtype=np.float32)
+    aligned = np.asarray(_locally_aligned(ax, ay, sy, radius).convert("L"), dtype=np.float32)
+    return score, shift, _changed_regions(ax, aligned, radius)
+
+
+def _changed_regions(ax, ay, radius: int = 2, ink: float = 160, keep: float = 0.35) -> list[tuple[int, int, int, int, int]]:
+    """Regions (x, y, w, h, pixels) where one image has ink and the other has (almost) none within `radius` px.
+
+    "Almost none": the darkest pixel nearby on the other side keeps less than `keep` of the darkness. A glyph
+    of a metric-compatible substitute font leaves ink near ink, and a hairline drawn lighter by a different
+    resolution keeps much of its darkness; a missing word, rule or shape keeps none."""
+    import cv2
+
+    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * radius + 1, 2 * radius + 1))
+    dark_a, dark_b = 255.0 - ax, 255.0 - ay
+    near_a = 255.0 - cv2.erode(ax, k)   # darkest pixel within the radius
+    near_b = 255.0 - cv2.erode(ay, k)
+    threshold = 255.0 - ink
+    only = (((dark_a > threshold) & (near_b < keep * dark_a)) |
+            ((dark_b > threshold) & (near_a < keep * dark_b))).astype(np.uint8)
+    # Join the pieces of one change (the letters of a missing word) before measuring.
+    n, _, stats, _ = cv2.connectedComponentsWithStats(cv2.dilate(only, k), connectivity=8)
+    out = []
+    for i in range(1, n):
+        x0, y0, w, h, _ = stats[i]
+        px = int(only[y0:y0 + h, x0:x0 + w].sum())
+        if px >= MIN_CHANGED_PX:
+            out.append((int(x0), int(y0), int(w), int(h), px))
+    return sorted(out, key=lambda r: -r[4])
 
 
 def _aligned_ssim(x, y, ssim_fn, radius: int = 2):
@@ -541,12 +597,44 @@ def _aligned_ssim(x, y, ssim_fn, radius: int = 2):
             diff = float(np.mean(np.abs(a_part - b_part)))
             if best is None or diff < best:
                 best, best_shift = diff, (dx, dy)
-    if best_shift == (0, 0):
-        return base, (0, 0)
-    dx, dy = best_shift
-    box_a = (max(0, dx), max(0, dy), w + min(0, dx), h + min(0, dy))
-    box_b = (max(0, -dx), max(0, -dy), w + min(0, -dx), h + min(0, -dy))
-    return max(base, ssim_fn(x.crop(box_a), y.crop(box_b))), best_shift
+    score, shift = base, (0, 0)
+    if best_shift != (0, 0):
+        dx, dy = best_shift
+        box_a = (max(0, dx), max(0, dy), w + min(0, dx), h + min(0, dy))
+        box_b = (max(0, -dx), max(0, -dy), w + min(0, -dx), h + min(0, -dy))
+        score, shift = max(base, ssim_fn(x.crop(box_a), y.crop(box_b))), best_shift
+    if score >= 0.98:
+        return score, shift
+    local = ssim_fn(x, _locally_aligned(ax, ay, y, radius))
+    return (local, "local") if local > score else (score, shift)
+
+
+def _locally_aligned(ax, ay, y_img, radius: int, tile: int = 96):
+    """`y` rebuilt tile by tile (about an inch at 100 DPI), each tile moved by its own best whole-pixel shift
+    within ±radius. Renderers lay out glyph advances on different grids, so a long line can drift by a pixel
+    or two from one end to the other; no single page shift absorbs that, but nothing moves further than
+    `radius`, and a missing or changed glyph still lowers the score."""
+    from PIL import Image
+
+    h, w = ax.shape
+    rgb = np.asarray(y_img.convert("RGB"))
+    pad_g = np.pad(ay, radius, mode="edge")
+    pad_c = np.pad(rgb, ((radius, radius), (radius, radius), (0, 0)), mode="edge")
+    out = np.empty_like(rgb)
+    for ty in range(0, h, tile):
+        for tx in range(0, w, tile):
+            ref = ax[ty:ty + tile, tx:tx + tile]
+            th, tw = ref.shape
+            best, pick = None, (0, 0)
+            for dy in range(-radius, radius + 1):
+                for dx in range(-radius, radius + 1):
+                    cand = pad_g[ty + radius + dy:ty + radius + dy + th, tx + radius + dx:tx + radius + dx + tw]
+                    d = float(np.mean(np.abs(ref - cand)))
+                    if best is None or d < best - 1e-9 or (abs(d - best) <= 1e-9 and abs(dx) + abs(dy) < sum(map(abs, pick))):
+                        best, pick = d, (dx, dy)
+            dx, dy = pick
+            out[ty:ty + th, tx:tx + tw] = pad_c[ty + radius + dy:ty + radius + dy + th, tx + radius + dx:tx + radius + dx + tw]
+    return Image.fromarray(out)
 
 
 def verdict(checks: list[Check], expected_notes: list[str]) -> str:
