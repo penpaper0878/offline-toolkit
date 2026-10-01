@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import sys
 import threading
+import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, TextIO
@@ -51,6 +52,9 @@ class Server:
         self.methods: dict[str, Callable[..., Any]] = {}
         self._inline: set[str] = set()
         self.running = True
+        self._host_lock = threading.Lock()
+        self._host_seq = 0
+        self._host_waiting: dict[str, dict] = {}
         self.register("job.cancel", self._cancel, inline=True)
 
     # ---------------------------------------------------------------- plumbing
@@ -84,6 +88,41 @@ class Server:
 
     def notify(self, method: str, params: dict) -> None:
         self.send({"jsonrpc": "2.0", "method": method, "params": params})
+
+    def request_host(self, method: str, params: dict, timeout: float = 600.0,
+                     cancel: threading.Event | None = None) -> dict:
+        """Ask the app (the process on the other end of stdio) to do something, and wait for its answer."""
+        with self._host_lock:
+            self._host_seq += 1
+            rid = f"w{self._host_seq}"
+            slot = {"event": threading.Event(), "reply": None}
+            self._host_waiting[rid] = slot
+        self.send({"jsonrpc": "2.0", "id": rid, "method": method, "params": params})
+        deadline = time.monotonic() + timeout
+        try:
+            while not slot["event"].wait(0.2):
+                if cancel is not None and cancel.is_set():
+                    raise Cancelled()
+                if time.monotonic() > deadline:
+                    raise ToolkitError(f"The app did not answer {method} within {int(timeout)} s.", code="host_timeout")
+        finally:
+            with self._host_lock:
+                self._host_waiting.pop(rid, None)
+        reply = slot["reply"] or {}
+        if "error" in reply:
+            err = reply["error"] or {}
+            raise ToolkitError(err.get("message", f"{method} failed"), code=(err.get("data") or {}).get("code", "host_error"))
+        return reply.get("result") or {}
+
+    def _host_reply(self, msg: dict) -> bool:
+        rid = msg.get("id")
+        with self._host_lock:
+            slot = self._host_waiting.get(rid) if isinstance(rid, str) else None
+        if slot is None:
+            return False
+        slot["reply"] = msg
+        slot["event"].set()
+        return True
 
     def _error(self, req_id, code: int, message: str, data: dict | None = None) -> None:
         err: dict = {"code": code, "message": message}
@@ -119,6 +158,9 @@ class Server:
             req = json.loads(line)
         except json.JSONDecodeError as exc:
             self._error(None, PARSE_ERROR, f"Parse error: {exc}")
+            return
+        if isinstance(req, dict) and "method" not in req and ("result" in req or "error" in req):
+            self._host_reply(req)  # the app answering one of our requests
             return
         if not isinstance(req, dict) or req.get("jsonrpc") != "2.0" or "method" not in req:
             self._error(req.get("id") if isinstance(req, dict) else None, INVALID_REQUEST, "Invalid request")

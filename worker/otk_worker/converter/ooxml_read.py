@@ -61,6 +61,7 @@ class Grid:
     cols: int
     cells: dict[tuple[int, int], str]               # top-left (row, col) -> text
     merges: list[tuple[int, int, int, int]] = field(default_factory=list)   # r0, c0, r1, c1 (inclusive)
+    links: dict[tuple[int, int], str] = field(default_factory=dict)       # first web link in a cell
 
 
 def _para_text_runs(p, rels: dict[str, str]) -> list[DocxRun]:
@@ -146,12 +147,17 @@ def _para(p, rels, names) -> DocxPara:
         if num is not None:
             ilvl = num.find(_q(W, "ilvl"))
             list_level = int(ilvl.get(_q(W, "val"), "0")) if ilvl is not None else 0
-    return DocxPara(_para_text_runs(p, rels), style, _style_level(style, names), rtl, list_level)
+    level = _style_level(style, names)
+    if ppr is not None and not level and ppr.find(_q(W, "outlineLvl")) is not None:
+        val = int(ppr.find(_q(W, "outlineLvl")).get(_q(W, "val"), "9"))
+        level = val + 1 if val < 9 else 0
+    return DocxPara(_para_text_runs(p, rels), style, level, rtl, list_level)
 
 
-def table_grid(tbl, cell_text) -> Grid:
+def table_grid(tbl, cell_text, cell_link=None) -> Grid:
     """Word table -> grid with merges (gridSpan horizontally, vMerge vertically)."""
     cells: dict[tuple[int, int], str] = {}
+    links: dict[tuple[int, int], str] = {}
     merges = []
     open_v: dict[int, list] = {}   # col -> [r0, c0, r1, c1]
     r = 0
@@ -173,6 +179,10 @@ def table_grid(tbl, cell_text) -> Grid:
                 open_v[c][2] = r
             else:
                 cells[(r, c)] = cell_text(tc)
+                if cell_link is not None:
+                    link = cell_link(tc)
+                    if link:
+                        links[(r, c)] = link
                 if vmerge == "restart":
                     open_v[c] = [r, c, r, c + span - 1]
                 else:
@@ -192,7 +202,7 @@ def table_grid(tbl, cell_text) -> Grid:
         if any(o != m and o[0] == m[0] and o[1] == m[1] and o[2] >= m[2] and o[3] >= m[3] for o in merges):
             continue
         clean.append(m)
-    return Grid(r, max_c, cells, clean)
+    return Grid(r, max_c, cells, clean, links)
 
 
 def docx_body(path: Path) -> list[tuple[str, object]]:
@@ -212,6 +222,13 @@ def docx_body(path: Path) -> list[tuple[str, object]]:
             parts.append(_para(p, rels, names).text)
         return "\n".join(parts).strip("\n")
 
+    def cell_link(tc) -> str | None:
+        for p in tc.iter(_q(W, "p")):
+            for run in _para(p, rels, names).runs:
+                if run.link and not run.link.startswith("#"):
+                    return run.link
+        return None
+
     def walk(container):
         for el in container:
             if el.tag == _q(W, "p"):
@@ -222,7 +239,7 @@ def docx_body(path: Path) -> list[tuple[str, object]]:
                     for p in tx.findall(_q(W, "p")):
                         out.append(("p", _para(p, rels, names)))
             elif el.tag == _q(W, "tbl"):
-                out.append(("table", table_grid(el, cell_text)))
+                out.append(("table", table_grid(el, cell_text, cell_link)))
             elif el.tag == _q(W, "sdt"):
                 content = el.find(_q(W, "sdtContent"))
                 if content is not None:
@@ -279,17 +296,21 @@ def _pptx_paragraphs(text_frame) -> list[DocxPara]:
 
 
 def _pptx_grid(table) -> Grid:
-    cells, merges = {}, []
+    cells, merges, links = {}, [], {}
     rows, cols = len(table.rows), len(table.columns)
     for r in range(rows):
         for c in range(cols):
             cell = table.cell(r, c)
             if cell.is_spanned:
                 continue
-            cells[(r, c)] = "\n".join(p.text for p in _pptx_paragraphs(cell.text_frame)).strip("\n")
+            paras = _pptx_paragraphs(cell.text_frame)
+            cells[(r, c)] = "\n".join(p.text for p in paras).strip("\n")
+            link = next((x.link for p in paras for x in p.runs if x.link and not x.link.startswith("#")), None)
+            if link:
+                links[(r, c)] = link
             if cell.is_merge_origin:
                 merges.append((r, c, r + cell.span_height - 1, c + cell.span_width - 1))
-    return Grid(rows, cols, cells, merges)
+    return Grid(rows, cols, cells, merges, links)
 
 
 def pptx_slides(path: Path) -> list[SlideContent]:

@@ -238,6 +238,7 @@ def to_pptx(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     mode = ctx.options.mode
     if src.format == "ocrmodel" and mode == "editable":
         _use_clean_backgrounds(model, mdir, ctx)
+        ctx.expect_check("images", "Each page picture became a cleaned background with live text on top.")
     out = ctx.path("out.pptx")
     write_pptx(model, mdir, out, mode, ctx)
     return Artifact("pptx", [out])
@@ -357,6 +358,9 @@ def to_docx_exact(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     model, mdir = load(src)
     out = ctx.path("out.docx")
     write_docx_exact(model, mdir, out, ctx)
+    if model.toc:
+        ctx.expect_check("bookmarks", "Exact pages are built from positioned text boxes; Word's navigation pane "
+                                      "does not list headings inside text boxes, so the PDF bookmarks are not kept.")
     return Artifact("docx", [out])
 
 
@@ -469,7 +473,12 @@ def to_docx_flow(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     model, mdir = load(src)
     out = ctx.path("out.docx")
     items = build_flow(model, include_scans=src.format != "ocrmodel")
+    if src.format == "ocrmodel":
+        ctx.expect_check("images", "The page pictures were replaced by the recognised text, tables and cropped figures.")
     write_docx_flow(model, mdir, out, ctx, items)
+    if model.toc:
+        from ..docx_post import apply_outline
+        apply_outline(out, model.toc)
     return Artifact("docx", [out])
 
 
@@ -558,6 +567,8 @@ def _html_table(t: Table, page: Page) -> str:
 def to_html(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     model, mdir = load(src)
     out = ctx.path("out.html")
+    if src.format == "ocrmodel":
+        ctx.expect_check("images", "The page pictures were replaced by the recognised text, tables and cropped figures.")
     write_html(model, mdir, out, ctx, build_flow(model, include_scans=src.format != "ocrmodel"))
     return Artifact("html", [out])
 
@@ -591,6 +602,17 @@ def write_cell(ws, row: int, col: int, text: str):
     return c
 
 
+def set_link(cell, url: str | None) -> None:
+    """Excel holds one hyperlink per cell; the first link in the cell's text is kept."""
+    if url and cell.hyperlink is None:
+        cell.hyperlink = url
+        cell.style = "Hyperlink"
+
+
+def first_link(spans) -> str | None:
+    return next((s.link for s in spans if getattr(s, "link", None)), None)
+
+
 def safe_sheet_title(title: str, used: set[str]) -> str:
     t = re.sub(r"[\[\]:*?/\\]", "_", title).strip("'")[:31] or "Sheet"
     base, n = t, 2
@@ -610,7 +632,7 @@ def write_xlsx(model: DocModel, mdir: Path, out: Path, ctx: StepContext, mode: s
     wb.remove(wb.active)
     used: set[str] = set()
     n = 0
-    text_rows: list[tuple[int, str]] = []
+    text_rows: list[tuple[int, str, str | None]] = []
     for p in model.pages:
         for ti, t in enumerate(p.tables):
             ctx.check()
@@ -620,6 +642,7 @@ def write_xlsx(model: DocModel, mdir: Path, out: Path, ctx: StepContext, mode: s
                 spans = _cell_spans(p, ti, cell)
                 text = "".join(s.text for s in spans) if spans else cell.text
                 c = write_cell(ws, cell.row + 1, cell.col + 1, text)
+                set_link(c, first_link(spans))
                 c.alignment = Alignment(wrap_text=True, vertical="top")
                 if cell.rowspan > 1 or cell.colspan > 1:
                     ws.merge_cells(start_row=cell.row + 1, start_column=cell.col + 1,
@@ -629,16 +652,18 @@ def write_xlsx(model: DocModel, mdir: Path, out: Path, ctx: StepContext, mode: s
                 ws.column_dimensions[get_column_letter(c + 1)].width = max(4.0, (t.xs[c + 1] - t.xs[c]) / 5.25)
         for blk in p.blocks:
             if blk.table is None and blk.text.strip():
-                text_rows.append((p.index + 1, blk.text))
+                text_rows.append((p.index + 1, blk.text, first_link([s for ln in blk.lines for s in ln.spans])))
     if text_rows or not wb.sheetnames:
         ws = wb.create_sheet(safe_sheet_title("Text", used), 0 if not wb.sheetnames else len(wb.sheetnames))
         ws.append(["Page", "Text"])
-        for page_no, text in text_rows:
+        for page_no, text, link in text_rows:
             ws.append([page_no, None])
-            write_cell(ws, ws.max_row, 2, text).alignment = Alignment(wrap_text=True, vertical="top")
+            c = write_cell(ws, ws.max_row, 2, text)
+            set_link(c, link)
+            c.alignment = Alignment(wrap_text=True, vertical="top")
         ws.column_dimensions["B"].width = 100
         ctx.added_text.extend(["Page", "Text"])
-        ctx.added_text.extend(str(pn) for pn, _ in text_rows)
+        ctx.added_text.extend(str(pn) for pn, _, _ in text_rows)
     if mode == "exact":
         _original_sheet(wb, model, mdir, used)
     wb.save(out)

@@ -97,7 +97,9 @@ def make_docx(path: Path, pic: Path) -> Path:
     doc.add_heading(TITLE, level=1)
     doc.add_paragraph(EN)
     p = doc.add_paragraph()
-    p.add_run(HI).font.name = "Noto Sans Devanagari"
+    r = p.add_run(HI)
+    r.font.name = "Noto Sans Devanagari"
+    r._r.rPr.rFonts.set(qn("w:cs"), "Noto Sans Devanagari")  # Word sets the complex-script font for Hindi
     p = doc.add_paragraph()
     p.paragraph_format.alignment = 2
     p._p.get_or_add_pPr().append(OxmlElement("w:bidi"))
@@ -374,6 +376,12 @@ def build(out: Path, *, legacy: bool = True, pdfa: bool = True) -> dict[str, Pat
             got = legacy_via_lo(src, out, filt)
             if got:
                 s[key] = got
+        try:  # born-digital PDF with Hindi and Arabic text, as Word/LibreOffice users produce them
+            got = lo.convert(s["docx"], out / "lo-pdf", lo.pdf_filter("writer"))
+            s["pdf_lo"] = got.rename(out / "report-lo.pdf")
+            (out / "lo-pdf").rmdir()
+        except Exception:
+            pass
         if pdfa:
             try:
                 got = lo.convert(s["docx"], out / "pdfa", lo.pdf_filter("writer", pdfa=2))

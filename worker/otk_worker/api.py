@@ -74,6 +74,83 @@ def resizer_run(params: dict, ctx: Context) -> dict:
     return pipeline.run_batch(params, ctx.progress, ctx.cancel_event)
 
 
+class RpcHost:
+    """Chromium printing done by the Electron main process, asked over the same stdio channel."""
+
+    def __init__(self, ctx: Context):
+        self.ctx = ctx
+
+    def render_pdf(self, html_path, pdf_path, *, paper: str, allow_dir, page_size=None) -> dict:
+        return self.ctx.server.request_host("host.renderPdf", {
+            "html": str(html_path), "pdf": str(pdf_path), "paper": paper, "allowDir": str(allow_dir),
+            "pageSize": list(page_size) if page_size else None}, timeout=600, cancel=self.ctx.cancel_event)
+
+
+def _host(ctx: Context):
+    return RpcHost(ctx) if os.environ.get("OTK_HOST_RPC") == "1" else None
+
+
+def converter_catalog(params: dict, ctx: Context) -> dict:
+    from .converter import engines, ocr, runner
+
+    cat = runner.catalog()
+    fmts = []
+    for fid, f in cat.formats.items():
+        if "internal" in f["roles"]:
+            continue
+        fmts.append({"id": fid, "label": f["label"], "short": f.get("short", fid), "ext": f.get("ext", []),
+                     "roles": f["roles"], "targetModes": f.get("targetModes", []), "note": f.get("note")})
+    try:
+        langs = ocr.languages_available()
+    except Exception:
+        langs = []
+    return {"formats": fmts, "sources": cat.sources(), "targets": cat.targets(), "ocrLanguages": langs,
+            "engines": engines.status(), "features": {k: v["label"] for k, v in cat.features.items()}}
+
+
+def converter_inspect(params: dict, ctx: Context) -> dict:
+    from .converter import runner
+
+    passwords = params.get("passwords") or {}
+    out = []
+    for path in params.get("paths") or []:
+        out.append(runner.preflight(path, params["target"], params.get("mode", "exact"), passwords.get(path),
+                                    params.get("options")))
+    return {"files": out}
+
+
+def converter_plan(params: dict, ctx: Context) -> dict:
+    from .converter import runner
+    from .converter.planner import NoRouteError
+
+    cat = runner.catalog()
+    try:
+        route = cat.plan(params["source"], params["target"], params.get("mode", "exact"))
+    except NoRouteError as exc:
+        return {"ok": False, "error": str(exc)}
+    return {"ok": True, "route": runner.route_dict(route),
+            "losses": [{"feature": x.feature, "label": x.label, "level": x.level} for x in cat.potential_losses(route)],
+            "stepLosses": cat.step_losses(route)}
+
+
+def converter_run(params: dict, ctx: Context) -> dict:
+    from .converter import runner
+
+    return runner.run_batch(params, ctx.progress, ctx.cancel_event, host=_host(ctx))
+
+
+def engines_status(params: dict, ctx: Context) -> dict:
+    from .converter import engines, ocr
+
+    st = engines.status()
+    try:
+        st["ocrLanguages"] = ocr.languages_available()
+    except Exception as exc:
+        st["ocrLanguages"] = []
+        st["ocrError"] = str(exc)
+    return st
+
+
 def register(server: Server) -> None:
     server.register("ping", ping, inline=True)
     server.register("selftest.canary", selftest_canary)
@@ -82,3 +159,8 @@ def register(server: Server) -> None:
     server.register("units.resolve", resolve_units)
     server.register("resizer.preview", resizer_preview)
     server.register("resizer.run", resizer_run)
+    server.register("converter.catalog", converter_catalog)
+    server.register("converter.inspect", converter_inspect)
+    server.register("converter.plan", converter_plan)
+    server.register("converter.run", converter_run)
+    server.register("engines.status", engines_status)

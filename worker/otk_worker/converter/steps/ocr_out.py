@@ -195,8 +195,8 @@ def ocr_svg_editable(ctx: StepContext, src: Artifact, target: str) -> Artifact:
         path = out_dir / f"{p.index + 1:04d}.svg"
         path.write_text(svg, encoding="utf-8")
         paths.append(path)
-    ctx.expect("The recognised text was painted out of the page picture and placed on top as live text in a "
-               "generic font.")
+    ctx.expect_check("images", "The recognised text was painted out of the page picture and placed on top as live "
+                               "text in a generic font.")
     return Artifact("svg", paths)
 
 

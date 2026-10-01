@@ -17,7 +17,7 @@ from .. import libreoffice as lo
 from .. import ooxml, ooxml_read
 from ..context import Artifact, StepContext
 from . import step
-from .docmodel_out import safe_sheet_title, write_cell
+from .docmodel_out import safe_sheet_title, set_link, write_cell
 
 
 @dataclass
@@ -267,7 +267,7 @@ def docx_xlsx(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     wb = Workbook()
     wb.remove(wb.active)
     used: set[str] = set()
-    text_rows: list[str] = []
+    text_rows: list[tuple[str, str | None]] = []
     n = 0
     for kind, item in body:
         ctx.check()
@@ -277,6 +277,7 @@ def docx_xlsx(ctx: StepContext, src: Artifact, target: str) -> Artifact:
             ws = wb.create_sheet(safe_sheet_title(f"Table {n}", used))
             for (r, c), text in g.cells.items():
                 cell = write_cell(ws, r + 1, c + 1, text)
+                set_link(cell, g.links.get((r, c)))
                 if "\n" in text:
                     cell.alignment = Alignment(wrap_text=True, vertical="top")
             for r0, c0, r1, c1 in g.merges:
@@ -284,12 +285,14 @@ def docx_xlsx(ctx: StepContext, src: Artifact, target: str) -> Artifact:
         else:
             t = item.text  # type: ignore[union-attr]
             if t.strip():
-                text_rows.append(t)
+                text_rows.append((t, next((r.link for r in item.runs if r.link and not r.link.startswith("#")), None)))
     if text_rows or not wb.sheetnames:
         ws = wb.create_sheet(safe_sheet_title("Text", used), 0)
-        for t in text_rows:
+        for t, link in text_rows:
             ws.append([None])
-            write_cell(ws, ws.max_row, 1, t).alignment = Alignment(wrap_text=True, vertical="top")
+            c = write_cell(ws, ws.max_row, 1, t)
+            set_link(c, link)
+            c.alignment = Alignment(wrap_text=True, vertical="top")
         ws.column_dimensions["A"].width = 100
     out = ctx.path("out.xlsx")
     wb.save(out)

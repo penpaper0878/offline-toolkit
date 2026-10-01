@@ -13,7 +13,7 @@ from .. import ooxml_read, pdfpages
 from ..context import Artifact, StepContext
 from ..ooxml_read import DocxPara, SlideContent
 from . import step
-from .docmodel_out import safe_sheet_title, write_cell
+from .docmodel_out import safe_sheet_title, set_link, write_cell
 
 
 def _runs_html(p: DocxPara) -> str:
@@ -292,18 +292,22 @@ def pptx_xlsx(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     ws.append(["Slide", "Text", "Notes"])
     ctx.added_text += ["Slide", "Text", "Notes"]
     for s in slides:
-        texts = []
+        texts, link = [], None
         for it in s.items:
             if it.kind == "text":
                 texts.extend(p.text for p in it.paragraphs if p.text.strip())
+                link = link or next((r.link for p in it.paragraphs for r in p.runs
+                                     if r.link and not r.link.startswith("#")), None)
         ws.append([s.index, None, None])
         ctx.added_text.append(str(s.index))
-        write_cell(ws, ws.max_row, 2, "\n".join(texts)).alignment = Alignment(wrap_text=True, vertical="top")
+        tc = write_cell(ws, ws.max_row, 2, "\n".join(texts))
+        tc.alignment = Alignment(wrap_text=True, vertical="top")
+        set_link(tc, link)
         write_cell(ws, ws.max_row, 3, "\n".join(n for n in s.notes if n.strip())).alignment = Alignment(wrap_text=True, vertical="top")
         for k, it in enumerate([i for i in s.items if i.kind == "table"], start=1):
             tws = wb.create_sheet(safe_sheet_title(f"Slide {s.index} table {k}", used))
             for (r, c), text in it.grid.cells.items():
-                write_cell(tws, r + 1, c + 1, text)
+                set_link(write_cell(tws, r + 1, c + 1, text), it.grid.links.get((r, c)))
             for r0, c0, r1, c1 in it.grid.merges:
                 tws.merge_cells(start_row=r0 + 1, start_column=c0 + 1, end_row=r1 + 1, end_column=c1 + 1)
     ws.column_dimensions["B"].width = 80

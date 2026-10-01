@@ -289,21 +289,25 @@ def _outputs_intact(rec: dict) -> bool:
         return False
 
 
-def _pdfa_retry(ctx: StepContext, target: str, src_copy: Path, src_fmt: str, art: Artifact) -> Artifact | None:
-    """Second route when veraPDF rejects the first file."""
+def _pdfa_retry(ctx: StepContext, target: str, src_copy: Path, src_fmt: str, art: Artifact) -> tuple[Artifact, pdfa.Validation] | None:
+    """Second chance when veraPDF rejects the first file: repair it with pikepdf (content untouched);
+    for LibreOffice sources, export a plain PDF and run the full PDF route on it."""
     flavour = pdfa.FLAVOURS[target]
     steps = load_all()
     try:
+        ctx.note("The first PDF/A file did not pass veraPDF; trying a repair.")
+        out = ctx.path(f"repaired-{flavour}.pdf")
+        v, engine, _ = pdfa.make(art.path, out, flavour, ctx.folder("pdfa-retry"),
+                                 source_file=ctx.source if (flavour == "3b" and ctx.options.pdfa_embed_source) else None,
+                                 check=ctx.check, allow_ghostscript=False)
+        if v.compliant:
+            return Artifact(target, [out], {"pdfa": {"engine": "pikepdf repair"}}), v
         if art.info.get("pdfa", {}).get("engine") == "libreoffice":
-            ctx.note("LibreOffice's PDF/A did not pass veraPDF; retrying through Ghostscript.")
+            ctx.note("Retrying through a plain PDF export and the PDF/A route.")
             plain = steps["lo_to_pdf"](ctx, Artifact(src_fmt, [src_copy]), "pdf")
-            return steps["gs_pdfa"](ctx, plain, target)
-        # Ghostscript (or a metadata-only upgrade) failed: let pikepdf repair the original instead.
-        ctx.note("The first PDF/A attempt did not pass veraPDF; retrying with pikepdf's PDF/A repair.")
-        base = src_copy if src_fmt in ("pdf", "pdfa1b", "pdfa2b", "pdfa3b", "pdf_scanned") else art.path
-        out = ctx.path(f"retry-{flavour}.pdf")
-        pdfa.finish(base, out, flavour, source_file=ctx.source if ctx.options.pdfa_embed_source else None)
-        return Artifact(target, [out])
+            redo = steps["gs_pdfa"](ctx, plain, target)
+            return redo, pdfa.Validation.from_dict(redo.info["validation"])
+        return None
     except ToolkitError as exc:
         ctx.note(f"The PDF/A retry failed: {exc.message}")
         return None
@@ -350,15 +354,15 @@ def convert_file(source: Path, target: str, options: Options, work: Path, out_di
         final_target = target
         if target in pdfa.FLAVOURS:
             progress(0.78, "veraPDF: checking PDF/A compliance")
-            validation = pdfa.verapdf(art.path, pdfa.FLAVOURS[target], check=check)
+            known = art.info.get("validation")
+            if known and known.get("flavour") == pdfa.FLAVOURS[target]:
+                validation = pdfa.Validation.from_dict(known)
+            else:
+                validation = pdfa.verapdf(art.path, pdfa.FLAVOURS[target], check=check)
             if not validation.compliant and validation.available:
                 retry = _pdfa_retry(ctx, target, copy, det.format, art)
-                if retry is not None:
-                    v2 = pdfa.verapdf(retry.path, pdfa.FLAVOURS[target], check=check)
-                    if v2.compliant:
-                        art, validation = retry, v2
-                    else:
-                        validation.failed_rules = validation.failed_rules or v2.failed_rules
+                if retry is not None and retry[1].compliant:
+                    art, validation = retry
         report_data = None
         if verify:
             from .verify import verify_conversion

@@ -1,5 +1,24 @@
-# Worker runtime dependencies (Phase 1). Full hashed lock for packaging comes in Phase 5.
+# Worker runtime dependencies. Full hashed lock for packaging comes in Phase 5.
+# Phase 1 (image resizer)
 pillow==12.3.0
 numpy==2.4.6
 pi-heif==1.4.0
 jsonschema==4.26.0
+# Phase 2 (document converter)
+pymupdf==1.28.2
+pikepdf[pdfa]==10.16.0
+pypdfium2==5.13.0
+pdf2docx==0.5.13
+img2pdf==0.6.3
+ocrmypdf==17.13.0
+python-docx==1.2.0
+python-pptx==1.0.2
+openpyxl==3.1.5
+xlrd==2.0.2
+lxml==6.1.3
+rapidfuzz==3.14.6
+msoffcrypto-tool==6.0.0
+docxcompose==2.2.0
+charset-normalizer==3.5.2
+opencv-python-headless==5.0.0.93
+fonttools==4.66.1

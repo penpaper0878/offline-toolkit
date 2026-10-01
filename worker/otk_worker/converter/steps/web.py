@@ -13,7 +13,7 @@ from lxml import html as lhtml
 from .. import chromium, engines, epub, htmlprep, ooxml, textutil
 from ..context import Artifact, StepContext
 from . import step
-from .docmodel_out import safe_sheet_title, typed_value, write_cell
+from .docmodel_out import safe_sheet_title, set_link, typed_value, write_cell
 
 
 # ------------------------------------------------------------------ Chromium
@@ -75,18 +75,33 @@ def pandoc(ctx: StepContext, src: Path, fmt_in: str, out: Path, fmt_out: str, ex
 _PANDOC_IN = {"html": "html", "docx": "docx", "epub": "epub"}
 
 
+# Pandoc writers turn a "title" into a visible title block, paragraph or slide. Sources keep their own
+# title as metadata only, so no text is added that the source does not show.
+_NO_TITLE = ["-M", "title=", "-M", "subtitle=", "-M", "author=", "-M", "date="]
+
+
 @step("html_docx_pandoc", "pandoc_to_docx")
 def pandoc_docx(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     out = ctx.path("out.docx")
-    pandoc(ctx, src.path, _PANDOC_IN[src.format], out, "docx", ["-M", f"title={_title_of(ctx, src)}"])
+    pandoc(ctx, src.path, _PANDOC_IN[src.format], out, "docx", _NO_TITLE)
+    _docx_title(out, _title_of(ctx, src))
     return Artifact("docx", [out])
+
+
+def _docx_title(path: Path, title: str) -> None:
+    from docx import Document
+
+    doc = Document(str(path))
+    doc.core_properties.title = title
+    doc.save(str(path))
 
 
 @step("pandoc_to_pptx")
 def pandoc_pptx(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     out = ctx.path("out.pptx")
-    pandoc(ctx, src.path, _PANDOC_IN[src.format], out, "pptx", ["-M", f"title={_title_of(ctx, src)}"])
+    pandoc(ctx, src.path, _PANDOC_IN[src.format], out, "pptx", _NO_TITLE)
     ctx.expect("Slides are cut at headings; page layout is not kept.")
+    ctx.expect_check("tables", "Pandoc's PowerPoint tables cannot merge cells; merged cells become separate cells.")
     return Artifact("pptx", [out])
 
 
@@ -100,8 +115,8 @@ def pandoc_plain(ctx: StepContext, src: Artifact, target: str) -> Artifact:
 @step("pandoc_epub")
 def pandoc_epub(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     out = ctx.path("out.epub")
-    pandoc(ctx, src.path, _PANDOC_IN[src.format], out, "epub3", ["-M", f"title={_title_of(ctx, src)}", "--toc"])
-    ctx.added_text.append(_title_of(ctx, src))
+    pandoc(ctx, src.path, _PANDOC_IN[src.format], out, "epub3",
+           ["-M", f"title={_title_of(ctx, src)}", "--toc", "--epub-title-page=false"])
     return Artifact("epub", [out])
 
 
@@ -109,7 +124,7 @@ def pandoc_epub(ctx: StepContext, src: Artifact, target: str) -> Artifact:
 def pandoc_html(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     out = ctx.path("out.html")
     pandoc(ctx, src.path, _PANDOC_IN[src.format], out, "html5",
-           ["--standalone", "--embed-resources", "-M", f"title={_title_of(ctx, src)}"])
+           ["--standalone", "--embed-resources", "-M", f"pagetitle={_title_of(ctx, src)}"] + _NO_TITLE)
     return Artifact("html", [out])
 
 
@@ -191,6 +206,9 @@ def html_xlsx(ctx: StepContext, src: Artifact, target: str) -> Artifact:
                         xc = write_cell(ws, r, c, text)
                 if cell.get("data-numfmt"):
                     xc.number_format = cell.get("data-numfmt")
+                a = next((x for x in cell.iter("a") if (x.get("href") or "").startswith(("http:", "https:", "mailto:"))), None)
+                if a is not None:
+                    set_link(xc, a.get("href"))
                 if "\n" in text:
                     xc.alignment = Alignment(wrap_text=True, vertical="top")
         for r0, c0, r1, c1 in merges:
@@ -203,11 +221,20 @@ def html_xlsx(ctx: StepContext, src: Artifact, target: str) -> Artifact:
             cap.tag = "p"
     body = doc.find("body")
     lines = textutil.html_lines(body if body is not None else doc, skip_tables=True)
+    links = [a.get("href") for a in (body if body is not None else doc).iter("a")
+             if (a.get("href") or "").startswith(("http:", "https:", "mailto:")) and _closest_table(a) is None]
     if lines or not wb.sheetnames:
         ws = wb.create_sheet(safe_sheet_title("Text", used))
         for line in lines:
             ws.append([None])
-            write_cell(ws, ws.max_row, 1, line)
+            c = write_cell(ws, ws.max_row, 1, line)
+            hit = next((u for u in links if u in line), None)
+            if hit:
+                set_link(c, hit)
+                links.remove(hit)
+        if links:
+            ctx.note(f"{len(links)} link(s) whose text is not the address could not be attached to a cell: "
+                     + ", ".join(links[:5]))
         ws.column_dimensions["A"].width = 100
     out = ctx.path("out.xlsx")
     wb.save(out)
@@ -496,6 +523,20 @@ def epub_html_join(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     return Artifact("html", [out])
 
 
+@step("svg_epub")
+def svg_epub(ctx: StepContext, src: Artifact, target: str) -> Artifact:
+    """The drawing inline in an EPUB 3 page (fixed layout at the drawing's size); its text stays text."""
+    w, h = htmlprep.svg_size_pt(src.path)
+    page = epub.FxlPage(svg=_svg_markup(src.path), width=w * 4 / 3, height=h * 4 / 3)
+    title = ""
+    t = etree.parse(str(src.path)).getroot().find("{http://www.w3.org/2000/svg}title")
+    if t is not None and t.text:
+        title = t.text.strip()
+    out = ctx.path("out.epub")
+    epub.write_fixed_layout(out, [page], title=title or ctx.source.stem)
+    return Artifact("epub", [out])
+
+
 # ------------------------------------------------------------------ SVG
 def _svg_markup(path: Path) -> str:
     s = path.read_text(encoding="utf-8")
@@ -518,14 +559,15 @@ def svg_html(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     return Artifact("html", [out])
 
 
-def svg_text_lines(path: Path) -> list[str]:
+def svg_text_lines(path: Path, *, visible_only: bool = False) -> list[str]:
+    """Text of an SVG in document order: <text> elements, plus <title>/<desc> unless only visible text is wanted."""
     root = etree.parse(str(path), etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=True)).getroot()
     lines = []
     for el in root.iter():
         if not isinstance(el.tag, str):
             continue
         local = etree.QName(el).localname
-        if local in ("title", "desc"):
+        if local in ("title", "desc") and not visible_only:
             if el.text and el.text.strip():
                 lines.append(el.text.strip())
         elif local == "text":
@@ -538,7 +580,14 @@ def svg_text_lines(path: Path) -> list[str]:
 @step("svg_txt")
 def svg_txt(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     out = ctx.path("out.txt")
-    out.write_text("\n".join(svg_text_lines(src.path)) + "\n", encoding="utf-8")
+    all_lines = svg_text_lines(src.path)
+    visible = svg_text_lines(src.path, visible_only=True)
+    hidden = list(all_lines)
+    for v in visible:
+        if v in hidden:
+            hidden.remove(v)
+    ctx.added_text.extend(hidden)  # the drawing's <title>/<desc> are listed too, though not drawn
+    out.write_text("\n".join(all_lines) + "\n", encoding="utf-8")
     return Artifact("txt", [out])
 
 
@@ -583,7 +632,15 @@ def svg_pptx(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     out = ctx.path("out.pptx")
     prs.save(out)
     ctx.note("The drawing is a vector SVG picture with a PNG copy for older PowerPoint versions.")
+    _picture_expectations(ctx)
     return Artifact("pptx", [out])
+
+
+def _picture_expectations(ctx: StepContext) -> None:
+    ctx.expect_check("text", "The drawing is placed as one picture: its text is inside the picture, not document text "
+                             "(PowerPoint 365 / Word 365: right-click → Convert to Shape makes it editable).")
+    ctx.expect_check("images", "The whole drawing is one picture (vector SVG with a PNG copy).")
+    ctx.expect_check("links", "Links inside the drawing are kept in the SVG picture only.")
 
 
 @step("svg_docx_picture")
@@ -610,5 +667,7 @@ def svg_docx(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     doc.save(out)
     if s < 1.0:
         ctx.note(f"The drawing was scaled to {s:.0%} to fit the page width.")
+        ctx.expect_check("appearance", f"The drawing was scaled to {s:.0%} to fit the page.")
     ctx.note("The drawing is a vector SVG picture with a PNG copy for older Word versions.")
+    _picture_expectations(ctx)
     return Artifact("docx", [out])

@@ -496,24 +496,24 @@ def _inside(inner, outer, tol=1.5) -> bool:
 
 
 def _assign_tables(page: Page) -> None:
-    """Cell text from the page's lines; blocks inside a table are marked (and split per cell)."""
+    """Cell text from the page's lines. Each line is assigned on its own: a PDF block can hold a table
+    and the paragraph after it, and that paragraph must stay ordinary text."""
     if not page.tables:
         return
     new_blocks: list[Block] = []
     for blk in page.blocks:
-        tidx = next((i for i, t in enumerate(page.tables) if _inside(blk.bbox, t.bbox)), None)
-        if tidx is None:
-            # A block can straddle a table: keep lines outside, move lines inside.
-            outside = [ln for ln in blk.lines if not any(_inside(ln.bbox, t.bbox) for t in page.tables)]
-            inside = [ln for ln in blk.lines if ln not in outside]
+        outside: list[Line] = []
+        for ln in blk.lines:
+            ti = next((i for i, t in enumerate(page.tables) if _inside(ln.bbox, t.bbox)), None)
+            if ti is None:
+                outside.append(ln)
+                continue
             if outside:
                 new_blocks.append(Block(outside, _bbox_of(outside)))
-            for ln in inside:
-                ti = next(i for i, t in enumerate(page.tables) if _inside(ln.bbox, t.bbox))
-                new_blocks.append(Block([ln], list(ln.bbox), ti))
-            continue
-        blk.table = tidx
-        new_blocks.append(blk)
+                outside = []
+            new_blocks.append(Block([ln], list(ln.bbox), ti))
+        if outside:
+            new_blocks.append(Block(outside, _bbox_of(outside)))
     page.blocks = new_blocks
     for ti, t in enumerate(page.tables):
         for cell in t.cells:
@@ -745,3 +745,19 @@ def scale_page(p: Page, s: float, dx: float = 0.0, dy: float = 0.0) -> None:
     for lk in p.links:
         lk.bbox = box(lk.bbox)
     p.width, p.height = round(p.width * s + 2 * dx, 2), round(p.height * s + 2 * dy, 2)
+
+
+def text_only(pdf_path: Path, password: str | None = None) -> str:
+    """Page text (whitespace fragments merged back), pages separated by form feeds; no pictures or tables."""
+    import pymupdf
+
+    out = []
+    with pymupdf.open(pdf_path) as doc:
+        if doc.needs_pass:
+            doc.authenticate(password or "")
+        for page in doc:
+            if page.rotation:
+                page.remove_rotation()
+            blocks = _lines_to_blocks(_page_lines(page))
+            out.append("\n".join(ln.text for b in blocks for ln in b.lines))
+    return "\f".join(out)

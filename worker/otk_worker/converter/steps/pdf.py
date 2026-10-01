@@ -108,12 +108,20 @@ def pdf_render(ctx: StepContext, src: Artifact, target: str) -> Artifact:
 
 @step("pdf_svg")
 def pdf_svg(ctx: StepContext, src: Artifact, target: str) -> Artifact:
-    exact = ctx.options.mode == "exact"
-    model = extract_model(ctx, src.path)[0] if exact else None
-    paths = pdfpages.page_svgs(src.path, ctx.folder("svg"), exact=exact, model=model, password=ctx.password,
-                               check=ctx.check, progress=ctx.progress)
-    if not exact:
-        ctx.expect("Editable SVG uses the font names from the PDF; text looks different where those fonts are not installed.")
+    model, mpath = extract_model(ctx, src.path)
+    if ctx.options.mode == "exact":
+        paths = pdfpages.page_svgs(src.path, ctx.folder("svg"), exact=True, model=model, password=ctx.password,
+                                   check=ctx.check, progress=ctx.progress)
+        return Artifact("svg", paths)
+    out_dir = ctx.folder("svg")
+    paths = []
+    for i in range(len(model.pages)):
+        ctx.progress(i / max(1, len(model.pages)), f"Page {i + 1}")
+        p = out_dir / f"{i + 1:04d}.svg"
+        p.write_text(pdfpages.editable_page_svg(model, i, mpath.parent), encoding="utf-8")
+        paths.append(p)
+    ctx.expect("Editable SVG uses real text in the PDF's font names; the viewer lays the text out, so line "
+               "lengths differ where those fonts are not installed.")
     return Artifact("svg", paths)
 
 
@@ -134,14 +142,37 @@ def pdf_html_pages(ctx: StepContext, src: Artifact, target: str) -> Artifact:
                      f'{pdfpages.inline_svg(svg, page.rect.width, page.rect.height)}</section>')
     doc.close()
     title = model.metadata.get("title") or src.path.stem
+    nav = outline_nav(model.toc, ctx)
     out = ctx.path("out.html")
     out.write_text(
         f'<!DOCTYPE html>\n<html><head><meta charset="utf-8"><title>{html.escape(title)}</title><style>'
         "body{background:#e8e8e8;margin:0;padding:16px}.page{background:#fff;margin:0 auto 16px;width:max-content;"
         "box-shadow:0 1px 4px rgba(0,0,0,.3)}.page svg{display:block}"
-        "@media print{body{background:none;padding:0}.page{box-shadow:none;margin:0;break-after:page}}"
-        "</style></head><body>\n" + "\n".join(parts) + "\n</body></html>\n", encoding="utf-8")
+        "nav.outline{max-width:60em;margin:0 auto 16px;font:14px system-ui,sans-serif}"
+        "@media print{body{background:none;padding:0}.page{box-shadow:none;margin:0;break-after:page}nav.outline{display:none}}"
+        "</style></head><body>\n" + nav + "\n".join(parts) + "\n</body></html>\n", encoding="utf-8")
     return Artifact("html", [out])
+
+
+def outline_nav(toc: list, ctx: StepContext) -> str:
+    """The PDF's bookmarks as a collapsible list of links to the pages."""
+    import html
+
+    if not toc:
+        return ""
+    items, depth = [], 0
+    for level, title, page in ((int(t[0]), str(t[1]), int(t[2])) for t in toc):
+        while depth < level:
+            items.append("<ul>")
+            depth += 1
+        while depth > level:
+            items.append("</ul>")
+            depth -= 1
+        items.append(f'<li><a href="#page-{max(1, page)}">{html.escape(title)}</a></li>')
+        ctx.added_text.append(title)
+    items.extend("</ul>" for _ in range(depth))
+    return f'<nav class="outline"><details><summary>Bookmarks</summary>{"".join(items)}</details></nav>\n'
+
 
 
 @step("pdf_fxl_epub")
@@ -274,16 +305,21 @@ def gs_pdfa(ctx: StepContext, src: Artifact, target: str) -> Artifact:
         ctx.progress(0.05, "Recognising text (OCR) and writing PDF/A")
         tmp = ctx.path("ocr.pdf")
         ocrmypdf(ctx, src.path, tmp, f"pdfa-{flavour[0]}")
-        info = pdfa.finish(tmp, out, flavour, source_file=_embed(ctx, flavour), title=title)
         ctx.note("An invisible OCR text layer was added; the page images are unchanged.")
+        v, engine, info = pdfa.make(tmp, out, flavour, ctx.folder("pdfa"), title=title,
+                                    source_file=_embed(ctx, flavour), check=ctx.check)
     else:
-        ctx.progress(0.05, "Ghostscript: writing PDF/A")
-        gs_out = ctx.path(f"gs-{flavour}.pdf")
-        pdfa.ghostscript(src.path, gs_out, flavour, ctx.folder("gs"), title=title, check=ctx.check)
-        info = pdfa.finish(gs_out, out, flavour, source_file=_embed(ctx, flavour), title=title)
+        ctx.progress(0.05, "Making PDF/A (pikepdf repair first, Ghostscript if needed)")
+        v, engine, info = pdfa.make(src.path, out, flavour, ctx.folder("pdfa"), title=title,
+                                    source_file=_embed(ctx, flavour), check=ctx.check)
+    if engine == "ghostscript":
+        ctx.note("The PDF needed Ghostscript to become PDF/A (fonts and page content were rewritten).")
+    else:
+        ctx.note("PDF/A was reached without rewriting the page content (pikepdf repair).")
     for r in info.get("repairs", []):
         ctx.note(f"PDF/A repair: {r}")
-    return Artifact(target, [out], {"pdfa": info})
+    return Artifact(target, [out], {"pdfa": {"engine": engine, **{k: v_ for k, v_ in info.items() if k != "firstAttempt"}},
+                                    "validation": v.to_dict()})
 
 
 def _embed(ctx: StepContext, flavour: str) -> Path | None:
@@ -347,10 +383,23 @@ def pdf2docx_step(ctx: StepContext, src: Artifact, target: str) -> Artifact:
         ctx.note(f"The PDF has {reason}, which pdf2docx cannot rebuild; the document-model route was used instead.")
         model, mpath = extract_model(ctx, src.path)
         write_docx_flow(model, mpath.parent, out, ctx)
+        _outline(ctx, out, model.toc)
         return Artifact("docx", [out], {"route": "docmodel_docx"})
     ctx.progress(0.05, "pdf2docx: rebuilding the layout")
     cmd = [sys.executable, "-m", "otk_worker.converter.pdf2docx_cli", str(src.path), str(out)]
     engines.run(cmd, check=ctx.check, timeout=1800 + src.path.stat().st_size / 1_000_000 * 60, what="pdf2docx")
     if not out.exists():
         raise engines.EngineFailed("pdf2docx did not produce a document.")
+    import pymupdf
+    with pymupdf.open(src.path) as d:
+        _outline(ctx, out, d.get_toc(simple=True))
     return Artifact("docx", [out])
+
+
+def _outline(ctx: StepContext, docx_path: Path, toc: list) -> None:
+    from ..docx_post import apply_outline
+
+    if toc:
+        placed = apply_outline(docx_path, toc)
+        if placed < len(toc):
+            ctx.note(f"{len(toc) - placed} of {len(toc)} PDF bookmarks have no matching heading text in the document.")

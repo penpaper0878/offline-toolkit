@@ -56,7 +56,7 @@ Number of steps per route: `exact / editable`, or one number when the target has
 | **EPUB** | 2 | 3 | 3 | 3 | 2 / 1 | 2 / 2 | 4 / 1 | 1 / 1 | 1 | · | 3 | 3 | 3 / 3 |
 | **PNG** | 2 | 2 | 2 | 2 | 2 / 2ᵒ | 2 / 2ᵒ | 2 / 2ᵒ | 2 / 2ᵒ | 2ᵒ | 2 / 3ᵒ | · | 1 | 1 / 2ᵒ |
 | **JPEG** | 2 | 2 | 2 | 2 | 2 / 2ᵒ | 2 / 2ᵒ | 2 / 2ᵒ | 2 / 2ᵒ | 2ᵒ | 2 / 3ᵒ | 1 | · | 1 / 2ᵒ |
-| **SVG** | 1 | 2 | 2 | 2 | 1 / 1 | 3 / 3* | 1 / 3* | 1 / 1 | 1 | 2 / 2 | 1 | 2 | · |
+| **SVG** | 1 | 2 | 2 | 2 | 1 / 1 | 3 / 3* | 1 / 3* | 1 / 1 | 1 | 1 / 1 | 1 | 2 | · |
 
 ## Routes by source format
 
@@ -446,8 +446,8 @@ Number of steps per route: `exact / editable`, or one number when the target has
 | HTML | exact | SVG → HTML<br><sub>[`svg_html`](#e-svg_html) (Toolkit)</sub> | **Lost:** Headers/footers |
 | HTML | editable | SVG → HTML<br><sub>[`svg_html`](#e-svg_html) (Toolkit)</sub> | **Lost:** Headers/footers |
 | TXT | — | SVG → TXT<br><sub>[`svg_txt`](#e-svg_txt) (Toolkit)</sub> | **Lost:** Fonts, Images, Vector graphics, Merged cells, Headers/footers, Metadata · **Partial:** Hyperlinks |
-| EPUB | exact | SVG → PDF → EPUB<br><sub>[`chromium_pdf`](#e-chromium_pdf) (Chromium), [`pdf_fxl_epub`](#e-pdf_fxl_epub) (Toolkit)</sub> | **Lost:** Headers/footers |
-| EPUB | editable | SVG → HTML → EPUB<br><sub>[`svg_html`](#e-svg_html) (Toolkit), [`pandoc_epub`](#e-pandoc_epub) (Pandoc)</sub> | **Lost:** Headers/footers |
+| EPUB | exact | SVG → EPUB<br><sub>[`svg_epub`](#e-svg_epub) (Toolkit)</sub> | **Lost:** Headers/footers |
+| EPUB | editable | SVG → EPUB<br><sub>[`svg_epub`](#e-svg_epub) (Toolkit)</sub> | **Lost:** Headers/footers |
 | PNG | — | SVG → PNG<br><sub>[`resvg`](#e-resvg) (resvg)</sub> | Flattened to pixels (text not selectable) · **Lost:** Hyperlinks |
 | JPEG | — | SVG → PNG → JPEG<br><sub>[`resvg`](#e-resvg) (resvg), [`raster_convert`](#e-raster_convert) (Pillow)</sub> | Flattened to pixels (text not selectable) · **Lost:** Hyperlinks · Transparency flattened onto the chosen colour · JPEG is lossy (quality selectable) |
 
@@ -519,4 +519,5 @@ Number of steps per route: `exact / editable`, or one number when the target has
 | <a id="e-svg_html"></a>`svg_html` | SVG→HTML | Toolkit | exact 0.5, editable 0.5 | SVG inlined in an HTML page (text stays text) | — |
 | <a id="e-svg_txt"></a>`svg_txt` | SVG→TXT | Toolkit | exact 0.5 | <text>/<tspan>, <title> and <desc> in document order | — |
 | <a id="e-svg_pptx_picture"></a>`svg_pptx_picture` | SVG→PPTX | Toolkit | exact 1 | Vector SVG picture with PNG fallback ('Convert to Shape' works in PowerPoint 365) | — |
+| <a id="e-svg_epub"></a>`svg_epub` | SVG→EPUB | Toolkit | exact 0.8, editable 0.8 | The drawing inline in a fixed-layout EPUB 3 page at its own size; text stays text | — |
 | <a id="e-svg_docx_picture"></a>`svg_docx_picture` | SVG→DOCX | Toolkit | exact 1, editable 1 | Vector SVG picture with PNG fallback (Word 2016+ shows vector) | — |

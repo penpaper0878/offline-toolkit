@@ -240,7 +240,10 @@
     { "id": "svg_pptx_picture", "from": ["svg"], "to": ["pptx"], "engine": "python",
       "modes": { "exact": 1.0 },
       "summary": "Vector SVG picture with PNG fallback ('Convert to Shape' works in PowerPoint 365)" },
-        { "id": "svg_docx_picture", "from": ["svg"], "to": ["docx"], "engine": "python",
+    { "id": "svg_epub", "from": ["svg"], "to": ["epub"], "engine": "python",
+      "modes": { "exact": 0.8, "editable": 0.8 },
+      "summary": "The drawing inline in a fixed-layout EPUB 3 page at its own size; text stays text" },
+    { "id": "svg_docx_picture", "from": ["svg"], "to": ["docx"], "engine": "python",
       "modes": { "exact": 1.0, "editable": 1.0 },
       "summary": "Vector SVG picture with PNG fallback (Word 2016+ shows vector)" }
   ],

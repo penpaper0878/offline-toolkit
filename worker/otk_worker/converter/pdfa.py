@@ -174,6 +174,31 @@ def strip_declaration(src: Path, out: Path) -> None:
         pdf.save(out)
 
 
+def make(src: Path, out: Path, flavour: str, work: Path, *, title: str = "", source_file: Path | None = None,
+         check: Callable[[], None] = lambda: None, allow_ghostscript: bool = True) -> tuple["Validation", str, dict]:
+    """PDF/A from a PDF, least invasive first:
+
+    1. pikepdf repair: declaration, sRGB output intent, metadata and annotation fixes; the page content,
+       fonts and text layer are untouched.
+    2. Ghostscript pdfwrite: embeds missing fonts and flattens transparency (PDF/A-1), but rewrites the
+       fonts, which can damage the text layer of complex scripts (the text check reports it).
+    Each attempt is validated with veraPDF; returns (validation, engine, info)."""
+    work.mkdir(parents=True, exist_ok=True)
+    attempt = work / f"pikepdf-{flavour}.pdf"
+    info = finish(src, attempt, flavour, source_file=source_file, title=title or None)
+    v = verapdf(attempt, flavour, check=check)
+    if v.compliant or not v.available or not allow_ghostscript:
+        shutil.copyfile(attempt, out)
+        return v, "pikepdf", info
+    first_failure = v
+    gs_out = work / f"gs-{flavour}.pdf"
+    ghostscript(src, gs_out, flavour, work / "gs", title=title, check=check)
+    info = finish(gs_out, out, flavour, source_file=source_file, title=title or None)
+    v = verapdf(out, flavour, check=check)
+    info["firstAttempt"] = {"engine": "pikepdf", "failedRules": first_failure.failed_rules}
+    return v, "ghostscript", info
+
+
 # ------------------------------------------------------------------ veraPDF
 @dataclass
 class Validation:
@@ -186,6 +211,10 @@ class Validation:
     def to_dict(self) -> dict:
         return {"flavour": self.flavour, "compliant": self.compliant, "available": self.available,
                 "failedRules": self.failed_rules, "message": self.message}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Validation":
+        return cls(d["flavour"], d["compliant"], d.get("available", True), d.get("failedRules", []), d.get("message", ""))
 
 
 def verapdf(path: Path, flavour: str, *, check: Callable[[], None] = lambda: None) -> Validation:

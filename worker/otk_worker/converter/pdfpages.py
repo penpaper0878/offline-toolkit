@@ -26,8 +26,12 @@ def _overlay_line(ln: Line) -> str:
         cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
         rot = f' transform="rotate({-ln.angle:.2f} {cx:.2f} {cy:.2f})"'
         width = max(width, y1 - y0)
-    return (f'<text x="{x:.2f}" y="{base:.2f}" font-size="{size:.2f}" textLength="{width:.2f}" '
-            f'lengthAdjust="spacingAndGlyphs" fill="#000" fill-opacity="0"{rtl}{rot}>{html.escape(text)}</text>')
+    el = (f'<text x="{x:.2f}" y="{base:.2f}" font-size="{size:.2f}" textLength="{width:.2f}" '
+          f'lengthAdjust="spacingAndGlyphs" fill="#000" fill-opacity="0"{rtl}{rot}>{html.escape(text)}</text>')
+    link = next((s.link for s in ln.spans if s.link), None)
+    if link:
+        el = f'<a href="{html.escape(link, quote=True)}" xlink:href="{html.escape(link, quote=True)}">{el}</a>'
+    return el
 
 
 def text_layer(model: DocModel, page_index: int) -> str:
@@ -102,3 +106,84 @@ def image_page_svg(image_path: Path, width_pt: float, height_pt: float, model: D
             f'width="{width_pt:.2f}pt" height="{height_pt:.2f}pt" viewBox="0 0 {width_pt:.2f} {height_pt:.2f}">'
             f'<image x="0" y="0" width="{width_pt:.2f}" height="{height_pt:.2f}" preserveAspectRatio="none" '
             f'xlink:href="{html.escape(href, quote=True)}"/>{layer}</svg>\n')
+
+
+def _path_d(ops) -> str:
+    parts = []
+    for op in ops:
+        k = op[0]
+        if k == "m":
+            parts.append(f"M{op[1]:.2f} {op[2]:.2f}")
+        elif k == "l":
+            parts.append(f"L{op[1]:.2f} {op[2]:.2f}")
+        elif k == "c":
+            parts.append(f"C{op[1]:.2f} {op[2]:.2f} {op[3]:.2f} {op[4]:.2f} {op[5]:.2f} {op[6]:.2f}")
+        elif k == "h":
+            parts.append("Z")
+    return " ".join(parts)
+
+
+def editable_page_svg(model: DocModel, page_index: int, mdir: Path) -> str:
+    """A page as editable SVG: vector paths, pictures, and real <text> per line (the viewer shapes the text)."""
+    from . import fontnames
+
+    p = model.pages[page_index]
+    layers = [(i.z, "img", i) for i in p.images] + [(s.z, "shape", s) for s in p.shapes]
+    layers.sort(key=lambda t: t[0])
+    body = []
+    for _, kind, obj in layers:
+        if kind == "img":
+            x0, y0, x1, y1 = obj.bbox
+            data = (mdir / obj.file).read_bytes()
+            mime = "image/jpeg" if obj.ext in ("jpeg", "jpg") else "image/png"
+            body.append(f'<image x="{x0:.2f}" y="{y0:.2f}" width="{x1 - x0:.2f}" height="{y1 - y0:.2f}" '
+                        f'preserveAspectRatio="none" xlink:href="data:{mime};base64,{base64.b64encode(data).decode()}"/>')
+        else:
+            sh = obj
+            attrs = [f'd="{_path_d(sh.ops)}"', f'fill="{sh.fill}"' if sh.fill else 'fill="none"']
+            if sh.fill and sh.fill_opacity < 1:
+                attrs.append(f'fill-opacity="{sh.fill_opacity:.3f}"')
+            if sh.even_odd:
+                attrs.append('fill-rule="evenodd"')
+            if sh.stroke:
+                attrs += [f'stroke="{sh.stroke}"', f'stroke-width="{max(sh.width, 0.1):.2f}"',
+                          f'stroke-linecap="{("butt", "round", "square")[min(2, sh.cap)]}"',
+                          f'stroke-linejoin="{("miter", "round", "bevel")[min(2, sh.join)]}"']
+                if sh.stroke_opacity < 1:
+                    attrs.append(f'stroke-opacity="{sh.stroke_opacity:.3f}"')
+                if sh.dashes:
+                    attrs.append(f'stroke-dasharray="{" ".join(f"{d:.2f}" for d in sh.dashes)}"')
+            body.append(f"<path {' '.join(attrs)}/>")
+    for blk in p.blocks:
+        for ln in blk.lines:
+            spans = [s for s in ln.spans if s.text]
+            if not spans or not ln.text.strip():
+                continue
+            base = spans[0].origin[1] if len(spans[0].origin) == 2 else ln.bbox[3] - 0.2 * (ln.bbox[3] - ln.bbox[1])
+            x = ln.bbox[2] if ln.rtl else ln.bbox[0]
+            rot = ""
+            if abs(ln.angle) > 0.5:
+                cx, cy = (ln.bbox[0] + ln.bbox[2]) / 2, (ln.bbox[1] + ln.bbox[3]) / 2
+                rot = f' transform="rotate({-ln.angle:.2f} {cx:.2f} {cy:.2f})"'
+            tspans = []
+            for s in spans:
+                fam, bold, italic = fontnames.split(s.font)
+                generic = "monospace" if s.mono else ("serif" if s.serif else "sans-serif")
+                style = [f"font-family=\"'{html.escape(fam, quote=True)}', {generic}\"", f'font-size="{s.size:.2f}"']
+                if s.bold or bold:
+                    style.append('font-weight="bold"')
+                if s.italic or italic:
+                    style.append('font-style="italic"')
+                if s.color != "#000000":
+                    style.append(f'fill="{s.color}"')
+                if ln.conf is not None:
+                    style.append('fill-opacity="0"')
+                t = f"<tspan {' '.join(style)}>{html.escape(s.text)}</tspan>"
+                if s.link:
+                    t = f'<a href="{html.escape(s.link, quote=True)}" xlink:href="{html.escape(s.link, quote=True)}">{t}</a>'
+                tspans.append(t)
+            d = ' direction="rtl" unicode-bidi="embed"' if ln.rtl else ""
+            body.append(f'<text x="{x:.2f}" y="{base:.2f}" xml:space="preserve"{d}{rot}>{"".join(tspans)}</text>')
+    return (f'<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" '
+            f'xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="{p.width:.2f}pt" height="{p.height:.2f}pt" '
+            f'viewBox="0 0 {p.width:.2f} {p.height:.2f}">\n' + "\n".join(body) + "\n</svg>\n")

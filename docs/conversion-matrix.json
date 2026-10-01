@@ -13356,24 +13356,17 @@
    "mode": "exact",
    "chain": [
     "svg",
-    "pdf",
     "epub"
    ],
    "steps": [
     {
-     "edge": "chromium_pdf",
-     "engine": "chromium",
-     "from": "svg",
-     "to": "pdf"
-    },
-    {
-     "edge": "pdf_fxl_epub",
+     "edge": "svg_epub",
      "engine": "python",
-     "from": "pdf",
+     "from": "svg",
      "to": "epub"
     }
    ],
-   "cost": 2.5,
+   "cost": 0.8,
    "override": null,
    "potentialLosses": [
     {
@@ -13389,24 +13382,17 @@
    "mode": "editable",
    "chain": [
     "svg",
-    "html",
     "epub"
    ],
    "steps": [
     {
-     "edge": "svg_html",
+     "edge": "svg_epub",
      "engine": "python",
      "from": "svg",
-     "to": "html"
-    },
-    {
-     "edge": "pandoc_epub",
-     "engine": "pandoc",
-     "from": "html",
      "to": "epub"
     }
    ],
-   "cost": 1.5,
+   "cost": 0.8,
    "override": null,
    "potentialLosses": [
     {

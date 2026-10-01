@@ -95,9 +95,26 @@ def render_svg(ctx: StepContext, svg: Path, out: Path, *, dpi: int) -> Path:
     return out
 
 
+def complex_script_text(svg: Path) -> bool:
+    """Indic, Arabic or Hebrew text, which resvg does not always shape correctly."""
+    from .. import textutil
+    from .web import svg_text_lines
+
+    return any(textutil.script_of(t) not in (None, "cjk", "thai") for t in svg_text_lines(svg, visible_only=True))
+
+
 @step("resvg")
 def resvg_step(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     out = ctx.path("out.png")
+    if complex_script_text(src.path):
+        # Chromium shapes Indic and Arabic text correctly; print the drawing and render the page.
+        from .pdf import pdf_render
+        from .web import chromium_pdf
+
+        ctx.note("The drawing has Indic/Arabic/Hebrew text, so Chromium drew it instead of resvg (correct shaping).")
+        pdf = chromium_pdf(ctx, src, "pdf")
+        pages = pdf_render(ctx, pdf, "png")
+        return Artifact("png", [pages.path], {"dpi": ctx.options.dpi, "engine": "chromium"})
     render_svg(ctx, src.path, out, dpi=ctx.options.dpi)
     return Artifact("png", [out], {"dpi": ctx.options.dpi})
 
