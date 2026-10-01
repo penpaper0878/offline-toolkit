@@ -131,6 +131,38 @@ def _diagnose(sample: Path, output: Path, target: str, report: dict) -> str:
                                 lines.append(f"  {label}: font={sp['font']} size={sp['size']:.2f} origin=({sp['origin'][0]:.2f},"
                                              f"{sp['origin'][1]:.2f}) bbox=({sp['bbox'][0]:.1f},{sp['bbox'][2]:.1f}) "
                                              f"text={sp['text'][:40]!r}")
+    # What the extractor made of those lines, and what the writer put in the file for them.
+    from otk_worker.converter import docmodel
+
+    model = docmodel.extract(sample, output.parent / "diagnose-model")
+    for page, regions in (app["details"].get("changedRegions") or {}).items():
+        pg = model.pages[int(page) - 1]
+        for blk in pg.blocks:
+            for ln in blk.lines:
+                if any(ln.bbox[1] - 4 <= reg["y"] + reg["h"] and ln.bbox[3] + 4 >= reg["y"] for reg in regions[:4]):
+                    lines.append(f"  model line rtl={ln.rtl} bbox={ln.bbox} text={ln.text!r} spans="
+                                 + repr([(sp.font, sp.text, sp.origin, sp.ascent) for sp in ln.spans]))
+                    if target == "docx":
+                        import re
+                        import zipfile
+                        xml = zipfile.ZipFile(output).read("word/document.xml").decode("utf-8")
+                        word = next((w for w in ln.text.split() if len(w) > 2), "")
+                        i = xml.find(word) if word else -1
+                        if i >= 0:
+                            j = xml.rfind("<w:p>", 0, i)
+                            lines.append("  docx paragraph: " + re.sub(r' xmlns:\w+="[^"]+"', "", xml[j:xml.find("</w:p>", i) + 6])[:1500])
+    with pymupdf.open(sample) as doc:
+        pg = doc[int(next(iter(app["details"]["changedRegions"])) ) - 1]
+        raw = pg.get_text("rawdict", flags=pymupdf.TEXT_PRESERVE_WHITESPACE | pymupdf.TEXT_MEDIABOX_CLIP)
+        reg = next(iter(app["details"]["changedRegions"].values()))[0]
+        for b in raw["blocks"]:
+            for ln in b.get("lines", []):
+                if ln["bbox"][3] + 4 < reg["y"] or ln["bbox"][1] - 4 > reg["y"] + reg["h"]:
+                    continue
+                lines.append(f"  raw line dir={ln['dir']} wmode={ln.get('wmode')} bbox={[round(v, 1) for v in ln['bbox']]}")
+                for sp in ln["spans"]:
+                    lines.append(f"    raw span font={sp['font']} chars=" + " ".join(
+                        f"{c['c']!r}@{c['bbox'][0]:.1f}-{c['bbox'][2]:.1f}" for c in sp["chars"]))
     return "\n".join(lines)
 
 
