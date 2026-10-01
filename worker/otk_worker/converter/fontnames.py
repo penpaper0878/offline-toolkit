@@ -21,6 +21,17 @@ _PS_FAMILIES = {
     "carlito": "Carlito", "caladea": "Caladea", "mangal": "Mangal", "nirmalaui": "Nirmala UI",
 }
 
+# Office families whose name carries a weight or width: Word lists "Calibri Light" or "Segoe UI Semibold" as
+# families of their own, so the weight must stay in the name (not become bold, nor be dropped).
+_WEIGHTED_FAMILIES = {
+    "calibrilight": "Calibri Light", "segoeuilight": "Segoe UI Light", "segoeuisemilight": "Segoe UI Semilight",
+    "segoeuisemibold": "Segoe UI Semibold", "segoeuiblack": "Segoe UI Black", "segoeuisymbol": "Segoe UI Symbol",
+    "segoeuiemoji": "Segoe UI Emoji", "arialblack": "Arial Black", "arialnarrow": "Arial Narrow",
+    "cambriamath": "Cambria Math", "franklingothicmedium": "Franklin Gothic Medium", "aptosdisplay": "Aptos Display",
+    "aptosnarrow": "Aptos Narrow", "aptoslight": "Aptos Light", "aptossemibold": "Aptos SemiBold",
+    "aptosblack": "Aptos Black", "leelawadeeui": "Leelawadee UI", "nirmalauisemilight": "Nirmala UI Semilight",
+}
+
 # Requested font -> metric-compatible substitute (same widths, so layout does not change).
 METRIC_COMPATIBLE: dict[str, tuple[str, ...]] = {
     "calibri": ("carlito",), "cambria": ("caladea",), "georgia": ("gelasio",),
@@ -45,6 +56,11 @@ def split(name: str) -> tuple[str, bool, bool]:
     low = raw.lower()
     bold = any(w in low for w in ("bold", "black", "heavy", "semibold", "demi"))
     italic = "italic" in low or "oblique" in low
+    full = re.sub(r"[^a-z0-9]", "", low)
+    for prefix in sorted(_WEIGHTED_FAMILIES, key=len, reverse=True):
+        if full.startswith(prefix):
+            rest = full[len(prefix):]
+            return _WEIGHTED_FAMILIES[prefix], "bold" in rest, "italic" in rest or "oblique" in rest
     base = re.split(r"[-,]", raw, maxsplit=1)[0]
     key = re.sub(r"[^a-z0-9]", "", base.lower())
     if key in _PS_FAMILIES:

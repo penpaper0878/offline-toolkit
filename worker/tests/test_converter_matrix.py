@@ -97,7 +97,41 @@ def test_route(samples, tmp_path, src, target, mode):
             keep = ROOT / "test-results" / "matrix-failures"
             keep.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(r.report, keep / f"{key}.report.html")
+            print(_diagnose(sample, Path(r.output), target, json.loads(Path(r.report_json).read_text(encoding="utf-8"))))
         assert key in KNOWN_REVIEW, f"{key} needs review: {row.get('failed')}"
+
+
+def _diagnose(sample: Path, output: Path, target: str, report: dict) -> str:
+    """For an exact Office output that looks different: the text spans around each changed area, in the source
+    and in LibreOffice's rendering of the output (font, size, baseline), so a CI log shows what moved."""
+    app = next((c for c in report["checks"] if c["id"] == "appearance" and c["status"] == "fail"), None)
+    if app is None or target not in ("docx", "pptx") or sample.suffix.lower() != ".pdf":
+        return ""
+    import pymupdf
+
+    from otk_worker.converter import libreoffice as lo
+
+    lines = []
+    try:
+        rendered = lo.convert(output, output.parent / "diagnose", lo.pdf_filter("writer" if target == "docx" else "impress"))
+    except Exception as exc:
+        return f"diagnose: could not render the output: {exc}"
+    for page, regions in (app["details"].get("changedRegions") or {}).items():
+        for reg in regions[:4]:
+            lines.append(f"page {page} region x={reg['x']} y={reg['y']} w={reg['w']} h={reg['h']} px={reg['pixels']}")
+            for label, path in (("source", sample), ("output", rendered)):
+                with pymupdf.open(path) as doc:
+                    pg = doc[int(page) - 1]
+                    for b in pg.get_text("dict")["blocks"]:
+                        for ln in b.get("lines", []):
+                            x0, y0, x1, y1 = ln["bbox"]
+                            if y1 < reg["y"] - 4 or y0 > reg["y"] + reg["h"] + 4:
+                                continue
+                            for sp in ln["spans"]:
+                                lines.append(f"  {label}: font={sp['font']} size={sp['size']:.2f} origin=({sp['origin'][0]:.2f},"
+                                             f"{sp['origin'][1]:.2f}) bbox=({sp['bbox'][0]:.1f},{sp['bbox'][2]:.1f}) "
+                                             f"text={sp['text'][:40]!r}")
+    return "\n".join(lines)
 
 
 def test_matrix_has_routes():

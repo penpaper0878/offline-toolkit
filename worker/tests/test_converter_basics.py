@@ -252,3 +252,13 @@ def test_missing_web_font_is_the_pages_own_fallback_but_missing_document_font_fa
     docx = Extract("docx", fonts_requested={"No Such Font Family 7"})
     c = compare.check_fonts(docx, out, sit("docx"))
     assert c.status == compare.FAIL, c.summary
+
+
+def test_office_weight_families_keep_their_weight():
+    from otk_worker.converter import fontnames
+
+    assert fontnames.split("ABCDEF+CalibriLight") == ("Calibri Light", False, False)
+    assert fontnames.split("SegoeUI-SemiboldItalic") == ("Segoe UI Semibold", False, True)
+    assert fontnames.split("SegoeUI-Bold") == ("Segoe UI", True, False)
+    assert fontnames.split("Arial-BoldMT") == ("Arial", True, False)
+    assert fontnames.split("NotoSansDevanagari-Regular") == ("Noto Sans Devanagari", False, False)
