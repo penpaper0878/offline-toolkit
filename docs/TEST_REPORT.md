@@ -2,6 +2,80 @@
 
 Updated at the end of each phase. Every result below is from an actual run. Anything not run is listed as such.
 
+## Phase 2: Module 2 (Document Converter), 2026-10-01
+
+### Environment
+
+- **Machine:** the same Linux container (Ubuntu 24.04, x86-64, 4 cores, 15 GB RAM), run as root, Xvfb for the app tests.
+- **Engines here:** LibreOffice 24.2.7, Ghostscript 10.02.1, Tesseract 5.3.4 (eng, hin, ara, heb, tam and more from Ubuntu), OpenJDK 21 + veraPDF 1.28.2, Pandoc 3.8.2.1 (official build), resvg 0.45.1, Electron 44.5.1 (Chromium printing).
+- **Windows engines** (CI and the release): fetched by `scripts/fetch_engines.py` (see [ENGINES.md](ENGINES.md) §0); the exact versions of each build are in `engines/win-x64/manifest.json`, printed in the release log.
+
+### Results
+
+| Suite | Command | Result |
+|---|---|---|
+| TypeScript typecheck | `npm run typecheck` | **pass** |
+| JavaScript unit tests (vitest) | `npm test` | **32 / 32 pass** |
+| Python tests (pytest): resizer, RPC, planner, converter basics, jobs, 43 representative routes | `npm run test:py` | **185 / 185 pass** |
+| **Full conversion matrix**: every source × target × mode the planner offers, on the sample corpus, each verified | `OTK_FULL_MATRIX=1 … test_converter_matrix.py` | **268 / 268 routes converted; 89 Perfect, 179 Expected changes, 0 Needs review** |
+| End-to-end, real app + worker (Playwright): resizer ×2, converter (Word/HTML/TXT → PDF; Word + a password-protected PDF → PDF/A-2b, reports opened) | `npm run test:e2e` | **3 / 3 pass** |
+| Ubuntu CI (`ubuntu-latest`): all of the above except the full matrix, plus the no-network run | `.github/workflows/ci.yml` | CI_LINUX |
+| Windows CI (`windows-latest`) with the bundled Windows engines | `.github/workflows/ci.yml` | CI_WINDOWS |
+| Packaged Windows app (installer + portable, engines bundled, smoke test converts to PDF/A-2b) | `.github/workflows/release.yml` | RELEASE |
+
+### The matrix in numbers
+
+- **15 source kinds** (PDF, scanned PDF, PDF/A-2b, DOCX, DOC, XLSX, XLS, PPTX, PPT, HTML, TXT, EPUB, PNG, JPEG, SVG) **× 13 targets × the modes that differ** = 268 routes. All converted, and none ended *Needs review*. `KNOWN_REVIEW` (routes allowed to end in review, with a reason) is empty.
+- **PDF/A:** 44 PDF/A-1b/2b/3b outputs, **44 / 44 compliant according to veraPDF**. A separate test (`test_failed_validation_is_never_called_pdfa`) makes veraPDF reject a file and checks that it is saved as `NOT-PDFA` with verdict *Needs review*.
+- **Why 179 are "Expected changes", not "Perfect":** the route cannot hold something the source has, and the report says what. The count of each check that ended *expected* (a route can have several):
+  - text 95: for example pictures' alt text in TXT, OCR text from scans, page headers that Pandoc or LibreOffice add;
+  - images 42: pictures in TXT, XLSX, or a page rasterised to PNG/JPEG;
+  - fonts 25: metric-compatible substitutes such as Calibri → Carlito;
+  - tables 22;
+  - notes 18;
+  - links 5;
+  - bookmarks 2;
+  - appearance 1 (SVG to editable DOCX shapes).
+- **Appearance** was compared on all 44 exact-layout routes with a fixed-layout source: 43 pass, and 1 is an expected change (above).
+
+### Found and fixed in this phase by larger inputs (not visible on the small samples)
+
+| Input | Before | Cause | After |
+|---|---|---|---|
+| 100-page PDF (LibreOffice, Caladea/Carlito) → exact DOCX | *Needs review*: every page 1.65 pt off, SSIM 0.906 | Text boxes were placed from PyMuPDF's line boxes, whose ascent (1.05 em for Caladea) is not the one LibreOffice uses (0.90 em: the font sets USE_TYPO_METRICS) | Boxes placed from the baseline with the ascent measured for Writer (ascender + line gap, read from the embedded font). Lowest SSIM **0.997** |
+| Same → exact PPTX | *Needs review*: SSIM 0.88–0.95 | Impress puts the first baseline 1.00 em below the box top for every font (measured on 8 fonts × 3 sizes), and lays glyphs on a coarser grid (lines about 0.35% shorter) | Baseline rule for slides, plus per-tile ±2 px alignment in the check. Lowest SSIM **0.984**, no changed areas |
+| Appearance check itself | A page with one word missing scored SSIM **0.999** (passes) | SSIM is a page average | New changed-area test (ink on one side only). Missing word, a line moved 6 px and a missing table rule are all caught (tests), and the report embeds before/after crops |
+| Windows | Missing test samples (DOC/XLS/PPT); a Hindi font Windows lacks; HTML fonts | The test corpus looked for LibreOffice on PATH; the sample named Noto Sans Devanagari; a web page's CSS fallback was treated as a missing document font | Corpus fixed; Windows samples use Nirmala UI; web-page fallbacks are *expected changes* |
+| Windows-made PDF with an Arabic line → exact DOCX/PPTX | *Needs review* on Windows only: the Arabic line 13 pt too wide | LibreOffice on Windows draws each space of that line twice (in Tahoma and again in Lucida Sans Unicode); the extractor kept both, so every space became two. The text check compares words, so it did not notice | A space drawn on top of an existing space is ignored (test reproduces it). This also removes the double spaces from editable DOCX, HTML and TXT made from such PDFs |
+| Font names | "Calibri Light" became Calibri, "Segoe UI Semibold" became Segoe UI bold | Weight words were stripped | Office's weighted families are kept |
+
+### Measured performance (Linux container, worker plus engines, verification included)
+
+| Case | Time | Peak memory (worker + engine processes) | Verdict |
+|---|---|---|---|
+| 100-page DOCX (text, 100 tables, 20 pictures) → PDF/A-2b | 6.7 s | 0.47 GB | Expected (Calibri → Carlito, Cambria → Caladea) |
+| Same DOCX → PDF | 3.2 s | 0.28 GB | Expected (same fonts) |
+| 100-page PDF → DOCX (editable, pdf2docx) | 18 s | 0.36 GB | Perfect |
+| 100-page PDF → DOCX (exact layout) | 124–144 s | 1.05 GB | Expected (headings in text boxes are not Word headings) |
+| 100-page PDF → PPTX (exact layout) | 102–160 s | 1.1 GB (2.2 GB while LibreOffice renders 100 slides for the check) | Expected |
+| 100-page PDF → PNG, 300 DPI, zipped | 86 s | 1.0 GB | Expected (a picture of each page) |
+| 100-page PDF → HTML (editable) | 9.3 s | 0.15 GB | Perfect |
+| 10-page scan (300 DPI) → PDF/A-2b with OCR text layer | 34 s | 0.33 GB | Expected (text from OCR); veraPDF pass; page images byte-identical |
+| Same scan → DOCX (editable) / TXT | 45 s | 0.40 GB | Expected |
+
+**OCR accuracy** on that scan (clean 300 DPI, Caladea 11 pt, `tessdata_fast` eng): **0 errors in 3,100 words** of prose and numbers. In the 200 synthetic table codes such as `R0C0`, about half were misread as `ROCO`/`RICO` (0/O and 1/I look the same in this font). The report flagged 71 words below 80% confidence, almost all of them these codes. Some misreads still had high confidence, so the flag is a hint, not a guarantee.
+
+Everything stays far below the 8 GB target. The largest peak (2.2 GB) is LibreOffice rendering a 100-slide deck for the appearance check.
+
+### Known limits (Module 2)
+
+- **Exact-layout DOCX/PPTX in Word and PowerPoint.** Text-box positions are computed for LibreOffice's layout rules, which were measured. Word and PowerPoint use the same metrics for most fonts (Calibri, Cambria, Arial, Times New Roman, Segoe UI). For fonts that set USE_TYPO_METRICS (e.g. Caladea, some Google fonts) they may place lines up to about 0.15 em lower. This could not be measured here (no Word).
+- **Fonts.** The Lite bundle has no fonts of its own. A document that names a font this computer lacks is reported (*Fonts* check) and rendered with a substitute. Metric-compatible substitutes keep the line breaks; others can change them, and the verdict says so.
+- **OCR** is Tesseract `tessdata_fast` only. It reads clean scans well, but expect errors on low-resolution photos, handwriting and stylised fonts; low-confidence words are listed in the report. No Chinese, Japanese or Korean in the Lite bundle.
+- **Appearance check** at 100 DPI: changes smaller than about 40 px there (a full stop, a single thin character) are left to the text check, which compares every word.
+- **Resume** works within a session (after a cancel or a failure). After the app is closed, convert again.
+- **Not run here:** Microsoft Word/PowerPoint rendering of the outputs, macOS.
+
 ## Phase 1: Module 1 (Image Resizer), 2026-09-30
 
 ### Environment

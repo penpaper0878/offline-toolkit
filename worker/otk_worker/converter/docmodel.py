@@ -239,10 +239,27 @@ def _make_span(s: dict, text: str, bbox, chars=None) -> Span:
                 origin=_r(s.get("origin", bbox[:2])), alpha=round((alpha if alpha is not None else 255) / 255, 3))
 
 
+def _space_already_there(host: dict, ch: dict) -> bool:
+    """True when `host` already has a whitespace char covering most of `ch`'s horizontal extent."""
+    x0, x1 = ch["bbox"][0], ch["bbox"][2]
+    width = max(x1 - x0, 0.01)
+    for sp in host["spans"]:
+        for c in sp["chars"]:
+            if c["c"].isspace():
+                overlap = min(x1, c["bbox"][2]) - max(x0, c["bbox"][0])
+                if overlap >= 0.5 * min(width, max(c["bbox"][2] - c["bbox"][0], 0.01)):
+                    return True
+    return False
+
+
 def _insert_orphans(host: dict, orphans: list[dict], rtl: bool) -> None:
     """Put whitespace chars drawn separately back into `host` at their x position."""
     for orph in orphans:
         for ch in orph["chars"]:
+            if _space_already_there(host, ch):
+                # LibreOffice on Windows draws the spaces of an Arabic line twice: with the words and again in a
+                # fallback font. The copy is not a second space.
+                continue
             cx = (ch["bbox"][0] + ch["bbox"][2]) / 2
             # Position in logical order = number of host chars on the reading side of the space.
             flat = [(si, ci, c) for si, sp in enumerate(host["spans"]) for ci, c in enumerate(sp["chars"])]

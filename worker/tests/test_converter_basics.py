@@ -262,3 +262,22 @@ def test_office_weight_families_keep_their_weight():
     assert fontnames.split("SegoeUI-Bold") == ("Segoe UI", True, False)
     assert fontnames.split("Arial-BoldMT") == ("Arial", True, False)
     assert fontnames.split("NotoSansDevanagari-Regular") == ("Noto Sans Devanagari", False, False)
+
+
+def test_spaces_drawn_twice_are_one_space(tmp_path):
+    """LibreOffice on Windows draws an Arabic line's spaces again in a fallback font; that is not a double space."""
+    import pymupdf
+
+    from otk_worker.converter import docmodel
+
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((72, 100), "Hello world again", fontname="helv", fontsize=11)
+    f = pymupdf.Font("helv")
+    for word in ("Hello", "Hello world"):
+        page.insert_text((72 + f.text_length(word, 11), 100), " ", fontname="cour", fontsize=11)
+    pdf = tmp_path / "twice.pdf"
+    doc.save(pdf)
+    model = docmodel.extract(pdf, tmp_path / "m")
+    texts = [ln.text for p in model.pages for b in p.blocks for ln in b.lines]
+    assert texts == ["Hello world again"], texts
