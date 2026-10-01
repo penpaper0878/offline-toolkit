@@ -13,6 +13,7 @@ from ..context import Artifact, StepContext
 from ..docmodel import DocModel
 from ..engines import EngineFailed
 from . import step
+from ..verify.extract import _drawn_images
 from .docmodel_out import load
 
 
@@ -49,7 +50,7 @@ def _all_jpeg(path: Path, ctx: StepContext) -> bool:
 
     with pikepdf.open(path, password=ctx.password or "") as pdf:
         for page in pdf.pages:
-            imgs = list(page.images.values())
+            imgs = _drawn_images(page)
             if len(imgs) != 1 or imgs[0].get("/Filter") not in ("/DCTDecode",):
                 return False
     return True

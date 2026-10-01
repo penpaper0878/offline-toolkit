@@ -36,6 +36,18 @@ jobs:
           "version=$ver" >> $env:GITHUB_OUTPUT
       - name: Bundle Python 3.11 (embeddable) with the worker's packages
         run: node scripts/bundle-python-win.mjs
+      - name: Cache the conversion engines
+        id: engines-cache
+        uses: actions/cache@v4
+        with:
+          path: engines/win-x64
+          key: engines-win-x64-${{ hashFiles('scripts/fetch_engines.py') }}
+      - name: Conversion engines (LibreOffice, Pandoc, Ghostscript, Tesseract + tessdata_fast, Java + veraPDF, resvg)
+        if: steps.engines-cache.outputs.cache-hit != 'true'
+        run: python scripts/fetch_engines.py --platform win-x64
+      - name: Engine versions
+        shell: pwsh
+        run: Get-Content engines/win-x64/manifest.json
       - run: npm run build
       - name: Build the installer (NSIS, per-user, no admin rights)
         run: npx electron-builder --win nsis --publish never
@@ -78,7 +90,7 @@ jobs:
           body: |
             Windows 10/11, 64-bit. Personal use.
 
-            **Contains:** Module 1 (Image Resizer & Compressor). The other modules arrive in later phases.
+            **Contains:** Module 1 (Image Resizer & Compressor) and Module 2 (Document Converter, with LibreOffice, Pandoc, Ghostscript, Tesseract OCR, veraPDF and resvg bundled). Modules 3 and 4 arrive in later phases.
 
             - `Offline-Toolkit-Setup-*.exe`: installer. Installs for your user only, no admin rights needed.
             - `*-portable-win-x64.zip`: portable. Unzip anywhere and run `Offline Toolkit.exe`. Settings stay in the `data` folder next to it.

@@ -8,16 +8,16 @@
  *   OTK_PACKAGED_ARGS optional extra arguments (dry runs against a dev build, e.g. ". --no-sandbox")
  */
 
-import { copyFileSync, readdirSync } from 'node:fs'
+import { copyFileSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
-import { makePhoto, readback, ROOT, stubDialogs, tempDir } from './helpers'
+import { makePhoto, py, readback, ROOT, stubDialogs, tempDir } from './helpers'
 
 const exe = process.env.OTK_PACKAGED_EXE
 
 test.skip(!exe, 'Set OTK_PACKAGED_EXE to the packaged app to run this test')
 
-test('packaged app: bundled Python, offline self-test, HEIC, resize to 240×240 @200 DPI', async () => {
+test('packaged app: bundled Python and engines, offline self-test, HEIC, resize, convert to PDF/A-2b', async () => {
   const data = tempDir('pkg-data')
   const inputs = tempDir('pkg-in')
   const out = tempDir('pkg-out')
@@ -42,6 +42,12 @@ test('packaged app: bundled Python, offline self-test, HEIC, resize to 240×240 
     await expect(page.getByTestId('diagnostics')).toContainText('network guard on')
     await expect(page.getByTestId('diagnostics')).toContainText('HEIC yes')
     if (bundled) await expect(page.getByTestId('python-path')).toContainText(join('resources', 'engines', 'python'))
+    // Every conversion engine is present, and in the packaged app it is the bundled copy.
+    for (const name of ['soffice', 'pandoc', 'gs', 'tesseract', 'java', 'resvg', 'verapdf']) {
+      const row = page.getByTestId('engines').locator(`[data-engine="${name}"]`)
+      await expect(row, name).toHaveClass(/good/, { timeout: 60_000 })
+      if (bundled) await expect(row, name).toHaveAttribute('data-bundled', 'yes')
+    }
     await page.getByTestId('run-selftest').click()
     await expect(page.getByTestId('selftest-result')).toContainText('Passed', { timeout: 60_000 })
     await page.screenshot({ path: 'test-results/screens/packaged-settings.png' })
@@ -67,6 +73,28 @@ test('packaged app: bundled Python, offline self-test, HEIC, resize to 240×240 
       const rb = readback(join(out, f))
       expect([rb.width, rb.height]).toEqual([240, 240])
       expect(rb.jfifDensity).toEqual([200, 200])
+    }
+
+    // Module 2 with the bundled engines: Word (LibreOffice) and HTML (the app's Chromium) to PDF/A-2b.
+    const docs = tempDir('pkg-docs')
+    const s = py<Record<string, string>>(`import sys, json
+sys.path.insert(0, ${JSON.stringify(join(ROOT, 'worker', 'tests'))})
+import corpus
+from pathlib import Path
+print(json.dumps({k: str(v) for k, v in corpus.build(Path(sys.argv[1]), legacy=False, pdfa=False).items()}))`, docs)
+    const convOut = tempDir('pkg-conv')
+    await page.getByTestId('nav-converter').click()
+    await stubDialogs(app, [s.docx, s.html], convOut)
+    await page.getByTestId('target-pdfa2b').click()
+    await page.getByTestId('add-docs').click()
+    await expect(page.locator('[data-testid="conv-row"][data-status="ready"]')).toHaveCount(2, { timeout: 120_000 })
+    await page.getByRole('button', { name: 'Change…' }).click()
+    await page.getByTestId('convert').click()
+    await expect(page.getByTestId('verdict')).toHaveCount(2, { timeout: 300_000 })
+    await page.screenshot({ path: 'test-results/screens/packaged-converter.png' })
+    for (const name of ['report.pdf', 'page.pdf']) {
+      const r = JSON.parse(readFileSync(join(convOut, `${name}.report.json`), 'utf-8')) as { checks: { id: string; status: string }[] }
+      expect(r.checks.find((c) => c.id === 'pdfa')?.status, name).toBe('pass')
     }
   } finally {
     await app.close()

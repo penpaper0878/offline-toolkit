@@ -6,6 +6,7 @@ import pytest
 from PIL import Image
 
 from imagegen import photo_array, quadrants  # noqa: F401  (re-exported for the tests)
+from conftest_converter import samples  # noqa: F401  (session fixture for the converter tests)
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = Path(__file__).resolve().parent / "fixtures"

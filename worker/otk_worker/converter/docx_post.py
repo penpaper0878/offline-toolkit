@@ -88,3 +88,39 @@ def apply_outline(docx_path: Path, toc: list[list]) -> int:
     if placed or changed:
         doc.save(str(docx_path))
     return placed
+
+
+def simplify_font_lists(docx_path: Path) -> int:
+    """LibreOffice keeps a CSS font list as one name ("Noto Sans;sans-serif"); Word needs a single family.
+    The first family is kept. Returns how many names changed."""
+    import zipfile
+
+    from lxml import etree
+
+    W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    changed = 0
+    parts: dict[str, bytes] = {}
+    with zipfile.ZipFile(docx_path) as z:
+        infos = z.infolist()
+        for info in infos:
+            data = z.read(info.filename)
+            if info.filename in ("word/document.xml", "word/styles.xml", "word/fontTable.xml", "word/numbering.xml") \
+                    or info.filename.startswith(("word/header", "word/footer")):
+                root = etree.fromstring(data)
+                touched = False
+                for el in root.iter(f"{{{W}}}rFonts", f"{{{W}}}font"):
+                    for attr, val in list(el.attrib.items()):
+                        if ";" in val and attr.split("}")[-1] in ("ascii", "hAnsi", "cs", "eastAsia", "name"):
+                            el.set(attr, val.split(";")[0].strip().strip("'\""))
+                            changed += 1
+                            touched = True
+                if touched:
+                    data = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            parts[info.filename] = data
+    if changed:
+        tmp = docx_path.with_suffix(".tmp.docx")
+        with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as z:
+            for info in infos:
+                z.writestr(info, parts[info.filename])
+        tmp.replace(docx_path)
+    return changed

@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
@@ -22,6 +23,29 @@ jobs:
           python-version: '3.11'
       - run: npm ci
       - run: npm run setup:py
+
+      # Conversion engines (Module 2). Linux: distribution packages + pinned downloads.
+      # Windows: the same script the release uses (Chocolatey + pinned downloads), cached.
+      - name: Engines (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-core libreoffice-writer libreoffice-calc \
+            libreoffice-impress libreoffice-draw ghostscript tesseract-ocr tesseract-ocr-hin tesseract-ocr-ara \
+            tesseract-ocr-heb tesseract-ocr-tam default-jre-headless fonts-noto-core fonts-crosextra-carlito \
+            fonts-crosextra-caladea fonts-liberation2 fonts-dejavu-core xvfb
+          python scripts/fetch_engines.py --platform linux-x64
+      - name: Cache engines (Windows)
+        if: runner.os == 'Windows'
+        id: engines-cache
+        uses: actions/cache@v4
+        with:
+          path: engines/win-x64
+          key: engines-win-x64-${{ hashFiles('scripts/fetch_engines.py') }}
+      - name: Engines (Windows)
+        if: runner.os == 'Windows' && steps.engines-cache.outputs.cache-hit != 'true'
+        run: python scripts/fetch_engines.py --platform win-x64
+
       - run: npm run typecheck
       - run: npm test
       - run: npm run test:py
@@ -41,3 +65,32 @@ jobs:
           name: test-results-${{ matrix.os }}
           path: test-results/
           if-no-files-found: ignore
+
+  # Every route on the sample corpus (about 270 conversions), on demand or with [matrix] in the commit message.
+  matrix:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[matrix]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: npm ci
+      - run: npm run setup:py
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-core libreoffice-writer libreoffice-calc \
+            libreoffice-impress libreoffice-draw ghostscript tesseract-ocr tesseract-ocr-hin tesseract-ocr-ara \
+            tesseract-ocr-heb tesseract-ocr-tam default-jre-headless fonts-noto-core fonts-crosextra-carlito \
+            fonts-crosextra-caladea fonts-liberation2 fonts-dejavu-core
+          python scripts/fetch_engines.py --platform linux-x64
+      - run: OTK_FULL_MATRIX=1 node scripts/run-python.mjs -m pytest -q worker/tests/test_converter_matrix.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: converter-matrix
+          path: test-results/

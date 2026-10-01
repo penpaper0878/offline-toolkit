@@ -100,6 +100,10 @@ def _docx_title(path: Path, title: str) -> None:
 def pandoc_pptx(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     out = ctx.path("out.pptx")
     pandoc(ctx, src.path, _PANDOC_IN[src.format], out, "pptx", _NO_TITLE)
+    alts = [a for a in _picture_descriptions(src) if a]
+    if alts:
+        ctx.added_text.extend(alts)
+        ctx.expect("Pandoc shows each picture's description as a caption under it.")
     ctx.expect("Slides are cut at headings and Pandoc lays out each slide itself, so the reading order on a slide "
                "can change; page layout is not kept.")
     ctx.expect_check("tables", "Pandoc's PowerPoint tables cannot merge cells; merged cells become separate cells.")
@@ -146,9 +150,45 @@ def _picture_descriptions(src: Artifact) -> list[str]:
 @step("pandoc_epub")
 def pandoc_epub(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     out = ctx.path("out.epub")
-    pandoc(ctx, src.path, _PANDOC_IN[src.format], out, "epub3",
-           ["-M", f"title={_title_of(ctx, src)}", "--toc", "--epub-title-page=false"])
+    title = _title_of(ctx, src)
+    pandoc(ctx, src.path, _PANDOC_IN[src.format], out, "epub3", ["-M", f"title={title}", "--toc", "--epub-title-page=false"])
+    # EPUB needs a title. When the source starts without a heading, Pandoc shows the title as one.
+    extra = _count_in_epub(out, title) - _count_in_source(src, title)
+    ctx.added_text.extend([title] * max(0, extra))
     return Artifact("epub", [out])
+
+
+def _norm_words(text: str) -> str:
+    return " ".join(text.split())
+
+
+def _count_in_epub(path: Path, phrase: str) -> int:
+    book = epub.open_book(path)
+    total = 0
+    for zpath in book.spine:
+        if zpath == book.nav_path:
+            continue
+        root = lhtml.document_fromstring(book.zf.read(zpath))
+        body = root.find("body")
+        total += _norm_words(" ".join(textutil.html_lines(body if body is not None else root))).count(_norm_words(phrase))
+    return total
+
+
+def _count_in_source(src: Artifact, phrase: str) -> int:
+    try:
+        if src.format == "html":
+            root = lhtml.document_fromstring(src.path.read_text(encoding="utf-8"))
+            body = root.find("body")
+            text = " ".join(textutil.html_lines(body if body is not None else root))
+        elif src.format == "docx":
+            from .. import ooxml_read
+            text = " ".join(item.text if kind == "p" else " ".join(item.cells.values())
+                            for kind, item in ooxml_read.docx_body(src.path))
+        else:
+            return 0
+    except Exception:
+        return 0
+    return _norm_words(text).count(_norm_words(phrase))
 
 
 @step("pandoc_to_html")

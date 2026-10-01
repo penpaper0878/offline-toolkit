@@ -174,6 +174,61 @@ def strip_declaration(src: Path, out: Path) -> None:
         pdf.save(out)
 
 
+def _same_as_srgb(profile: bytes) -> bool:
+    """True when the profile maps colours exactly like sRGB (checked on a 9×9×9 colour grid, ±1 level)."""
+    import io
+
+    from PIL import Image, ImageCms
+
+    try:
+        prof = ImageCms.ImageCmsProfile(io.BytesIO(profile))
+        if prof.profile.xcolor_space.strip() != "RGB":
+            return False
+        steps = [0, 32, 64, 96, 128, 160, 192, 224, 255]
+        grid = Image.new("RGB", (len(steps) ** 2, len(steps)))
+        px = grid.load()
+        for i, r in enumerate(steps):
+            for j, g in enumerate(steps):
+                for k, b in enumerate(steps):
+                    px[i * len(steps) + j, k] = (r, g, b)
+        srgb = ImageCms.createProfile("sRGB")
+        out = ImageCms.profileToProfile(grid, prof, srgb, renderingIntent=ImageCms.Intent.RELATIVE_COLORIMETRIC)
+        a, b = grid.tobytes(), out.tobytes()
+        return max(abs(x - y) for x, y in zip(a, b)) <= 1
+    except Exception:
+        return False
+
+
+def downgrade_srgb_profiles(src: Path, out: Path) -> int:
+    """PDF/A-1 accepts only ICC profiles older than version 4. Chromium embeds a v4 sRGB profile; it is replaced
+    by the v2 sRGB profile (the same colours). Profiles that are not sRGB are left alone. Returns the count."""
+    import io
+
+    import pikepdf
+    from PIL import ImageCms
+
+    v2 = srgb_icc().read_bytes()
+    changed = 0
+    with pikepdf.open(src) as pdf:
+        for stream in pdf.objects:
+            # ICC profile streams: a /N entry and the 'acsp' signature at byte 36 of the profile header.
+            if not isinstance(stream, pikepdf.Stream) or "/N" not in stream.stream_dict:
+                continue
+            try:
+                data = stream.read_bytes()
+            except Exception:
+                continue
+            if len(data) < 128 or data[36:40] != b"acsp" or data[8] < 4:
+                continue
+            if not _same_as_srgb(data):
+                continue
+            stream.write(v2)
+            stream.N = 3
+            changed += 1
+        pdf.save(out)
+    return changed
+
+
 def make(src: Path, out: Path, flavour: str, work: Path, *, title: str = "", source_file: Path | None = None,
          check: Callable[[], None] = lambda: None, allow_ghostscript: bool = True) -> tuple["Validation", str, dict]:
     """PDF/A from a PDF, least invasive first:
@@ -185,7 +240,15 @@ def make(src: Path, out: Path, flavour: str, work: Path, *, title: str = "", sou
     Each attempt is validated with veraPDF; returns (validation, engine, info)."""
     work.mkdir(parents=True, exist_ok=True)
     attempt = work / f"pikepdf-{flavour}.pdf"
-    info = finish(src, attempt, flavour, source_file=source_file, title=title or None)
+    base = src
+    swapped = 0
+    if flavour == "1b":
+        base = work / "srgb-v2.pdf"
+        swapped = downgrade_srgb_profiles(src, base)
+    info = finish(base, attempt, flavour, source_file=source_file, title=title or None)
+    if swapped:
+        info.setdefault("repairs", []).append(f"replaced {swapped} version-4 sRGB colour profile(s) with the "
+                                              "equivalent version-2 profile (PDF/A-1 needs version 2)")
     v = verapdf(attempt, flavour, check=check)
     if v.compliant or not v.available or not allow_ghostscript:
         shutil.copyfile(attempt, out)

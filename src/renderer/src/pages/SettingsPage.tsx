@@ -1,19 +1,26 @@
 import { useEffect, useState } from 'react'
-import type { AppInfo, SelfTestReport, Theme } from '@shared/types'
+import type { AppInfo, ConverterCatalog, SelfTestReport, Theme } from '@shared/types'
 import { otk } from '../lib/api'
 import { updateAppSettings, useUi } from '../lib/ui-store'
 import { Section, Segmented, Toggle } from '../components/controls'
 import { Icon } from '../components/Icon'
+
+const ENGINE_LABEL: Record<string, string> = {
+  soffice: 'LibreOffice', pandoc: 'Pandoc', gs: 'Ghostscript', tesseract: 'Tesseract OCR', java: 'Java (for veraPDF)',
+  resvg: 'resvg', verapdf: 'veraPDF'
+}
 
 export function SettingsPage() {
   const state = useUi((s) => s.settingsState)
   const [info, setInfo] = useState<AppInfo | null>(null)
   const [report, setReport] = useState<SelfTestReport | null>(null)
   const [testing, setTesting] = useState(false)
+  const [catalog, setCatalog] = useState<ConverterCatalog | null>(null)
   const ui = useUi.getState()
 
   useEffect(() => {
     void otk().app.info().then(setInfo).catch((e) => ui.reportError('Could not read app info', e))
+    void otk().converter.catalog().then(setCatalog).catch(() => undefined)
   }, [])
 
   if (!state) return null
@@ -84,6 +91,22 @@ export function SettingsPage() {
               <div><dt>Python used</dt><dd dir="auto" data-testid="python-path">{info.pythonPath}</dd></div>
               <div><dt>Python worker</dt><dd>{info.worker ? `Python ${String(info.worker.python)}, Pillow ${String(info.worker.pillow)}, HEIC ${info.worker.heif ? 'yes' : 'no'}, network guard ${info.worker.netguard ? 'on' : 'OFF'}` : <span className="error-text">{info.workerError}</span>}</dd></div>
             </dl>
+          ) : <span className="spinner small" />}
+        </Section>
+        <Section title="Conversion engines">
+          {catalog ? (
+            <ul className="checks" data-testid="engines">
+              {Object.entries(catalog.engines).map(([name, e]) => (
+                <li key={name} className={e.available ? 'good' : 'bad'} data-engine={name} data-bundled={e.bundled ? 'yes' : 'no'}>
+                  <Icon name={e.available ? 'check' : 'x'} size={14} /> <strong>{ENGINE_LABEL[name] ?? name}</strong>:{' '}
+                  <span dir="auto">{e.available ? `${e.bundled ? 'bundled' : 'from this computer'} (${e.path})` : 'missing'}</span>
+                </li>
+              ))}
+              <li className={catalog.ocrLanguages.length ? 'good' : 'bad'}>
+                <Icon name={catalog.ocrLanguages.length ? 'check' : 'x'} size={14} /> <strong>OCR languages</strong>:{' '}
+                <span>{catalog.ocrLanguages.join(', ') || 'none'}</span>
+              </li>
+            </ul>
           ) : <span className="spinner small" />}
         </Section>
       </div>

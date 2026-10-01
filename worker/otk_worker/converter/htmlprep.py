@@ -197,6 +197,8 @@ def prepare_html(src: Path, out: Path, *, base_dir: Path | None = None) -> Prepa
         if el.get("type", "").lower() in ("application/ld+json", "application/json", "text/template"):
             continue
         prep.scripts_removed += 1
+        if REMOTE.match(el.get("src") or ""):
+            prep.blocked.append(el.get("src"))
         el.getparent().remove(el)
     for el in list(doc.iter("link")):
         rel = (el.get("rel") or "").lower()

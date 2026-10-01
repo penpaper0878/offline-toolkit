@@ -9,6 +9,7 @@ from pathlib import Path
 from .. import docmodel, engines, epub, ocr, pdfa, pdfpages
 from ..context import Artifact, StepContext
 from . import step
+from ..verify.extract import _drawn_images
 
 
 def _open(ctx: StepContext, path: Path):
@@ -212,7 +213,7 @@ def scanned_extract(ctx: StepContext, src: Artifact, target: str) -> Artifact:
         doc = _open(ctx, src.path)
         for i, page in enumerate(pdf.pages):
             ctx.progress(i / max(1, len(pdf.pages)), f"Page {i + 1}")
-            images = list(page.images.values())
+            images = _drawn_images(page)
             rotate = int(page.obj.get("/Rotate", 0)) % 360
             mupage = doc[i]
             dpi = None

@@ -445,7 +445,7 @@ def check_fonts(src: Extract, out: Extract, sit: Situation) -> Check:
         compat = next((c for c in fontnames.METRIC_COMPATIBLE.get(n, ()) if c in used or c.replace(" ", "") in used), None)
         if compat:
             subs.append({"requested": fam, "used": used.get(compat) or used.get(compat.replace(" ", "")), "kind": "metric-compatible"})
-        elif pdf_out and installed is not None and (n in installed or n.replace(" ", "") in installed):
+        elif installed is not None and (n in installed or n.replace(" ", "") in installed):
             subs.append({"requested": fam, "used": None, "kind": "fallback for missing characters"})
         elif pdf_out:
             subs.append({"requested": fam, "used": None, "kind": "not installed"})

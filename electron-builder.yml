@@ -22,6 +22,11 @@ extraResources:
       - "!**/__pycache__/**"
   - from: build/python-win
     to: engines/python
+  # LibreOffice, Pandoc, Ghostscript, Tesseract (+ tessdata_fast), Java + veraPDF, resvg: scripts/fetch_engines.py
+  - from: engines/win-x64
+    to: engines
+    filter:
+      - "**/*"
 win:
   icon: build/icon.ico
   target:

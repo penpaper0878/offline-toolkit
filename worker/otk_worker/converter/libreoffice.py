@@ -58,14 +58,23 @@ FAMILY = {"docx": "writer", "doc": "writer", "odt": "writer", "rtf": "writer",
           "pptx": "impress", "ppt": "impress", "odp": "impress"}
 
 
+_profile: Path | None = None
+
+
 def profile_dir() -> Path:
-    base = Path(os.environ.get("OTK_CACHE") or tempfile.gettempdir())
-    p = base / "lo-profile"
-    reg = p / "user" / "registrymodifications.xcu"
+    """A private profile per worker process: LibreOffice locks its profile, and the app runs two workers."""
+    global _profile
+    if _profile is None:
+        import atexit
+
+        base = Path(os.environ.get("OTK_CACHE") or tempfile.gettempdir())
+        _profile = base / f"lo-profile-{os.getpid()}"
+        atexit.register(shutil.rmtree, _profile, True)
+    reg = _profile / "user" / "registrymodifications.xcu"
     if not reg.exists():
         reg.parent.mkdir(parents=True, exist_ok=True)
         reg.write_text(_REGISTRY, encoding="utf-8")
-    return p
+    return _profile
 
 
 def pdf_filter(family: str, *, pdfa: int = 0, notes_pages: bool = False, lossless_images: bool = True,

@@ -69,6 +69,8 @@ def lo_to_pdfa(ctx: StepContext, src: Artifact, target: str) -> Artifact:
 def html_docx_lo(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     ctx.progress(0.05, "LibreOffice: HTML to DOCX")
     out = lo.convert(src.path, ctx.folder("lo"), lo.DOCX, infilter="HTML (StarWriter)", check=ctx.check)
+    from ..docx_post import simplify_font_lists
+    simplify_font_lists(out)
     return Artifact("docx", [out])
 
 
@@ -90,8 +92,12 @@ def lo_calc_html(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     text = re.sub(r'(src|href)="(?!data:|https?:|#|mailto:)([^"]+\.(?:png|jpg|jpeg|gif|svg))"', inline, text, flags=re.I)
     # LibreOffice adds an "Overview" list of sheets and a "Sheet N: name" heading per sheet.
     try:
-        from openpyxl import load_workbook
-        names = load_workbook(src.path, read_only=True).sheetnames if src.format == "xlsx" else []
+        if src.format == "xls":
+            import xlrd
+            names = xlrd.open_workbook(str(src.path), on_demand=True).sheet_names()
+        else:
+            from openpyxl import load_workbook
+            names = load_workbook(src.path, read_only=True).sheetnames
     except Exception:
         names = []
     if names:

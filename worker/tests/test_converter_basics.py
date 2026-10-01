@@ -1,0 +1,169 @@
+"""Converter building blocks: detection, HTML preparation, literal TXT, typing, PDF extraction, comparison rules."""
+
+from __future__ import annotations
+
+import base64
+import zipfile
+from pathlib import Path
+
+import pytest
+from conftest_converter import HAVE_LO, needs_lo
+
+from otk_worker.converter import formats, htmlprep
+from otk_worker.converter.context import Artifact, Options, StepContext
+from otk_worker.converter.steps import load_all
+from otk_worker.converter.steps.docmodel_out import typed_value
+from otk_worker.converter.verify import compare
+from otk_worker.errors import UnsupportedFormat
+
+EXPECTED_FORMATS = {
+    "docx": "docx", "xlsx": "xlsx", "pptx": "pptx", "html": "html", "txt": "txt", "svg": "svg", "pdf": "pdf",
+    "png": "png", "jpeg": "jpeg", "pdf_scanned": "pdf_scanned", "epub": "epub",
+    "doc": "doc", "xls": "xls", "ppt": "ppt", "pdfa2b": "pdfa2b", "pdf_lo": "pdf",
+}
+
+
+def test_detects_every_sample_by_content(samples, tmp_path):
+    for key, fmt in EXPECTED_FORMATS.items():
+        if key not in samples:
+            assert not HAVE_LO, key
+            continue
+        assert formats.detect(samples[key]).format == fmt, key
+    # The extension does not decide: a DOCX renamed to .pdf is still a DOCX.
+    renamed = tmp_path / "really-word.pdf"
+    renamed.write_bytes(samples["docx"].read_bytes())
+    assert formats.detect(renamed).format == "docx"
+    bogus = tmp_path / "archive.docx"
+    with zipfile.ZipFile(bogus, "w") as z:
+        z.writestr("hello.txt", "hi")
+    with pytest.raises(UnsupportedFormat):
+        formats.detect(bogus)
+
+
+def test_detects_encryption_and_scans(samples):
+    locked = formats.detect(samples["pdf_encrypted"])
+    assert locked.encrypted and locked.pages is None
+    opened = formats.detect(samples["pdf_encrypted"], "secret-123")
+    assert opened.encrypted and opened.pages == 2
+    assert formats.detect(samples["docx_encrypted"]).encrypted
+    scan = formats.detect(samples["pdf_scanned"])
+    assert scan.format == "pdf_scanned" and scan.scanned_pages == [0]
+
+
+def test_html_preparation_inlines_local_and_blocks_remote(tmp_path):
+    (tmp_path / "img").mkdir()
+    png = base64.b64decode(htmlprep.PLACEHOLDER_PNG.split(",")[1])
+    (tmp_path / "img" / "local pic.png").write_bytes(png)
+    (tmp_path / "style.css").write_text("@import url('more.css'); body{background:url(img/local%20pic.png)}", encoding="utf-8")
+    (tmp_path / "more.css").write_text("p{color:red} h1{background:url(https://cdn.example.com/bg.png)}", encoding="utf-8")
+    src = tmp_path / "page.html"
+    src.write_text("""<html><head><link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="https://cdn.example.com/x.css"><script src="https://cdn.example.com/a.js"></script>
+<script>alert(1)</script></head><body><img src="img/local%20pic.png"><img src="https://example.com/r.png" alt="r">
+<img src="missing.png"><a href="https://example.com/link">a link stays a link</a></body></html>""", encoding="utf-8")
+    out = tmp_path / "out.html"
+    prep = htmlprep.prepare_html(src, out)
+    text = out.read_text(encoding="utf-8")
+    assert "cdn.example.com" not in text and "https://example.com/r.png" not in text.replace('data-otk-removed="https://example.com/r.png"', "")
+    assert 'href="https://example.com/link"' in text          # links are not resources
+    assert text.count("data:image/png;base64") >= 2           # local picture inlined (img and CSS)
+    assert "<script" not in text and prep.scripts_removed == 2
+    assert set(prep.blocked) >= {"https://cdn.example.com/x.css", "https://cdn.example.com/a.js",
+                                 "https://example.com/r.png", "https://cdn.example.com/bg.png"}
+    assert prep.missing == ["missing.png"]
+    assert any("remote resource" in n for n in prep.notes())
+
+
+def _ctx(tmp_path: Path, source: Path, fmt: str, **opts) -> StepContext:
+    return StepContext(work=tmp_path / "work", options=Options.from_dict(opts), source=source, source_format=fmt)
+
+
+def test_txt_is_literal_never_markdown(tmp_path):
+    src = tmp_path / "notes.txt"
+    lines = ["# not a heading", "*not bold* and _not italic_", "a\tb\tc", "नमस्ते दुनिया", "مرحبا بالعالم", "", "end"]
+    src.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    steps = load_all()
+    ctx = _ctx(tmp_path, src, "txt")
+    html = steps["txt_html"](ctx, Artifact("txt", [src]), "html").path.read_text(encoding="utf-8")
+    for ln in lines[:2]:
+        assert ln in html
+    assert 'dir="auto"' in html
+    from docx import Document
+    docx = steps["txt_docx"](ctx, Artifact("txt", [src]), "docx").path
+    paras = [p.text for p in Document(str(docx)).paragraphs]
+    assert paras == lines
+    from openpyxl import load_workbook
+    xlsx = steps["txt_xlsx"](ctx, Artifact("txt", [src]), "xlsx").path
+    ws = load_workbook(xlsx).active
+    assert [ws.cell(row=i + 1, column=1).value for i in range(len(lines))] == [ln or None for ln in lines]
+
+
+def test_number_typing_is_conservative():
+    assert typed_value("001234") == ("001234", "@")
+    assert typed_value("3.50") == (3.5, "0.00")
+    assert typed_value("12") == (12, "0")
+    assert typed_value("1,234")[0] == "1,234"
+    assert typed_value("2026-09-30")[0] == "2026-09-30"
+    assert typed_value(" 7")[0] == " 7"
+
+
+@needs_lo
+def test_document_model_from_libreoffice_pdf(samples, tmp_path):
+    from otk_worker.converter import docmodel
+
+    m = docmodel.extract(samples["pdf_lo"], tmp_path / "m")
+    p = m.pages[0]
+    texts = [b.text for b in p.blocks if b.table is None]
+    # Spaces LibreOffice draws in another font are put back between the Hindi words.
+    assert "नमस्ते दुनिया यह हिंदी पाठ है" in texts
+    assert any(b.lines[0].rtl for b in p.blocks if "مرحبا" in b.text)
+    assert "A picture of the office:" in texts       # the paragraph after the table is not swallowed by it
+    (t,) = p.tables
+    assert (t.rows, t.cols) == (4, 3)
+    cells = {(c.row, c.col): (c.rowspan, c.colspan, c.text) for c in t.cells}
+    assert cells[(0, 0)] == (1, 3, "Regional amounts")
+    assert cells[(2, 1)][2] == "001234" and cells[(2, 2)][2] == "3.50"
+    linked = [s for b in p.blocks for ln in b.lines for s in ln.spans if s.link]
+    assert [s.text for s in linked] == ["https://example.com/report"]   # only the linked characters
+    assert len(p.images) == 1 and p.images[0].original
+
+
+def test_text_comparison_rules():
+    n = compare.normalize
+    assert n("exam-\nple") == "exam-ple"                 # line-end hyphen kept, line joined
+    assert n("soft­hyphen") == "softhyphen"
+    assert n("ﬁne") == "fine"                             # NFKC
+    assert "‍" in n("क्‍ष")                     # ZWJ kept (it matters for Indic shaping)
+    assert n("हिंंदी") == "हिंदी"                          # a doubled combining mark is a reader artefact
+    rtl = compare._canonical(["a", "مرحبا", "بالعالم", "b"])
+    assert rtl == compare._canonical(["a", "بالعالم", "مرحبا", "b"])
+
+
+def _ex(text, **kw):
+    from otk_worker.converter.verify.extract import Extract
+    return Extract("x", text=text, **kw)
+
+
+def _sit(**kw):
+    base = dict(source_format="docx", target="pdf", mode="exact", lost={}, target_caps={"text": "full"},
+                expected_checks={}, added_text=[], expected_notes=[])
+    base.update(kw)
+    return compare.Situation(**base)
+
+
+def test_text_check_verdicts():
+    src = _ex("Total 15.75 in Q3")
+    assert compare.check_text(src, _ex("Total 15.75 in Q3"), _sit()).status == "pass"
+    missing = compare.check_text(src, _ex("Total in Q3"), _sit())
+    assert missing.status == "fail" and missing.details["missing"][0]["token"] == "15.75"
+    # Bullets, table rules and added labels are not content changes.
+    assert compare.check_text(src, _ex("• Total | 15.75 | in Q3 +-----+"), _sit()).status == "pass"
+    assert compare.check_text(src, _ex("Sheet: Sales Total 15.75 in Q3"), _sit(added_text=["Sheet: Sales"])).status == "pass"
+    # Reordered words: a failure unless the route says the order changes.
+    assert compare.check_text(src, _ex("in Q3 Total 15.75"), _sit()).status == "fail"
+    assert compare.check_text(src, _ex("in Q3 Total 15.75"), _sit(target="xlsx")).status == "expected"
+    # "Perfect" needs every check to pass and no declared change.
+    ok = compare.Check("text", "Text", "pass", "")
+    assert compare.verdict([ok], []) == "perfect"
+    assert compare.verdict([ok], ["JPEG is lossy"]) == "expected"
+    assert compare.verdict([ok, compare.Check("links", "Links", "fail", "")], []) == "review"
