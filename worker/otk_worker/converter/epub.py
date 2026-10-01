@@ -92,6 +92,7 @@ class Book:
     zf: zipfile.ZipFile
     opf_dir: str
     nav: list[tuple[str, str]] = field(default_factory=list)   # (title, href)
+    nav_path: str | None = None
 
 
 def open_book(path: Path) -> Book:
@@ -112,6 +113,7 @@ def open_book(path: Path) -> Book:
     nav_item = next((it for it in items.values() if "nav" in (it.get("properties") or "").split()), None)
     if nav_item is not None:
         nav_path = posixpath.normpath(posixpath.join(opf_dir, unquote(nav_item.get("href"))))
+        book.nav_path = nav_path
         try:
             nav = etree.fromstring(zf.read(nav_path), etree.XMLParser(recover=True))
             for a in nav.iter(f"{{{XHTML}}}a"):

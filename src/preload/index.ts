@@ -5,7 +5,7 @@
 
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { IPC, type OtkApi } from '@shared/api'
-import type { JobProgress, LogEntry } from '@shared/types'
+import type { ConverterProgress, JobProgress, LogEntry } from '@shared/types'
 
 class OtkIpcError extends Error {
   constructor(message: string, public code: string) {
@@ -31,11 +31,13 @@ const api: OtkApi = {
   app: { info: () => call(IPC.appInfo) },
   dialogs: {
     openImages: () => call(IPC.openImages),
+    openDocuments: () => call(IPC.openDocuments),
     openFolder: () => call(IPC.openFolder),
     chooseDir: (current) => call(IPC.chooseDir, current ?? null)
   },
   files: {
     listImages: (folder, recursive) => call(IPC.listImages, folder, recursive ?? false),
+    listDocuments: (folder, recursive) => call(IPC.listDocuments, folder, recursive ?? false),
     pathForFile: (file) => webUtils.getPathForFile(file)
   },
   settings: {
@@ -53,6 +55,12 @@ const api: OtkApi = {
   resizer: {
     preview: (req) => call(IPC.resizerPreview, req),
     run: (req) => call(IPC.resizerRun, req)
+  },
+  converter: {
+    catalog: () => call(IPC.converterCatalog),
+    inspect: (req) => call(IPC.converterInspect, req),
+    run: (req) => call(IPC.converterRun, req),
+    onProgress: (cb) => subscribe<ConverterProgress>(IPC.converterProgress, cb)
   },
   jobs: {
     cancel: (jobId) => call(IPC.jobsCancel, jobId),

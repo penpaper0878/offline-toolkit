@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { clientIssues, RESIZER_DEFAULTS, toStoredSettings, withDefaults } from './resizer-defaults'
 
 const res = (p: string) => JSON.parse(readFileSync(resolve(__dirname, '../../resources', p), 'utf-8'))
-const schemas = ['resizer-settings.schema.json', 'settings.schema.json', 'resizer-presets.schema.json'].map((n) => res(`schemas/${n}`))
+const schemas = ['resizer-settings.schema.json', 'converter-settings.schema.json', 'settings.schema.json', 'resizer-presets.schema.json'].map((n) => res(`schemas/${n}`))
 
 function ajv() {
   const a = new Ajv2020({ allErrors: true, strict: false })
@@ -36,6 +36,16 @@ describe('resizer defaults', () => {
     const names = presets.presets.map((p: { name: string }) => p.name)
     expect(names).toContain('Photo 240×240 px @200 DPI (about 3×3 cm)')
     expect(names).toContain('Signature 140×60 px')
+  })
+
+  it('converter settings: shipped defaults validate, bad values are rejected', () => {
+    const v = ajv().getSchema('otk://schemas/converter-settings.schema.json')!
+    const conv = res('defaults/settings.json').converter
+    expect(v(conv), JSON.stringify(v.errors)).toBe(true)
+    expect(v({ ...conv, target: 'doc' })).toBe(false)
+    expect(v({ ...conv, dpi: 20 })).toBe(false)
+    expect(v({ ...conv, ocrLanguages: [] })).toBe(false)
+    expect(v({ ...conv, mode: 'fast' })).toBe(false)
   })
 
   it('schema rejects bad values', () => {

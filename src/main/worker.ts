@@ -29,7 +29,11 @@ export interface WorkerOptions {
   python: string
   workerDir: string
   resourcesDir: string
+  enginesDir?: string
+  cacheDir?: string
   log: EventLog
+  /** Requests the worker sends to the app (e.g. host.renderPdf). */
+  hostHandler?: (method: string, params: unknown) => Promise<unknown>
 }
 
 export class WorkerProcess extends EventEmitter {
@@ -60,6 +64,9 @@ export class WorkerProcess extends EventEmitter {
       PYTHONDONTWRITEBYTECODE: '1',
       OTK_RESOURCES: resourcesDir,
       OTK_NETGUARD: '1',
+      OTK_HOST_RPC: this.opts.hostHandler ? '1' : '0',
+      ...(this.opts.enginesDir ? { OTK_ENGINES: this.opts.enginesDir } : {}),
+      ...(this.opts.cacheDir ? { OTK_CACHE: this.opts.cacheDir } : {}),
       // Any library that honours proxies fails fast instead of reaching out.
       HTTP_PROXY: 'http://127.0.0.1:9',
       HTTPS_PROXY: 'http://127.0.0.1:9',
@@ -119,17 +126,19 @@ export class WorkerProcess extends EventEmitter {
       const line = this.buffer.slice(0, nl).trim()
       this.buffer = this.buffer.slice(nl + 1)
       if (!line) continue
-      let msg: { id?: number; result?: unknown; error?: { message: string; code: number; data?: { code?: string } }; method?: string; params?: unknown }
+      let msg: { id?: number | string; result?: unknown; error?: { message: string; code: number; data?: { code?: string } }; method?: string; params?: unknown }
       try {
         msg = JSON.parse(line)
       } catch {
         this.opts.log.warn('worker', `Unreadable worker output: ${line.slice(0, 200)}`)
         continue
       }
-      if (msg.id !== undefined && msg.id !== null) {
-        const p = this.pending.get(msg.id)
+      if (msg.method && msg.id !== undefined && msg.id !== null) {
+        this.answerHost(msg.id, msg.method, msg.params)
+      } else if (msg.id !== undefined && msg.id !== null) {
+        const p = typeof msg.id === 'number' ? this.pending.get(msg.id) : undefined
         if (!p) continue
-        this.pending.delete(msg.id)
+        this.pending.delete(msg.id as number)
         if (p.timer) clearTimeout(p.timer)
         if (msg.error) p.reject(new WorkerError(msg.error.message, msg.error.data?.code ?? String(msg.error.code), msg.error.data))
         else p.resolve(msg.result)
@@ -137,6 +146,21 @@ export class WorkerProcess extends EventEmitter {
         this.emit('notification', msg.method, msg.params)
       }
     }
+  }
+
+  private answerHost(id: number | string, method: string, params: unknown): void {
+    const reply = (obj: Record<string, unknown>) => {
+      if (this.proc && this.proc.exitCode === null) this.proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, ...obj }) + '\n')
+    }
+    const handler = this.opts.hostHandler
+    if (!handler) {
+      reply({ error: { code: -32601, message: `The app does not handle ${method}` } })
+      return
+    }
+    handler(method, params).then(
+      (result) => reply({ result }),
+      (e: Error) => reply({ error: { code: -32000, message: e?.message ?? String(e), data: { code: 'host_error' } } })
+    )
   }
 
   private onStderr(chunk: string): void {

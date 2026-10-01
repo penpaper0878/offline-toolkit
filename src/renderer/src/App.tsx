@@ -4,6 +4,8 @@ import { modLabel, useShortcuts } from './lib/shortcuts'
 import { type Page, useUi } from './lib/ui-store'
 import { Icon } from './components/Icon'
 import { Toasts } from './components/Toasts'
+import { ConverterPage, useConverterBoot } from './modules/converter/ConverterPage'
+import { useConverter } from './modules/converter/store'
 import { ResizerPage, useResizerBoot } from './modules/resizer/ResizerPage'
 import { useResizer } from './modules/resizer/store'
 import { ComingSoon } from './pages/ComingSoon'
@@ -12,7 +14,7 @@ import { SettingsPage } from './pages/SettingsPage'
 
 const NAV: { page: Page; label: string; icon: string; phase?: number }[] = [
   { page: 'resizer', label: 'Image Resizer', icon: 'resize' },
-  { page: 'converter', label: 'Document Converter', icon: 'convert', phase: 2 },
+  { page: 'converter', label: 'Document Converter', icon: 'convert' },
   { page: 'design', label: 'Image to Design', icon: 'design', phase: 3 },
   { page: 'passport', label: 'Passport Photo', icon: 'passport', phase: 4 },
   { page: 'log', label: 'Event log', icon: 'log' },
@@ -33,6 +35,8 @@ function useTheme(): void {
   }, [theme])
 }
 
+const IMAGE_RE = /\.(jpe?g|jpe|jfif|png|webp|bmp|dib|tiff?|heic|heif|hif)$/i
+
 async function handleDrop(e: React.DragEvent): Promise<void> {
   e.preventDefault()
   const paths: string[] = []
@@ -46,6 +50,18 @@ async function handleDrop(e: React.DragEvent): Promise<void> {
     if (!path) continue
     if (item.webkitGetAsEntry()?.isDirectory) folders.push(path)
     else paths.push(path)
+  }
+  // Documents go to the converter; images go to the resizer unless the converter is open.
+  const toConverter = useUi.getState().page === 'converter' || paths.some((p) => !IMAGE_RE.test(p))
+  if (toConverter) {
+    for (const f of folders) paths.push(...(await otk().files.listDocuments(f, false)))
+    if (!paths.length) {
+      useUi.getState().toast('warn', 'Nothing to add', 'Drop documents (PDF, Word, Excel, PowerPoint, HTML, TXT, EPUB, images, SVG) or a folder.')
+      return
+    }
+    useUi.getState().setPage('converter')
+    await useConverter.getState().addPaths(paths)
+    return
   }
   for (const f of folders) paths.push(...(await otk().files.listImages(f, false)))
   if (!paths.length) {
@@ -63,6 +79,7 @@ export function App() {
   const [dragging, setDragging] = useState(false)
   useTheme()
   useResizerBoot()
+  useConverterBoot()
 
   useEffect(() => {
     void useUi.getState().loadSettings().catch((e) => useUi.getState().reportError('Could not load settings', e))
@@ -71,7 +88,8 @@ export function App() {
   useShortcuts([
     { keys: 'mod+l', run: () => setPage('log'), inInputs: true },
     { keys: 'mod+,', run: () => setPage('settings'), inInputs: true },
-    { keys: 'mod+1', run: () => setPage('resizer'), inInputs: true }
+    { keys: 'mod+1', run: () => setPage('resizer'), inInputs: true },
+    { keys: 'mod+2', run: () => setPage('converter'), inInputs: true }
   ])
 
   return (
@@ -98,7 +116,7 @@ export function App() {
         {!loaded ? <div className="empty-view"><span className="spinner" /> Starting…</div> : (
           <>
             {page === 'resizer' && <ResizerPage />}
-            {page === 'converter' && <ComingSoon title="Document Converter" phase={2} />}
+            {page === 'converter' && <ConverterPage />}
             {page === 'design' && <ComingSoon title="Image to Editable Design" phase={3} />}
             {page === 'passport' && <ComingSoon title="Passport Photo Maker" phase={4} />}
             {page === 'log' && <LogPage />}
@@ -106,7 +124,7 @@ export function App() {
           </>
         )}
       </div>
-      {dragging && <div className="drop-overlay" aria-hidden><div>Drop images or a folder to add them</div></div>}
+      {dragging && <div className="drop-overlay" aria-hidden><div>{page === 'converter' ? 'Drop documents or a folder to convert them' : 'Drop images or a folder to add them'}</div></div>}
       <Toasts />
     </div>
   )

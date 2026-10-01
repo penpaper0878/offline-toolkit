@@ -1,7 +1,8 @@
 /** The API the preload script exposes as `window.otk`. */
 
 import type {
-  AppInfo, AppSettings, BatchRequest, BatchResult, BatchItem, JobProgress, LogEntry, LogLevel, Preset, PresetState,
+  AppInfo, AppSettings, BatchRequest, BatchResult, BatchItem, ConvertRequest, ConvertResult, ConverterCatalog,
+  ConverterOptions, ConverterProgress, JobProgress, LogEntry, LogLevel, Preset, PresetState, PreflightResult,
   PreviewResult, ProbeResult, ResizerSettings, SelfTestReport, SettingsState
 } from './types'
 
@@ -13,11 +14,13 @@ export interface OtkApi {
   }
   dialogs: {
     openImages(): Promise<string[]>
+    openDocuments(): Promise<string[]>
     openFolder(): Promise<string | null>
     chooseDir(current?: string | null): Promise<string | null>
   }
   files: {
     listImages(folder: string, recursive?: boolean): Promise<string[]>
+    listDocuments(folder: string, recursive?: boolean): Promise<string[]>
     pathForFile(file: File): string
   }
   settings: {
@@ -37,6 +40,12 @@ export interface OtkApi {
   resizer: {
     preview(req: { jobId: string; item: BatchItem; settings: ResizerSettings }): Promise<PreviewResult>
     run(req: BatchRequest): Promise<BatchResult>
+  }
+  converter: {
+    catalog(): Promise<ConverterCatalog>
+    inspect(req: { paths: string[]; target: string; mode: string; options: ConverterOptions; passwords?: Record<string, string> }): Promise<{ files: PreflightResult[] }>
+    run(req: ConvertRequest): Promise<ConvertResult>
+    onProgress(cb: (p: ConverterProgress) => void): () => void
   }
   jobs: {
     cancel(jobId: string): Promise<void>
@@ -65,6 +74,12 @@ export interface OtkError {
 export const IPC = {
   appInfo: 'app:info',
   openImages: 'dialog:openImages',
+  openDocuments: 'dialog:openDocuments',
+  listDocuments: 'files:listDocuments',
+  converterCatalog: 'converter:catalog',
+  converterInspect: 'converter:inspect',
+  converterRun: 'converter:run',
+  converterProgress: 'converter:progress',
   openFolder: 'dialog:openFolder',
   chooseDir: 'dialog:chooseDir',
   listImages: 'files:listImages',

@@ -27,7 +27,7 @@ def _overlay_line(ln: Line) -> str:
         rot = f' transform="rotate({-ln.angle:.2f} {cx:.2f} {cy:.2f})"'
         width = max(width, y1 - y0)
     el = (f'<text x="{x:.2f}" y="{base:.2f}" font-size="{size:.2f}" textLength="{width:.2f}" '
-          f'lengthAdjust="spacingAndGlyphs" fill="#000" fill-opacity="0"{rtl}{rot}>{html.escape(text)}</text>')
+          f'lengthAdjust="spacingAndGlyphs" fill="none" stroke="none"{rtl}{rot}>{html.escape(text)}</text>')
     link = next((s.link for s in ln.spans if s.link), None)
     if link:
         el = f'<a href="{html.escape(link, quote=True)}" xlink:href="{html.escape(link, quote=True)}">{el}</a>'
@@ -177,7 +177,7 @@ def editable_page_svg(model: DocModel, page_index: int, mdir: Path) -> str:
                 if s.color != "#000000":
                     style.append(f'fill="{s.color}"')
                 if ln.conf is not None:
-                    style.append('fill-opacity="0"')
+                    style.append('fill="none" stroke="none"')
                 t = f"<tspan {' '.join(style)}>{html.escape(s.text)}</tspan>"
                 if s.link:
                     t = f'<a href="{html.escape(s.link, quote=True)}" xlink:href="{html.escape(s.link, quote=True)}">{t}</a>'
@@ -187,3 +187,14 @@ def editable_page_svg(model: DocModel, page_index: int, mdir: Path) -> str:
     return (f'<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" '
             f'xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="{p.width:.2f}pt" height="{p.height:.2f}pt" '
             f'viewBox="0 0 {p.width:.2f} {p.height:.2f}">\n' + "\n".join(body) + "\n</svg>\n")
+
+
+def points_units(svg_text: str) -> str:
+    """MuPDF writes width="612" height="792" (user units are points); say so, so viewers use the real size."""
+    import re as _re
+
+    def fix(m):
+        tag = m.group(0)
+        tag = _re.sub(r'\bwidth="([0-9.]+)"', r'width="\1pt"', tag, count=1)
+        return _re.sub(r'\bheight="([0-9.]+)"', r'height="\1pt"', tag, count=1)
+    return _re.sub(r"<svg\b[^>]*>", fix, svg_text, count=1)

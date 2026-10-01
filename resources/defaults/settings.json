@@ -16,5 +16,10 @@
     "zip": false,
     "lastPresetId": "photo-240"
   },
+  "converter": {
+    "target": "pdf", "mode": "exact", "outputDir": null, "ocr": true, "ocrLanguages": ["eng"], "dpi": 300,
+    "jpegQuality": 92, "paper": "a4", "notesPages": false, "pdfaEmbedSource": false, "keepPdfaId": true,
+    "merge": false, "verifyAppearance": true, "txtSplitTabs": false, "txtLinesPerSlide": 20
+  },
   "logging": { "hashPaths": false }
 }

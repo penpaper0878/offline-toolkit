@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "otk://schemas/converter-settings.schema.json",
+  "title": "Document converter settings (Module 2)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["target", "mode", "outputDir", "ocr", "ocrLanguages", "dpi", "jpegQuality", "paper", "notesPages",
+               "pdfaEmbedSource", "keepPdfaId", "merge", "verifyAppearance", "txtSplitTabs", "txtLinesPerSlide"],
+  "properties": {
+    "target": { "enum": ["pdf", "pdfa1b", "pdfa2b", "pdfa3b", "docx", "xlsx", "pptx", "html", "txt", "epub", "png", "jpeg", "svg"] },
+    "mode": { "enum": ["exact", "editable"], "description": "exact = same look and layout; editable = reflowed, easy to edit." },
+    "outputDir": { "type": ["string", "null"] },
+    "ocr": { "type": "boolean", "description": "Recognise text on scanned pages and images when the target holds text." },
+    "ocrLanguages": { "type": "array", "items": { "type": "string", "pattern": "^[A-Za-z_]{3,16}$" }, "minItems": 1, "uniqueItems": true },
+    "dpi": { "type": "integer", "minimum": 36, "maximum": 1200, "description": "Page images (PDF to PNG/JPEG) and SVG rasterising." },
+    "jpegQuality": { "type": "integer", "minimum": 1, "maximum": 100 },
+    "paper": { "enum": ["a4", "letter", "legal", "a3", "a5"], "description": "Page size for HTML and TXT printed to PDF." },
+    "notesPages": { "type": "boolean", "description": "PowerPoint to PDF: add a notes page after each slide." },
+    "pdfaEmbedSource": { "type": "boolean", "description": "PDF/A-3b: attach the source file inside the PDF." },
+    "keepPdfaId": { "type": "boolean", "description": "PDF/A to PDF: copy the file unchanged (it still says it is PDF/A)." },
+    "merge": { "type": "boolean", "description": "Also merge all converted files into one." },
+    "verifyAppearance": { "type": "boolean", "description": "Exact mode: render both files and compare the pages." },
+    "txtSplitTabs": { "type": "boolean", "description": "TXT to XLSX: split each line into cells at tabs." },
+    "txtLinesPerSlide": { "type": "integer", "minimum": 1, "maximum": 200 }
+  }
+}

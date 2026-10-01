@@ -402,10 +402,9 @@ def pptx(path: Path) -> Extract:
     ex = Extract("pptx")
     slides = ooxml_read.pptx_slides(path)
     ex.units["slides"] = len(slides)
-    parts, ex.tables, ex.images, ex.links, ex.notes, ex.bookmarks = [], [], [], set(), [], []
+    parts, ex.tables, ex.images, ex.links, ex.notes = [], [], [], set(), []
+    ex.bookmarks = None  # PowerPoint has no bookmarks (slide titles are text, checked with the text)
     for s in slides:
-        if s.title:
-            ex.bookmarks.append(s.title)
         for it in s.items:
             if it.kind == "text":
                 for p in it.paragraphs:
@@ -621,6 +620,8 @@ def epub(path: Path) -> Extract:
     except Exception:
         pass
     for zpath in book.spine:
+        if zpath == book.nav_path:
+            continue  # the table of contents page: its entries are bookmarks, not body text
         try:
             root = lhtml.document_fromstring(book.zf.read(zpath))
         except Exception:
@@ -631,7 +632,8 @@ def epub(path: Path) -> Extract:
         ex.links.update(sub.links or set())
         base = zpath.rsplit("/", 1)[0] if "/" in zpath else ""
         for img in root.iter("img", "{http://www.w3.org/2000/svg}image", "image"):
-            src = img.get("src") or img.get("{http://www.w3.org/1999/xlink}href") or img.get("href") or ""
+            src = (img.get("src") or img.get("{http://www.w3.org/1999/xlink}href") or img.get("xlink:href")
+                   or img.get("href") or "")
             got = _data_image(src)
             if got is None and src and not src.startswith(("http:", "https:")):
                 import posixpath

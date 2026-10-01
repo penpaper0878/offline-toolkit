@@ -58,8 +58,19 @@ class Situation:
 
 
 # ------------------------------------------------------------------ text
+def _dedupe_marks(t: str) -> str:
+    """The same combining mark twice in a row (e.g. two anusvaras) never carries meaning; PDF readers
+    sometimes report one twice when a cluster has both /ActualText and per-glyph Unicode."""
+    out = []
+    for ch in t:
+        if out and ch == out[-1] and unicodedata.category(ch) in ("Mn", "Mc"):
+            continue
+        out.append(ch)
+    return "".join(out)
+
+
 def normalize(text: str) -> str:
-    t = unicodedata.normalize("NFKC", text)
+    t = _dedupe_marks(unicodedata.normalize("NFKC", text))
     t = t.replace("­", "").replace("​", "").replace("﻿", "").replace("⁠", "")
     t = re.sub(r"-[ \t]*\r?\n[ \t]*", "-", t)          # a hyphen at a line end joins the next line (kept)
     t = re.sub(r"[\s  -   　]+", " ", t)
@@ -417,19 +428,24 @@ def check_fonts(src: Extract, out: Extract, sit: Situation) -> Check:
                      "exact-mode Word/PowerPoint output are checked.")
     if out.fonts_used is None:
         return Check("fonts", label, SKIPPED, f"Fonts cannot be read from {out.format.upper()}.")
+    if sit.expected_checks.get("fonts"):
+        return Check("fonts", label, SKIPPED, sit.expected_checks["fonts"])
     unembedded = sorted(f for f, emb in out.fonts_used.items() if not emb)
     requested = _families(src.fonts_requested or [])
     used = {fontnames.norm(f): f for f in out.fonts_used}
+    used.update({k.replace(" ", ""): v for k, v in list(used.items())})
     installed = fontnames.installed_families()
+    if installed is not None:
+        installed = installed | {n.replace(" ", "") for n in installed}
     subs = []
     for fam in sorted(requested):
         n = fontnames.norm(fam)
         if n in used or n.replace(" ", "") in {u.replace(" ", "") for u in used}:
             continue
-        compat = next((c for c in fontnames.METRIC_COMPATIBLE.get(n, ()) if c in used), None)
+        compat = next((c for c in fontnames.METRIC_COMPATIBLE.get(n, ()) if c in used or c.replace(" ", "") in used), None)
         if compat:
-            subs.append({"requested": fam, "used": used[compat], "kind": "metric-compatible"})
-        elif pdf_out and installed is not None and n in installed:
+            subs.append({"requested": fam, "used": used.get(compat) or used.get(compat.replace(" ", "")), "kind": "metric-compatible"})
+        elif pdf_out and installed is not None and (n in installed or n.replace(" ", "") in installed):
             subs.append({"requested": fam, "used": None, "kind": "fallback for missing characters"})
         elif pdf_out:
             subs.append({"requested": fam, "used": None, "kind": "not installed"})
@@ -437,6 +453,7 @@ def check_fonts(src: Extract, out: Extract, sit: Situation) -> Check:
             subs.append({"requested": fam, "used": None, "kind": "not referenced"})
     if office_exact and installed is not None:
         missing_here = sorted(f for f in out.fonts_used if fontnames.norm(f) not in installed
+                              and fontnames.norm(f).replace(" ", "") not in installed
                               and not any(c in installed for c in fontnames.METRIC_COMPATIBLE.get(fontnames.norm(f), ())))
     else:
         missing_here = []

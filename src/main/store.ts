@@ -15,7 +15,7 @@ import type { DeepPartial } from '@shared/api'
 import type { AppSettings, Preset, PresetState, SettingsState } from '@shared/types'
 import type { EventLog } from './log'
 
-const SCHEMAS = ['resizer-settings.schema.json', 'settings.schema.json', 'resizer-presets.schema.json']
+const SCHEMAS = ['resizer-settings.schema.json', 'converter-settings.schema.json', 'settings.schema.json', 'resizer-presets.schema.json']
 
 interface PresetFile {
   $schema?: string
@@ -100,6 +100,10 @@ export class Store {
       if (!this.validateSettings(data)) {
         const details = describeErrors(this.validateSettings.errors)
         throw new ValidationError(`settings.json is invalid: ${details.join('; ')}`, details)
+      }
+      // Sections added by an update (e.g. "converter" in 0.2) start from the shipped defaults.
+      for (const key of Object.keys(this.defaults) as (keyof AppSettings)[]) {
+        if (!(key in data) && key !== ('$schema' as keyof AppSettings)) (data as unknown as Record<string, unknown>)[key] = structuredClone(this.defaults[key])
       }
       this.settings = data
       this.settingsError = null

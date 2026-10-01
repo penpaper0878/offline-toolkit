@@ -62,6 +62,7 @@ export interface AppSettings {
     zip: boolean
     lastPresetId: string | null
   }
+  converter: ConverterSettings
   logging: { hashPaths: boolean }
 }
 
@@ -209,4 +210,147 @@ export interface AppInfo {
   pythonPath: string
   dataDir: string
   portable: boolean
+}
+
+// ------------------------------------------------------------------ Module 2: document converter
+export type FidelityMode = 'exact' | 'editable'
+export type Paper = 'a4' | 'letter' | 'legal' | 'a3' | 'a5'
+
+/** resources/schemas/converter-settings.schema.json (remembered between sessions). */
+export interface ConverterSettings {
+  target: string
+  mode: FidelityMode
+  outputDir: string | null
+  ocr: boolean
+  ocrLanguages: string[]
+  dpi: number
+  jpegQuality: number
+  paper: Paper
+  notesPages: boolean
+  pdfaEmbedSource: boolean
+  keepPdfaId: boolean
+  merge: boolean
+  verifyAppearance: boolean
+  txtSplitTabs: boolean
+  txtLinesPerSlide: number
+}
+
+export interface FormatInfo {
+  id: string
+  label: string
+  short: string
+  ext: string[]
+  roles: string[]
+  targetModes: FidelityMode[]
+  note?: string | null
+}
+
+export interface EngineState {
+  available: boolean
+  path: string | null
+  bundled: boolean
+}
+
+export interface ConverterCatalog {
+  formats: FormatInfo[]
+  sources: string[]
+  targets: string[]
+  ocrLanguages: string[]
+  engines: Record<string, EngineState>
+  features: Record<string, string>
+}
+
+export interface RouteStep {
+  edge: string
+  from: string
+  to: string
+  engine: string
+  engineLabel: string
+  summary: string
+}
+
+export interface RouteInfo {
+  source: string
+  target: string
+  mode: FidelityMode
+  chain: string[]
+  cost: number
+  override: string | null
+  steps: RouteStep[]
+}
+
+export interface DetectedFile {
+  format: string
+  base: string
+  encrypted: boolean
+  pages: number | null
+  scannedPages: number[]
+  pdfa: string | null
+  notes: string[]
+}
+
+export interface PreflightResult {
+  path: string
+  name: string
+  size: number | null
+  ok: boolean
+  error?: string
+  code?: string
+  needsPassword?: boolean
+  detected?: DetectedFile
+  route?: RouteInfo
+  mode?: FidelityMode
+  losses?: { feature: string; label: string; level: 'lost' | 'reduced' }[]
+  stepLosses?: string[]
+  problems?: string[]
+  notes?: string[]
+}
+
+export interface ConvertFile {
+  path: string
+  password?: string
+}
+
+export type ConverterOptions = Omit<ConverterSettings, 'target' | 'outputDir' | 'merge'>
+
+export interface ConvertRequest {
+  jobId: string
+  files: ConvertFile[]
+  target: string
+  options: ConverterOptions
+  outputDir: string
+  merge: boolean
+  mergeName?: string
+}
+
+export type Verdict = 'perfect' | 'expected' | 'review'
+
+export interface ConvertFileResult {
+  source: string
+  status: 'done' | 'failed' | 'needs_password' | 'cancelled' | 'skipped'
+  output: string | null
+  outputs: string[]
+  report: string | null
+  reportJson: string | null
+  verdict: Verdict | null
+  message: string
+  code: string | null
+  route: RouteInfo | null
+  seconds: number
+  summary: Record<string, number>
+  finalFormat: string | null
+}
+
+export interface ConvertResult {
+  results: ConvertFileResult[]
+  counts: Record<string, number>
+  merged: { status: string; output?: string; message?: string; notes?: string[] } | null
+  outputDir: string
+  jobDir: string | null
+}
+
+export interface ConverterProgress extends JobProgress {
+  file?: string
+  fileFraction?: number
+  result?: ConvertFileResult
 }

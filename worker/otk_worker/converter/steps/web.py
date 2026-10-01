@@ -100,7 +100,8 @@ def _docx_title(path: Path, title: str) -> None:
 def pandoc_pptx(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     out = ctx.path("out.pptx")
     pandoc(ctx, src.path, _PANDOC_IN[src.format], out, "pptx", _NO_TITLE)
-    ctx.expect("Slides are cut at headings; page layout is not kept.")
+    ctx.expect("Slides are cut at headings and Pandoc lays out each slide itself, so the reading order on a slide "
+               "can change; page layout is not kept.")
     ctx.expect_check("tables", "Pandoc's PowerPoint tables cannot merge cells; merged cells become separate cells.")
     return Artifact("pptx", [out])
 
@@ -108,8 +109,38 @@ def pandoc_pptx(ctx: StepContext, src: Artifact, target: str) -> Artifact:
 @step("pandoc_plain")
 def pandoc_plain(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     out = ctx.path("out.txt")
-    pandoc(ctx, src.path, _PANDOC_IN[src.format], out, "plain")
+    # Pipe tables ("| a | b |") instead of space-aligned ones, so cell text never runs into a rule line.
+    pandoc(ctx, src.path, _PANDOC_IN[src.format], out,
+           "plain-simple_tables-multiline_tables-grid_tables+pipe_tables")
+    alts = _picture_descriptions(src)
+    if alts:
+        ctx.added_text.extend(f"[{a}]" for a in alts)
+        ctx.expect("Pictures cannot be kept in plain text; each is shown as [its description].")
     return Artifact("txt", [out])
+
+
+def _picture_descriptions(src: Artifact) -> list[str]:
+    """Alt texts Pandoc prints in place of pictures."""
+    try:
+        if src.format == "html":
+            doc = lhtml.document_fromstring(src.path.read_text(encoding="utf-8"))
+            return [i.get("alt") or "" for i in doc.iter("img")]
+        if src.format == "docx":
+            import zipfile
+            with zipfile.ZipFile(src.path) as z:
+                root = etree.fromstring(z.read("word/document.xml"))
+            ns = "{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}docPr"
+            return [d.get("descr") or "" for d in root.iter(ns)]
+        if src.format == "epub":
+            book = epub.open_book(src.path)
+            out = []
+            for zpath in book.spine:
+                root = lhtml.document_fromstring(book.zf.read(zpath))
+                out += [i.get("alt") or "" for i in root.iter("img")]
+            return out
+    except Exception:
+        return []
+    return []
 
 
 @step("pandoc_epub")

@@ -88,6 +88,16 @@ def lo_calc_html(ctx: StepContext, src: Artifact, target: str) -> Artifact:
         return m.group(0)
 
     text = re.sub(r'(src|href)="(?!data:|https?:|#|mailto:)([^"]+\.(?:png|jpg|jpeg|gif|svg))"', inline, text, flags=re.I)
+    # LibreOffice adds an "Overview" list of sheets and a "Sheet N: name" heading per sheet.
+    try:
+        from openpyxl import load_workbook
+        names = load_workbook(src.path, read_only=True).sheetnames if src.format == "xlsx" else []
+    except Exception:
+        names = []
+    if names:
+        ctx.added_text.append("Overview")
+        ctx.added_text.extend(names)
+        ctx.added_text.extend(f"Sheet {i}: {n}" for i, n in enumerate(names, start=1))
     final = ctx.path("out.html")
     final.write_text(text, encoding="utf-8")
     return Artifact("html", [final])

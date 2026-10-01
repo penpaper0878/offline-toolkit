@@ -4,8 +4,9 @@ import { app, BrowserWindow, Menu, nativeTheme, session } from 'electron'
 import { registerIpc } from './ipc'
 import { EventLog } from './log'
 import { applyOfflineSwitches, guardNode, guardSession } from './offline-guard'
-import { dataDir, logsDir, previewDir, pythonExecutable, rendererDir, resourcesDir, workerDir } from './paths'
+import { cacheDir, dataDir, enginesDir, logsDir, previewDir, pythonExecutable, rendererDir, resourcesDir, workerDir } from './paths'
 import { handleProtocol, registerSchemes } from './protocol'
+import { type RenderRequest, renderPdf } from './render'
 import { Store } from './store'
 import { WorkerPool } from './worker'
 
@@ -79,7 +80,14 @@ app.whenReady().then(async () => {
   log.hashPaths = settings.logging.hashPaths
   nativeTheme.themeSource = settings.theme
 
-  pool = new WorkerPool({ python: pythonExecutable(), workerDir: workerDir(), resourcesDir: resourcesDir(), log })
+  pool = new WorkerPool({
+    python: pythonExecutable(), workerDir: workerDir(), resourcesDir: resourcesDir(), enginesDir: enginesDir(),
+    cacheDir: cacheDir(), log,
+    hostHandler: async (method, params) => {
+      if (method === 'host.renderPdf') return renderPdf(params as RenderRequest, log)
+      throw new Error(`Unknown request ${method}`)
+    }
+  })
   registerIpc({ store, pool, log, getWindow: () => mainWindow })
   log.info('app', `Offline Toolkit ${app.getVersion()} started`, { data: dataDir(), python: pythonExecutable() })
 

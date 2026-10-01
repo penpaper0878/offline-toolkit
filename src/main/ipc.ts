@@ -4,11 +4,12 @@ import { app, type BrowserWindow, dialog, ipcMain, nativeTheme, shell } from 'el
 import { IPC } from '@shared/api'
 import type { DeepPartial } from '@shared/api'
 import type {
-  AppInfo, AppSettings, BatchRequest, BatchResult, BatchItem, LogLevel, Preset, PreviewResult, ProbeResult, ResizerSettings
+  AppInfo, AppSettings, BatchRequest, BatchResult, BatchItem, ConvertRequest, ConvertResult, ConverterCatalog, LogLevel,
+  Preset, PreflightResult, PreviewResult, ProbeResult, ResizerSettings
 } from '@shared/types'
 import type { EventLog } from './log'
 import { recordViolation } from './offline-guard'
-import { dataDir, isPortable, previewDir, pythonExecutable } from './paths'
+import { dataDir, isPortable, jobsDir, previewDir, pythonExecutable } from './paths'
 import { fileUrl, forgetFile } from './protocol'
 import { runOfflineSelfTest } from './selftest'
 import { type Store, ValidationError } from './store'
@@ -45,21 +46,31 @@ function handle<A extends unknown[], T>(channel: string, fn: (...args: A) => Pro
   })
 }
 
-async function listImages(folder: string, recursive: boolean, depth = 0): Promise<string[]> {
+const DOC_EXTS = new Set(['.pdf', '.docx', '.docm', '.dotx', '.doc', '.dot', '.xlsx', '.xlsm', '.xltx', '.xls', '.xlt',
+  '.pptx', '.pptm', '.potx', '.ppsx', '.ppt', '.pps', '.pot', '.html', '.htm', '.xhtml', '.txt', '.text', '.epub', '.png',
+  '.jpg', '.jpeg', '.jpe', '.jfif', '.svg', '.svgz'])
+const DOC_FILTER = { name: 'Documents and images', extensions: [...DOC_EXTS].map((e) => e.slice(1)) }
+
+async function listFiles(folder: string, exts: Set<string>, recursive: boolean, depth = 0): Promise<string[]> {
   const out: string[] = []
   for (const entry of await readdir(folder, { withFileTypes: true })) {
     const p = join(folder, entry.name)
-    if (entry.isFile() && IMAGE_EXTS.has(extname(entry.name).toLowerCase())) out.push(p)
-    else if (recursive && entry.isDirectory() && depth < 8 && !entry.name.startsWith('.')) out.push(...await listImages(p, recursive, depth + 1))
+    if (entry.isFile() && exts.has(extname(entry.name).toLowerCase())) out.push(p)
+    else if (recursive && entry.isDirectory() && depth < 8 && !entry.name.startsWith('.')) out.push(...await listFiles(p, exts, recursive, depth + 1))
   }
   return out.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
 }
 
+const listImages = (folder: string, recursive: boolean): Promise<string[]> => listFiles(folder, IMAGE_EXTS, recursive)
+
 export function registerIpc({ store, pool, log, getWindow }: Deps): void {
   const previews = new Map<string, string>() // source path -> last preview file
 
+  const converterJobs = new Set<string>()
   pool.jobs.on('notification', (method: string, params: unknown) => {
-    if (method === 'job.progress') getWindow()?.webContents.send(IPC.jobsProgress, params)
+    if (method !== 'job.progress') return
+    const jobId = (params as { jobId?: string })?.jobId
+    getWindow()?.webContents.send(jobId && converterJobs.has(jobId) ? IPC.converterProgress : IPC.jobsProgress, params)
   })
 
   handle(IPC.appInfo, async (): Promise<AppInfo> => {
@@ -90,6 +101,40 @@ export function registerIpc({ store, pool, log, getWindow }: Deps): void {
     return r.canceled ? null : r.filePaths[0]
   }, log)
   handle(IPC.listImages, (folder: string, recursive?: boolean) => listImages(folder, recursive ?? false), log)
+  handle(IPC.openDocuments, async () => {
+    const r = await dialog.showOpenDialog(getWindow()!, { properties: ['openFile', 'multiSelections'], filters: [DOC_FILTER, { name: 'All files', extensions: ['*'] }] })
+    return r.canceled ? [] : r.filePaths
+  }, log)
+  handle(IPC.listDocuments, (folder: string, recursive?: boolean) => listFiles(folder, DOC_EXTS, recursive ?? false), log)
+
+  handle(IPC.converterCatalog, () => pool.interactive.request<ConverterCatalog>('converter.catalog', {}, 120_000), log)
+  handle(IPC.converterInspect, (req: { paths: string[]; target: string; mode: string; options: unknown; passwords?: Record<string, string> }) =>
+    pool.interactive.request<{ files: PreflightResult[] }>('converter.inspect', req as unknown as Record<string, unknown>), log)
+  handle(IPC.converterRun, async (req: ConvertRequest): Promise<ConvertResult> => {
+    if (!req || typeof req.target !== 'string' || !Array.isArray(req.files) || typeof req.outputDir !== 'string') {
+      throw new Error('Invalid conversion request.')
+    }
+    log.info('converter', `Conversion started: ${req.files.length} file(s) → ${req.target.toUpperCase()} (${req.options.mode})`,
+      { jobId: req.jobId, outputDir: req.outputDir })
+    const started = Date.now()
+    converterJobs.add(req.jobId)
+    try {
+      // Passwords go to the worker only; they are never logged or saved.
+      const res = await pool.runJob<ConvertResult>(req.jobId, 'converter.run', {
+        files: req.files, target: req.target, options: req.options, outputDir: req.outputDir, merge: req.merge,
+        mergeName: req.mergeName, jobsDir: jobsDir()
+      })
+      const counts = Object.entries(res.counts).map(([k, v]) => `${v} ${k}`).join(', ')
+      log.info('converter', `Conversion finished in ${((Date.now() - started) / 1000).toFixed(1)} s: ${counts}`, { jobId: req.jobId })
+      for (const r of res.results) {
+        if (r.status === 'failed') log.warn('converter', `${r.source}: ${r.message}`, { code: r.code })
+        else if (r.status === 'done') log.info('converter', `${r.source} → ${r.output} (${r.verdict ?? 'not verified'})`)
+      }
+      return res
+    } finally {
+      converterJobs.delete(req.jobId)
+    }
+  }, log)
 
   handle(IPC.settingsGet, () => store.settingsState(), log)
   handle(IPC.settingsUpdate, async (patch: DeepPartial<AppSettings>) => {

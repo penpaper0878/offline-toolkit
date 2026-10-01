@@ -112,6 +112,8 @@ def pdf_svg(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     if ctx.options.mode == "exact":
         paths = pdfpages.page_svgs(src.path, ctx.folder("svg"), exact=True, model=model, password=ctx.password,
                                    check=ctx.check, progress=ctx.progress)
+        for p in paths:
+            p.write_text(pdfpages.points_units(p.read_text(encoding="utf-8")), encoding="utf-8")
         return Artifact("svg", paths)
     out_dir = ctx.folder("svg")
     paths = []
@@ -171,6 +173,7 @@ def outline_nav(toc: list, ctx: StepContext) -> str:
         items.append(f'<li><a href="#page-{max(1, page)}">{html.escape(title)}</a></li>')
         ctx.added_text.append(title)
     items.extend("</ul>" for _ in range(depth))
+    ctx.added_text.append("Bookmarks")
     return f'<nav class="outline"><details><summary>Bookmarks</summary>{"".join(items)}</details></nav>\n'
 
 

@@ -152,6 +152,7 @@ def pptx_html_exact(ctx: StepContext, src: Artifact, target: str) -> Artifact:
                    "box-shadow:0 1px 4px rgba(0,0,0,.3)}aside.notes{background:#fff;padding:.5em 1em;margin-top:6px}"
                    "</style></head><body>\n" + "\n".join(parts) + "\n</body></html>\n", encoding="utf-8")
     ctx.note("Slides are drawn as they appear in LibreOffice; the speaker notes are under each slide.")
+    ctx.expect_check("tables", "Slides are drawn as pictures with selectable text, so tables are drawn, not HTML tables.")
     return Artifact("html", [out])
 
 
@@ -276,6 +277,11 @@ def pptx_docx_handout(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     doc.save(out)
     ctx.expect_check("text", "Slide text is part of the slide pictures in a handout (it is in each picture's alt text); "
                              "only the speaker notes are document text.")
+    ctx.expected_checks.update({
+        "images": "Each slide is one picture in the handout, so the slide's own pictures are inside it.",
+        "tables": "Tables are part of the slide pictures in a handout.",
+        "links": "Links are part of the slide pictures in a handout.",
+        "fonts": "The slides are pictures; only the notes use document fonts."})
     return Artifact("docx", [out])
 
 

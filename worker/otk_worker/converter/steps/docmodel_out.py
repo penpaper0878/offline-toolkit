@@ -241,6 +241,9 @@ def to_pptx(ctx: StepContext, src: Artifact, target: str) -> Artifact:
         ctx.expect_check("images", "Each page picture became a cleaned background with live text on top.")
     out = ctx.path("out.pptx")
     write_pptx(model, mdir, out, mode, ctx)
+    if mode == "exact" and any(p.tables for p in model.pages):
+        ctx.expect_check("tables", "Exact slides draw tables as ruled lines with positioned text (use Editable "
+                                   "for PowerPoint tables).")
     return Artifact("pptx", [out])
 
 
@@ -358,9 +361,11 @@ def to_docx_exact(ctx: StepContext, src: Artifact, target: str) -> Artifact:
     model, mdir = load(src)
     out = ctx.path("out.docx")
     write_docx_exact(model, mdir, out, ctx)
-    if model.toc:
-        ctx.expect_check("bookmarks", "Exact pages are built from positioned text boxes; Word's navigation pane "
-                                      "does not list headings inside text boxes, so the PDF bookmarks are not kept.")
+    ctx.expect_check("bookmarks", "Exact pages are built from positioned text boxes; Word's navigation pane "
+                                  "does not list headings inside text boxes, so bookmarks and headings are not kept.")
+    if any(p.tables for p in model.pages):
+        ctx.expect_check("tables", "Exact pages draw tables as ruled lines with positioned text (use Editable for "
+                                   "Word tables).")
     return Artifact("docx", [out])
 
 

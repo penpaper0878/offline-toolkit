@@ -44,6 +44,16 @@ export function dataDir(): string {
   return app.getPath('userData')
 }
 
+/** Bundled conversion engines (LibreOffice, Pandoc, Ghostscript, Tesseract, Java + veraPDF, resvg). */
+export function enginesDir(): string {
+  if (process.env.OTK_ENGINES) return process.env.OTK_ENGINES
+  if (isPackaged) return join(process.resourcesPath, 'engines')
+  const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
+  const os = process.platform === 'win32' ? 'win' : process.platform === 'darwin' ? 'mac' : 'linux'
+  return join(projectRoot(), 'engines', `${os}-${arch}`)
+}
+
 export const logsDir = (): string => join(dataDir(), 'logs')
 export const cacheDir = (): string => join(dataDir(), 'cache')
 export const previewDir = (): string => join(cacheDir(), 'previews')
+export const jobsDir = (): string => join(cacheDir(), 'jobs')

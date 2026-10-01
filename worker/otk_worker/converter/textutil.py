@@ -50,8 +50,9 @@ def is_rtl_script(script: str | None) -> bool:
 BLOCK_TAGS = {"address", "article", "aside", "blockquote", "body", "caption", "dd", "details", "div", "dl", "dt",
               "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header",
               "hr", "li", "main", "nav", "ol", "p", "pre", "section", "summary", "table", "tbody", "td", "tfoot",
-              "th", "thead", "title", "tr", "ul", "br", "text", "desc"}
-SKIP_TAGS = {"script", "style", "noscript", "template", "head"}
+              "th", "thead", "tr", "ul", "br", "text"}
+# <title>/<desc> in the body only occur inside inline SVG, where they are tooltips, not visible text.
+SKIP_TAGS = {"script", "style", "noscript", "template", "head", "title", "desc"}
 
 
 def html_lines(root, *, skip_tables: bool = False) -> list[str]:
