@@ -167,3 +167,20 @@ def test_text_check_verdicts():
     assert compare.verdict([ok], []) == "perfect"
     assert compare.verdict([ok], ["JPEG is lossy"]) == "expected"
     assert compare.verdict([ok, compare.Check("links", "Links", "fail", "")], []) == "review"
+
+
+def test_engine_status_reports_bundled_versions(tmp_path, monkeypatch):
+    import json
+
+    from otk_worker.converter import engines
+
+    (tmp_path / "pandoc").mkdir()
+    (tmp_path / "pandoc" / "pandoc.exe").write_bytes(b"")
+    (tmp_path / "pandoc" / "pandoc").write_bytes(b"")
+    (tmp_path / "manifest.json").write_text(json.dumps({"pandoc": "pandoc 3.8.2.1", "ghostscript": "Ghostscript 10"}))
+    monkeypatch.setenv("OTK_ENGINES", str(tmp_path))
+    monkeypatch.setattr(engines, "_cache", {})
+    st = engines.status()
+    assert st["pandoc"]["bundled"] and st["pandoc"]["version"] == "pandoc 3.8.2.1"
+    # Only bundled engines carry the bundle's version; one found on PATH is whatever is installed there.
+    assert "version" not in st["gs"]

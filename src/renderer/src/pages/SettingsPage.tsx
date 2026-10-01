@@ -99,7 +99,7 @@ export function SettingsPage() {
               {Object.entries(catalog.engines).map(([name, e]) => (
                 <li key={name} className={e.available ? 'good' : 'bad'} data-engine={name} data-bundled={e.bundled ? 'yes' : 'no'}>
                   <Icon name={e.available ? 'check' : 'x'} size={14} /> <strong>{ENGINE_LABEL[name] ?? name}</strong>:{' '}
-                  <span dir="auto">{e.available ? `${e.bundled ? 'bundled' : 'from this computer'} (${e.path})` : 'missing'}</span>
+                  <span dir="auto">{e.available ? `${e.version ? `${e.version}, ` : ''}${e.bundled ? 'bundled' : 'from this computer'} (${e.path})` : 'missing'}</span>
                 </li>
               ))}
               <li className={catalog.ocrLanguages.length ? 'good' : 'bad'}>

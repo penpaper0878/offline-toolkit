@@ -29,6 +29,7 @@ needs_lo = pytest.mark.skipif(not HAVE_LO, reason="LibreOffice not installed")
 needs_gs = pytest.mark.skipif(not HAVE_GS, reason="Ghostscript not installed")
 needs_tess = pytest.mark.skipif(not HAVE_TESS, reason="Tesseract not installed")
 needs_verapdf = pytest.mark.skipif(not HAVE_VERAPDF, reason="veraPDF/Java not installed")
+needs_chromium = pytest.mark.skipif(not HAVE_CHROMIUM, reason="Electron (Chromium) not installed: run npm ci, then node -e \"require('electron')\"")
 needs_all = pytest.mark.skipif(not HAVE_ALL, reason="not every conversion engine is installed")
 
 

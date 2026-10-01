@@ -258,7 +258,10 @@ def make_pdf(path: Path, pic: Path) -> Path:
     css = "h1 {font-size: 20pt} p, td, th {font-size: 11pt} td, th {padding: 3pt; border: 1px solid black}"
     arch = pymupdf.Archive(str(pic.parent))
     story = pymupdf.Story(html=html, user_css=css, archive=arch)
-    writer = pymupdf.DocumentWriter(str(path))
+    # PyMuPDF's DocumentWriter keeps its file open until the object is freed, and Windows cannot replace an
+    # open file, so the story goes to its own file and the finished document is saved under the real name.
+    story_pdf = path.with_suffix(".story.pdf")
+    writer = pymupdf.DocumentWriter(str(story_pdf))
     mediabox = pymupdf.paper_rect("a4")
     where = mediabox + (56, 56, -56, -56)
     more = True
@@ -268,7 +271,8 @@ def make_pdf(path: Path, pic: Path) -> Path:
         story.draw(dev)
         writer.end_page()
     writer.close()
-    doc = pymupdf.open(path)
+    del writer
+    doc = pymupdf.open(story_pdf)
     # Second page, so page counts and bookmarks have something to check.
     page = doc.new_page(width=mediabox.width, height=mediabox.height)
     page.insert_text((72, 100), "Appendix", fontsize=18, fontname="helv")
@@ -278,10 +282,12 @@ def make_pdf(path: Path, pic: Path) -> Path:
         first.insert_link({"kind": pymupdf.LINK_URI, "from": rect, "uri": LINK})
     doc.set_toc([[1, TITLE, 1], [2, "Details", 1], [1, "Appendix", 2]])
     doc.set_metadata({"title": TITLE, "author": "Offline Toolkit tests"})
-    tmp = path.with_suffix(".tmp.pdf")
-    doc.save(tmp, garbage=3, deflate=True)
+    doc.save(path, garbage=3, deflate=True)
     doc.close()
-    tmp.replace(path)
+    try:
+        story_pdf.unlink()
+    except OSError:
+        pass
     return path
 
 

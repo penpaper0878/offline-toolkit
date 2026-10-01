@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pikepdf
 import pytest
-from conftest_converter import copy_sample, needs_gs, needs_lo, needs_tess, needs_verapdf
+from conftest_converter import copy_sample, needs_chromium, needs_gs, needs_lo, needs_tess, needs_verapdf
 
 from otk_worker.converter import pdfa, runner
 from otk_worker.converter.steps import STEPS, load_all
@@ -87,6 +87,7 @@ def test_cancel_then_resume_reuses_finished_work(samples, tmp_path, monkeypatch)
 
 
 @needs_lo
+@needs_chromium
 def test_merge_each_target(samples, tmp_path):
     out = tmp_path / "out"
     src = {k: copy_sample(samples, k, tmp_path / k) for k in ("docx", "txt", "html")}
@@ -95,7 +96,7 @@ def test_merge_each_target(samples, tmp_path):
     for target, (k1, k2) in pairs.items():
         files = [{"path": str(src[k1])}, {"path": str(src[k2] if k1 != k2 else copy_sample(samples, k2, tmp_path / "again"))}]
         res = batch(files, target, out / target, tmp_path, jobId=f"m-{target}", merge=True, mergeName="both")
-        assert [r["status"] for r in res["results"]] == ["done", "done"], (target, res["results"])
+        assert [r["status"] for r in res["results"]] == ["done", "done"], (target, [r["message"] for r in res["results"]])
         assert res["merged"] and res["merged"]["status"] == "done", (target, res["merged"])
         merged = Path(res["merged"]["output"])
         assert merged.exists(), target

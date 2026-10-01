@@ -249,6 +249,8 @@ export interface EngineState {
   available: boolean
   path: string | null
   bundled: boolean
+  /** From the bundle's manifest.json, when the engine is bundled. */
+  version?: string
 }
 
 export interface ConverterCatalog {

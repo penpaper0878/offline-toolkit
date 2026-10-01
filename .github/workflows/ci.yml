@@ -22,6 +22,9 @@ jobs:
         with:
           python-version: '3.11'
       - run: npm ci
+      # Electron 44 fetches its binary on first use, not at install time; the worker's tests print with it.
+      - name: Fetch the Electron binary
+        run: node -e "console.log(require('electron'))"
       - run: npm run setup:py
 
       # Conversion engines (Module 2). Linux: distribution packages + pinned downloads.
@@ -35,16 +38,23 @@ jobs:
             tesseract-ocr-heb tesseract-ocr-tam default-jre-headless fonts-noto-core fonts-crosextra-carlito \
             fonts-crosextra-caladea fonts-liberation2 fonts-dejavu-core xvfb
           python scripts/fetch_engines.py --platform linux-x64
-      - name: Cache engines (Windows)
+      - name: Restore engines (Windows)
         if: runner.os == 'Windows'
         id: engines-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: engines/win-x64
           key: engines-win-x64-${{ hashFiles('scripts/fetch_engines.py') }}
       - name: Engines (Windows)
         if: runner.os == 'Windows' && steps.engines-cache.outputs.cache-hit != 'true'
         run: python scripts/fetch_engines.py --platform win-x64
+      # Saved right away, so a failing test later in the job doesn't throw the download away.
+      - name: Save engines (Windows)
+        if: runner.os == 'Windows' && steps.engines-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: engines/win-x64
+          key: engines-win-x64-${{ hashFiles('scripts/fetch_engines.py') }}
 
       - run: npm run typecheck
       - run: npm test
@@ -80,6 +90,9 @@ jobs:
         with:
           python-version: '3.11'
       - run: npm ci
+      # Electron 44 fetches its binary on first use, not at install time; the worker's tests print with it.
+      - name: Fetch the Electron binary
+        run: node -e "console.log(require('electron'))"
       - run: npm run setup:py
       - run: |
           sudo apt-get update

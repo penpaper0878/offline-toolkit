@@ -126,6 +126,21 @@ def tessdata_dir() -> str | None:
     return str(p) if p.is_dir() else None
 
 
+# engine -> its entry in the build's manifest.json (scripts/fetch_engines.py)
+_MANIFEST_KEY = {"soffice": "libreoffice", "pandoc": "pandoc", "gs": "ghostscript", "tesseract": "tesseract",
+                 "java": "jre", "resvg": "resvg", "verapdf": "verapdf"}
+
+
+def manifest() -> dict:
+    """Versions recorded when the bundled engines were fetched ({} when there is no bundle)."""
+    import json
+    try:
+        data = json.loads((engines_dir() / "manifest.json").read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
 def status() -> dict:
     """What is available (Settings → Diagnostics and the converter pre-flight)."""
     out = {}
@@ -134,6 +149,11 @@ def status() -> dict:
         out[name] = {"available": bool(f), "path": f.path if f else None, "bundled": bool(f and f.bundled)}
     cp = verapdf_classpath()
     out["verapdf"] = {"available": bool(cp and find("java")), "path": cp, "bundled": bool(cp)}
+    versions = manifest()
+    for name, entry in out.items():
+        v = versions.get(_MANIFEST_KEY.get(name, name))
+        if entry["bundled"] and isinstance(v, str):
+            entry["version"] = v
     return out
 
 

@@ -5,7 +5,7 @@ A fully offline desktop app for **personal use (not for redistribution)**. Elect
 | Module | What it does | Status |
 |---|---|---|
 | 1. Image Resizer | Exact pixels or physical size at any DPI, crop/pad/stretch, target file size (e.g. 20–50 KB), DPI written into the file, presets, batch + ZIP | **Done (Phase 1)** |
-| 2. Document Converter | PDF, PDF/A-1b/2b/3b, DOCX/DOC, XLSX/XLS, PPTX/PPT, HTML, TXT, EPUB, PNG, JPEG, SVG in every direction, each job verified | Phase 2 (route planner done) |
+| 2. Document Converter | PDF, PDF/A-1b/2b/3b, DOCX/DOC, XLSX/XLS, PPTX/PPT, HTML, TXT, EPUB, PNG, JPEG, SVG in every direction, OCR for scans, veraPDF-validated PDF/A, each job verified with a report | **Done (Phase 2)** |
 | 3. Image to Editable Design | OCR, layout analysis and clean-up into a layered, editable document | Phase 3 |
 | 4. Passport Photo Maker | 4-step wizard: crop, face-guided sizing, background, print sheets | Phase 4 |
 | Installer, portable ZIP, merged home screen | | Phase 5 |
@@ -28,15 +28,52 @@ To build it yourself on Windows: `npm ci`, then `npm run dist:win` (needs Python
 Prerequisites: **Node.js 22+** and **Python 3.11+** (from python.org on Windows). Setup needs the internet once, to install packages; the app itself never uses it.
 
 ```bash
-npm ci                 # JavaScript dependencies (downloads Electron)
+npm ci                 # JavaScript dependencies (Electron itself downloads on first start)
 npm run setup:py       # creates worker/.venv and installs the Python worker's packages
 npm run build          # builds the app into out/
 npm start              # runs the built app
 ```
 
+**Conversion engines (Module 2) in development.** The converter needs LibreOffice, Pandoc, Ghostscript, Tesseract, Java + veraPDF and resvg. The app looks in `engines/<platform>/` first (or `OTK_ENGINES`), then on `PATH`.
+
+- Windows: `python scripts/fetch_engines.py --platform win-x64` fetches all of them into `engines\win-x64\` (uses Chocolatey for LibreOffice, Ghostscript, Tesseract and Java; about 1 GB of downloads).
+- Linux: install `libreoffice`, `ghostscript`, `tesseract-ocr` (+ the language packs you want) and a Java runtime with your package manager, then `python3 scripts/fetch_engines.py --platform linux-x64` for Pandoc, veraPDF and resvg.
+
+Settings → *Conversion engines* shows what was found and where.
+
 `npm run dev` starts the app with hot reload instead. It uses a local Vite dev server, which is the only address the offline guard allows, and only in development.
 
 Linux as root (containers only): Chromium refuses to start sandboxed as root, so pass `--no-sandbox`, e.g. `npx electron . --no-sandbox`. A normal user never needs this.
+
+## Using the Document Converter
+
+Open it from the side bar or with Ctrl+2.
+
+1. **Add documents.** Drag files or a folder into the window, or use **Add files** (Ctrl+O) or **Add folder** (Ctrl+Shift+O). Accepted: PDF (including PDF/A and scans), DOCX, DOC, XLSX, XLS, PPTX, PPT, HTML, TXT, EPUB, PNG, JPEG and SVG. The format is detected from the file's contents, not its name.
+2. **Choose the target**: PDF, PDF/A-1b, PDF/A-2b, PDF/A-3b, DOCX, XLSX, PPTX, HTML, TXT, EPUB, PNG, JPEG or SVG. Every file row shows the engine chain that will be used (e.g. *DOCX → LibreOffice → PDF → PDF/A-2b*) and, before you start, **what that route cannot keep** (click the count to see the list).
+3. **Choose the fidelity** where it matters:
+   - *Exact layout*: same pages, positions, fonts and pictures. PDF → DOCX/PPTX places every line, picture and shape where it was.
+   - *Editable*: reflowed text with real headings, lists and tables. Easier to edit; the layout may change.
+4. **OCR** (on by default) recognises text in scanned PDFs and photos. Tick the **languages on the page**: English, Hindi, Marathi, Sanskrit, Nepali, Bengali, Gujarati, Punjabi, Tamil, Telugu, Kannada, Malayalam, Odia, Urdu, Arabic and Hebrew are bundled. Scans to PDF/PDF/A get an invisible, searchable text layer over the untouched page images. Words below the confidence threshold are listed in the report.
+5. **Options** appear only when they apply to the chosen target:
+   - page images: resolution (default 300 DPI) and JPEG quality. A multi-page document becomes one image per page, zipped;
+   - page size for HTML, text and EPUB to PDF;
+   - speaker-notes pages for PowerPoint to PDF;
+   - attach the source file inside a PDF/A-3;
+   - PDF/A to plain PDF: copy the file unchanged (default) or remove its PDF/A identification;
+   - text to spreadsheet: split lines into cells at tabs; text to slides: lines per slide;
+   - compare rendered pages (exact mode): adds the visual check.
+6. **Output folder**: chosen once and remembered. Existing files are never overwritten (`name (1).pdf`). Tick **merge** to also get one combined file (PDF with one bookmark per input, DOCX with section breaks, XLSX with sheets renamed on clashes and reported, PPTX, HTML, TXT, EPUB; images are zipped).
+7. **Convert** (Ctrl+Enter). Each row shows progress, then a verdict:
+   - **Perfect**: every check passed and nothing was changed.
+   - **Expected changes**: nothing failed; the report lists what this route changes by design (e.g. pictures dropped in TXT).
+   - **Needs review**: at least one check failed. Open the report before using the file.
+
+**The verification report** (`<output>.report.html` and `.json`, saved next to the output) compares the source and the output with independent readers: text (every word, in order), pages/sheets/slides, pictures (pixel hashes), tables and merged cells, links, bookmarks, notes, spreadsheet cells, fonts, the page appearance (SSIM ≥ 0.98) and, for PDF/A, the veraPDF result. A file that fails PDF/A validation is never given a PDF/A name: it is saved as `name.NOT-PDFA.pdf` with the failed clauses in the report.
+
+**Passwords.** Protected PDFs and Office files ask for the password when you start (optionally once for the whole list). Passwords stay in memory for the run only: they are never logged or saved. The output is not protected.
+
+**Cancel and resume.** Esc or *Cancel* stops the batch, and the engines are stopped too. *Resume* (in the progress panel, until you close the app) carries on with the same job: files that finished are not redone, and inside an interrupted file the finished steps are reused after their checksums are confirmed.
 
 ## Using the Image Resizer
 
@@ -67,9 +104,11 @@ Linux as root (containers only): Chromium refuses to start sandboxed as root, so
 
 | Keys | Action |
 |---|---|
-| Ctrl+O / Ctrl+Shift+O | Add images / add a folder |
-| Ctrl+Enter | Process all images |
-| Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z) | Undo / redo size, format and crop changes |
+| Ctrl+1 / Ctrl+2 | Image Resizer / Document Converter |
+| Ctrl+O / Ctrl+Shift+O | Add files / add a folder |
+| Ctrl+Enter | Process all images / convert all documents |
+| Esc | Cancel the running conversion |
+| Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z) | Undo / redo size, format and crop changes (resizer) or target and option changes (converter) |
 | + / − / 0 / 1 | Zoom in / out / fit / 100% |
 | ↑ / ↓ | Previous / next image |
 | Delete | Remove the selected image from the list |
@@ -81,6 +120,7 @@ Linux as root (containers only): Chromium refuses to start sandboxed as root, so
 | | Windows | Portable ZIP |
 |---|---|---|
 | Settings, presets, logs | `%APPDATA%\Offline Toolkit\` | `data\` next to the exe |
+| Converter work folders (deleted when every file in the batch succeeded; kept for *Resume* otherwise) | `%APPDATA%\Offline Toolkit\cache\jobs\` | `data\cache\jobs\` |
 
 Settings → *Your data* shows the exact paths. The JSON files are validated when the app starts. An invalid file is reported and the built-in default is used, and your file is never overwritten.
 
@@ -89,10 +129,13 @@ Settings → *Your data* shows the exact paths. The JSON files are validated whe
 ```bash
 npm run typecheck      # TypeScript (main, preload, renderer)
 npm test               # vitest: units maths (shared vectors with Python), crop maths, undo/redo, schemas
-npm run test:py        # pytest: units, loading, fit modes, DPI metadata, size targeting, batch, RPC, network guard
+npm run test:py        # pytest: resizer, RPC, network guard, converter (detection, routes, PDF/A, OCR, verification, jobs)
+OTK_FULL_MATRIX=1 npm run test:py -- worker/tests/test_converter_matrix.py   # every conversion route (~270, about an hour)
 npm run test:e2e       # Playwright drives the real Electron app with the real Python worker
 npm run test:offline   # Linux: pytest + end-to-end inside a network namespace with no network interfaces
 ```
+
+The converter tests print HTML to PDF with the project's Electron. Run `node -e "require('electron')"` once after `npm ci` so its binary is present (tests that need it are skipped otherwise).
 
 Results from the last run, including what could not be run here, are in [docs/TEST_REPORT.md](docs/TEST_REPORT.md). CI runs the same tests on Ubuntu and Windows (`.github/workflows/ci.yml`).
 
@@ -102,6 +145,10 @@ Results from the last run, including what could not be run here, are in [docs/TE
 - **Windows SmartScreen** on first run of an unsigned build: choose *More info → Run anyway*.
 - **A preset or settings file error at start-up**: the message names the file and the field. Fix the JSON or delete the file to get the defaults back.
 - **HEIC files don't open**: check Diagnostics shows "HEIC yes". The `pi-heif` package provides decoding.
+- **"Engine missing: LibreOffice" (or another engine)** in a development run: see *Conversion engines* above. Settings → *Conversion engines* lists what was found.
+- **A conversion says "Needs review"**: open the report (the row's details button). It names the check that failed, with the missing or extra text, the page that looks different or the PDF/A clause.
+- **Fonts substituted**: the report's *Fonts* check names each one. Metric-compatible substitutes (Calibri → Carlito, Cambria → Caladea, Arial → Liberation Sans) keep the line breaks; others may not. On Windows, installed Microsoft fonts are used when present.
+- **The app was closed or crashed during a conversion**: convert the files again. *Resume* only lasts for the session; the work folders left behind can be deleted (see *Your data*).
 - **"Suspension not allowed here" in a terminal**: harmless libjpeg message. The encoder retries with a bigger buffer.
 
 ## Project layout
@@ -111,7 +158,8 @@ src/main/        Electron main: offline guard, otk:// protocol, worker pool, set
 src/preload/     the typed window.otk bridge (sandboxed)
 src/renderer/    React UI (modules/resizer, pages, components)
 src/shared/      TypeScript shared by all three (units, crop geometry, types)
-worker/          Python worker: JSON-RPC over stdio, resizer engine, converter planner, tests
+worker/          Python worker: JSON-RPC over stdio, resizer engine, converter (planner, steps, PDF/A, OCR, verification), tests
+scripts/         Python setup, Windows Python bundling, engine fetching (fetch_engines.py), the standalone PDF printer
 resources/       JSON schemas and shipped defaults (settings, presets, conversion routes)
 tests/           shared test vectors and Playwright end-to-end tests
 docs/            architecture, engines and licences, conversion matrix, test report

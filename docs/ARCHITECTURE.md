@@ -274,6 +274,50 @@ Each check ends as **pass**, **expected change** (a loss the pre-flight warned a
 - **Output folder.** Chosen per batch (remembered). Name conflicts become `name (1).ext` — nothing is overwritten.
 - **Cancel/resume**: see §5.
 
+### 7.7 As built in Phase 2: deviations from this plan
+
+§7.1–7.6 is the Phase 0 design. This section records where the implementation differs, and why. Everything here is covered by tests (`worker/tests/test_converter_*.py`, `tests/e2e/converter.spec.ts`).
+
+**Engines and process model**
+
+- **LibreOffice runs once per conversion** (`soffice --headless --convert-to`), not as a warm UNO instance. Each worker process has its own locked-down profile (`lo-profile-<pid>`: macros off, update check off, proxies pointed at a dead port, formulas recalculated on load), so parallel workers never share a profile. Timeout: 300 s + 20 s per MB. The start-up cost (1–3 s) is small next to verification, and a fresh process cannot carry state from one document into the next.
+- **Chromium (HTML, TXT, EPUB, SVG → PDF)** is the app's own Electron. The worker asks the app over the RPC channel (worker → app requests, `host.renderPdf`). The app prints in a hidden, offscreen window in a separate session with JavaScript off, where every request is blocked except `file:` URLs inside the job folder, `data:` and `blob:`. Tests outside the app use `scripts/render-pdf.cjs` with the same rules.
+- **Pandoc** is the official build (the Debian package lacks its embedded data files and fails under `--sandbox`). It always runs with `--sandbox`. Pandoc adds things the source didn't have (a title block, captions from alt text, an EPUB title page, table borders in plain text); each step declares those as *added text* so the text check can tell them apart from real changes.
+
+**PDF/A: repair first, Ghostscript second**
+
+The plan (§7.3) sent PDF, image and HTML sources through Ghostscript `pdfwrite`. Verification showed that Ghostscript rewrote the `ToUnicode` maps of Devanagari fonts (the text extracted from the PDF/A no longer matched the source) and dropped link annotations. The implementation therefore tries a **repair** first:
+
+1. pikepdf (`pikepdf.pdfa`) adds the sRGB v2 OutputIntent, writes the XMP `pdfaid` identification and syncs it with the Info dictionary, removes encryption and JavaScript, and for 3b can attach the source (`/AF`, `AFRelationship /Source`).
+2. For PDF/A-1b, ICC v4 profiles (Chromium writes them) are replaced by the v2 sRGB profile, but only when a colour grid shows the v4 profile *is* sRGB (`_same_as_srgb`). Any other profile is left alone and the file falls through to step 3.
+3. veraPDF validates. Only if the repaired file fails does Ghostscript run, and its output is validated again.
+4. Anything still failing is saved as `name.NOT-PDFA.pdf`, and the report lists every failed clause.
+
+Office sources still use LibreOffice's native PDF/A export. When that fails validation (LibreOffice 1b exports have had date-format problems), the same pikepdf repair runs first; if that is still rejected, LibreOffice exports a plain PDF, which takes steps 1–4 above.
+
+**Verification**
+
+- **A second PDF reader.** pdfium misreads some Devanagari and Arabic text in LibreOffice and Chromium PDFs (glyph order, `ActualText`). When pdfium's text disagrees with the source, the text check asks MuPDF. It passes only if MuPDF's reading matches exactly, and the report says the second reader confirmed it and shows what pdfium read. pdfminer was tried and was worse on these scripts.
+- **Text normalisation** (in addition to §7.4): soft hyphens removed; a hyphen at a line end joins the next line *and the hyphen is kept* (a document cannot tell a hyphenated word from a compound split at a line end, so dropping it could hide a real change); duplicate combining marks collapsed (some PDF writers emit a vowel sign twice for shaping); right-to-left runs put in logical order before comparing; Pandoc and LibreOffice additions (see above) declared per step.
+- **Pictures** are counted from what each page *draws* (a content-stream walker), not from the page resources, which PDF writers share between pages.
+- **Fonts** are compared for PDF output and exact-mode Office output only, using the fonts the text actually uses (per script), not every font a style sheet mentions. Metric-compatible pairs (Calibri/Carlito, Cambria/Caladea, Arial/Liberation Sans, Times New Roman/Liberation Serif, Courier New/Liberation Mono) pass with a note.
+- **Appearance:** both renderings get a 0.7 px Gaussian blur and a best alignment within ±2 px before SSIM (renderers round edges and positions differently; neither is visible). The threshold stays at 0.98 per page at 100 DPI. SVG sources are rendered by Chromium as the reference; when Chromium also made the output, the check is skipped and the report says why.
+
+**Detection and OCR**
+
+- **Scanned page:** fewer than 3 characters of text and one image covering at least 50% of the page (the plan said 90%; scans with margins or a cropped photo on a page were missed).
+- **OCR is Tesseract only in Phase 2** (`tessdata_fast`, the languages in ENGINES.md §0). RapidOCR/PP-OCR, PP-DocLayout and SLANet+ arrive with Module 3. Phase 2 adds what scans needed: OSD to turn sideways pages upright, projection-profile deskew (word boxes are mapped back to the original page), OpenCV ruled-table detection with merged cells, figure crops, font size from ink height and the ink colour.
+- **Searchable PDF** from scans uses OCRmyPDF (`--optimize 0`, `--skip-text`, lossless PDF/A image compression), so the page images are not re-compressed. Other targets use the toolkit's own OCR model.
+
+**PDF to editable Office**
+
+- pdf2docx is used for editable DOCX. The pre-flight sends right-to-left, rotated and scanned content to the toolkit's own document-model writer instead (pdf2docx's documented limits).
+- Exact-layout DOCX and PPTX are written from the document model: every line, picture and vector shape at its position (text boxes and DrawingML custom geometry).
+
+**UI**
+
+- *Resume* lasts for the session: the job folder and its journal (SHA-256 per finished step) survive a crash, but after a restart the files must be added again. Cross-restart resume needs the file list persisted (Phase 5).
+
 ---
 
 ## 8. Module 3 — Image to fully editable design

@@ -1,10 +1,35 @@
 # Bundled components and licenses
 
-Status: Phase 0, **Lite bundle, personal use** (decisions D1–D2, confirmed 2026-09-30). Python package versions are the latest on PyPI as of 2026-09-30. CLI engine versions get pinned (URL + SHA-256) in `scripts/engines.lock.json` at Phase 5, using the latest stable release at build time. The minimum versions listed here are the ones whose features the toolkit relies on.
+Status: Phase 2 (§0 lists what is actually bundled now; §1–§7 are the Phase 0 plan for the whole app), **Lite bundle, personal use** (decisions D1–D2, confirmed 2026-09-30). Python package versions are the latest on PyPI as of 2026-09-30. CLI engine versions get pinned (URL + SHA-256) in `scripts/engines.lock.json` at Phase 5, using the latest stable release at build time. The minimum versions listed here are the ones whose features the toolkit relies on.
 
 Sizes are rough figures for Windows x64, unpacked. **Total ≈ 1.5–1.9 GB installed, ≈ 0.6–0.8 GB download.** The Lite bundle leaves out LaMa (≈ 200 MB), IS-Net (≈ 170 MB), the CJK fonts (≈ 130 MB) and switches Tesseract from `tessdata_best` to `tessdata_fast` (≈ 210 MB less).
 
 ⚠️ = copyleft that would matter only if the app were **redistributed** (see §3). This build is for personal use (D1), so none of these flags require any action.
+
+## 0. What Phase 2 actually bundles (Module 2)
+
+`scripts/fetch_engines.py` puts these into `engines/win-x64/` at build time; electron-builder copies that folder to `resources/engines/` in the installer and the portable ZIP. The app never downloads anything. The exact versions of each build are written to `engines/win-x64/manifest.json` (printed in the release log, and shown in Settings → *Conversion engines*).
+
+| Engine | Version | Source (build time) | Size on Windows (unpacked) |
+|---|---|---|---|
+| LibreOffice | current "fresh" release at build time (version in the manifest) | Chocolatey `libreoffice-fresh`, program folder copied; help and spelling dictionaries removed | ≈ 600 MB |
+| Pandoc | 3.8.2.1 (official build) | PyPI wheel `pypandoc_binary==1.16.2` (hash-checked by PyPI). Distribution builds such as Debian's lack the embedded data files and fail under `--sandbox` | ≈ 200 MB |
+| Ghostscript | current release at build time | Chocolatey `ghostscript`; `doc/` and `examples/` removed | ≈ 70 MB |
+| Tesseract | 5.x (UB Mannheim build) | Chocolatey `tesseract` | ≈ 50 MB |
+| tessdata_fast | `main` branch at build time | eng, osd, hin, mar, san, nep, ben, guj, pan, tam, tel, kan, mal, ori, urd, ara, heb | ≈ 40 MB |
+| Java runtime | Temurin 21 JRE | Chocolatey `temurin21jre` (not jlink-trimmed yet: Phase 5) | ≈ 130 MB |
+| veraPDF | 1.28.2 greenfield (CLI + its jars) | Maven Central, each jar SHA-1-checked | ≈ 20 MB |
+| resvg | 0.45.1 | GitHub release `resvg-win64.zip` | ≈ 4 MB |
+
+Python packages added in Phase 2 (all pinned in `worker/requirements.txt`): PyMuPDF 1.28.2, pikepdf[pdfa] 10.16.0, pypdfium2 5.13.0, pdf2docx 0.5.13, img2pdf 0.6.3, ocrmypdf 17.13.0, python-docx 1.2.0, python-pptx 1.0.2, openpyxl 3.1.5, xlrd 2.0.2 (reads .xls for verification, BSD-3), lxml 6.1.3, rapidfuzz 3.14.6, msoffcrypto-tool 6.0.0, docxcompose 2.2.0, charset-normalizer 3.5.2, opencv-python-headless 5.0.0.93 (Apache-2.0; the `contrib` build arrives with Module 3), fontTools 4.66.1.
+
+**Differences from the plan below:**
+
+- **OCR is Tesseract only in Phase 2.** RapidOCR (PP-OCR), PP-DocLayout and SLANet+ arrive with Module 3, where layout analysis needs them. Tables in scans are found with OpenCV line detection instead.
+- **Chromium prints HTML, TXT, EPUB and SVG to PDF** inside the app (a hidden, sandboxed window that can only read the job folder). No separate browser is bundled.
+- **No bundled fonts yet.** Conversions use the fonts LibreOffice ships (Liberation, Carlito, Caladea, DejaVu, Noto Sans/Serif and others) plus the fonts installed in Windows. The Noto families for the UI and Module 3 arrive in Phase 5 / Module 3. The verification report names every font substitution.
+- **sRGB ICC v2:** the profile shipped inside pikepdf is used for the PDF/A OutputIntent.
+- **Total for the Phase 2 Windows build:** roughly 1.1 GB unpacked; the installer and ZIP are listed in [TEST_REPORT.md](TEST_REPORT.md) with their real sizes.
 
 ## 1. Runtimes and CLI engines
 
