@@ -83,7 +83,8 @@ def _gray(img: PILImage.Image) -> np.ndarray:
 
 
 def estimate_skew(gray: np.ndarray) -> float:
-    """Skew in degrees (positive = text rises to the right), by projection-profile search, ±5°."""
+    """The rotation (degrees, counter-clockwise positive, as cv2) that levels the text rows, by
+    projection-profile search within ±5°. Text rising to the right gives a negative value."""
     import cv2
 
     h, w = gray.shape
@@ -296,7 +297,7 @@ def ocr_page(image_path: Path, work: Path, *, langs: list[str], dpi: float | Non
     skew = estimate_skew(gray)
     ocr_input, inv = image_path, None
     if abs(skew) >= 0.3:
-        straight, inv = _rotate_for_ocr(img, -skew)
+        straight, inv = _rotate_for_ocr(img, skew)
         ocr_input = work / f"{image_path.stem}-deskew.png"
         straight.save(ocr_input, dpi=(dpi, dpi))
     rows = run_tesseract(ocr_input, langs, dpi, check)
@@ -466,7 +467,7 @@ def rotate_note(op: OcrPage, page_no: int) -> str | None:
 
 def skew_note(op: OcrPage, page_no: int) -> str | None:
     if abs(op.skew) >= 0.3:
-        return f"Page {page_no} is skewed by {op.skew:+.1f}°; text was recognised on a straightened copy (the page image is unchanged)."
+        return f"Page {page_no} is tilted by {abs(op.skew):.1f}°; text was recognised on a straightened copy (the page image is unchanged)."
     return None
 
 

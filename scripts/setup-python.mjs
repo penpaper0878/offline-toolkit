@@ -40,4 +40,5 @@ if (!existsSync(venvPy)) {
 }
 run(venvPy, ['-m', 'pip', 'install', '--upgrade', 'pip'])
 run(venvPy, ['-m', 'pip', 'install', '-r', join(root, 'worker', 'requirements.txt'), '-r', join(root, 'worker', 'requirements-dev.txt')])
+run(venvPy, ['-m', 'pip', 'install', '--no-deps', '-r', join(root, 'worker', 'requirements-nodeps.txt')])
 console.log('\nPython worker environment is ready:', venvPy)

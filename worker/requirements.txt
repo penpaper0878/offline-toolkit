@@ -1,4 +1,6 @@
 # Worker runtime dependencies. Full hashed lock for packaging comes in Phase 5.
+# Packages whose own requirements would pull in a second OpenCV build are installed without
+# dependencies from requirements-nodeps.txt; what they need is listed here.
 # Phase 1 (image resizer)
 pillow==12.3.0
 numpy==2.4.6
@@ -8,7 +10,6 @@ jsonschema==4.26.0
 pymupdf==1.28.2
 pikepdf[pdfa]==10.16.0
 pypdfium2==5.13.0
-pdf2docx==0.5.13
 img2pdf==0.6.3
 ocrmypdf==17.13.0
 python-docx==1.2.0
@@ -20,5 +21,20 @@ rapidfuzz==3.14.6
 msoffcrypto-tool==6.0.0
 docxcompose==2.2.0
 charset-normalizer==3.5.2
-opencv-python-headless==5.0.0.93
 fonttools==4.66.1
+# Phase 3 (image to editable design)
+opencv-contrib-python-headless==5.0.0.93
+onnxruntime==1.30.0
+vtracer==0.6.15
+brotli==1.2.0
+# needed by pdf2docx, rapidocr and rapid-layout (requirements-nodeps.txt)
+fire==0.7.1
+termcolor==3.3.0
+pyclipper==1.4.0
+shapely==2.1.2
+six==1.17.0
+PyYAML==6.0.3
+omegaconf==2.3.1
+colorlog==6.12.0
+tqdm==4.70.1
+requests==2.34.2

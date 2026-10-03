@@ -80,6 +80,10 @@ async function main() {
     '--target', join(target, 'Lib', 'site-packages'),
     '--platform', 'win_amd64', '--python-version', '3.11', '--implementation', 'cp', '--abi', 'cp311',
     '--only-binary=:all:', '-r', join(root, 'worker', 'requirements.txt')])
+  run(host, ['-m', 'pip', 'install', '--no-cache-dir', '--disable-pip-version-check', '--no-deps',
+    '--target', join(target, 'Lib', 'site-packages'),
+    '--platform', 'win_amd64', '--python-version', '3.11', '--implementation', 'cp', '--abi', 'cp311',
+    '--only-binary=:all:', '-r', join(root, 'worker', 'requirements-nodeps.txt')])
 
   // Drop caches and bundled test suites (not needed at run time).
   const prune = (p) => {

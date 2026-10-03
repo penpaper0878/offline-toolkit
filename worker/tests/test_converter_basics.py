@@ -302,3 +302,21 @@ def test_space_drawn_twice_inside_one_line_is_one_space():
     assert "".join(s["text"] for s in out["spans"]) == "مرحبا نص"
     alone = {"dir": (1.0, 0.0), "bbox": [0, 0, 10, 10], "spans": [span("Tahoma", [(" ", 1.0, 4.0)])]}
     assert docmodel._drop_repeated_spaces(alone) is alone, "a line of spaces only is left to the orphan merge"
+
+
+def test_deskew_levels_tilted_text_instead_of_doubling_the_tilt():
+    """Regression (found in Phase 3): the converter rotated a tilted scan the wrong way before OCR."""
+    import numpy as np
+    from PIL import Image, ImageDraw
+
+    from otk_worker.converter import ocr as tocr
+
+    img = Image.new("RGB", (1000, 800), "white")
+    d = ImageDraw.Draw(img)
+    for i in range(14):
+        d.text((60, 60 + i * 48), "The quick brown fox jumps over the lazy dog again", fill="black", font_size=28)
+    tilted = img.rotate(2.0, resample=Image.Resampling.BICUBIC, fillcolor="white")
+    skew = tocr.estimate_skew(np.asarray(tilted.convert("L")))
+    assert abs(abs(skew) - 2.0) <= 0.2, skew
+    straight, _ = tocr._rotate_for_ocr(tilted, skew)
+    assert abs(tocr.estimate_skew(np.asarray(straight.convert("L")))) <= 0.2

@@ -1,0 +1,6 @@
+# Installed with --no-deps: each requires the full opencv-python, which would clash with
+# opencv-contrib-python-headless (both install the cv2 package). Their real dependencies are pinned in
+# requirements.txt. rapidocr and rapid-layout ship their ONNX models inside the wheel (no download).
+pdf2docx==0.5.13
+rapidocr==3.9.2
+rapid-layout==1.2.1
