@@ -94,7 +94,8 @@ jobs:
           key: engines-win-x64-${{ hashFiles('scripts/fetch_engines.py') }}
 
       - name: Pillow shapes text (raqm with FriBiDi)
-        run: node scripts/run-python.mjs -c "from PIL import features; assert features.check('raqm'), 'Pillow cannot shape text: FriBiDi missing'; print('raqm', features.version('raqm'), 'fribidi', features.version('fribidi'))"
+        run: |
+          node scripts/run-python.mjs -c "from PIL import features; assert features.check('raqm'), 'Pillow cannot shape text: FriBiDi missing'; print('raqm', features.version('raqm'), 'fribidi', features.version('fribidi'))"
       - run: npm run typecheck
       - run: npm test
       - run: npm run test:py
