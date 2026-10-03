@@ -35,7 +35,7 @@ Updated at the end of each phase. Every result below is from an actual run. Anyt
 - The one miss on the small screenshot is the 14 px bold "Notifications": Roboto 500 at 15 px instead of Inter 600 at 14 px (the label is short and the two faces are close at that size). The scan's body text measures #0a0a0a instead of #111111 after denoising the grain.
 - Every shape, rule, frame, graphic, photo and table cell in the truth files is found with the right kind, colours and stroke widths (`test_design_pipeline.py`); the scan is straightened by −1.6°; the screenshot is read on a 2× Real-ESRGAN copy.
 - **Rebuilt design vs picture** (the scene drawn by Chromium from its SVG, compared like the converter's appearance check): poster SSIM 0.988, certificate 0.982, scan 0.984, small 0.988; no missing or extra marks except 3 small areas on the scan, where the title is 2% wider than the original (size 57 vs 56 px on the noisy page).
-- **Exports drawn back vs the rebuilt design:** PPTX (LibreOffice) 0.980–0.993, DOCX (LibreOffice) 0.977–0.995, HTML (Chromium) 0.979–0.989, no missing marks. DOCX also renders correctly with no fonts installed (the embedded fonts are used: SSIM 0.990 poster, 0.988 certificate).
+- **Exports drawn back vs the rebuilt design:** PPTX (LibreOffice) 0.980–0.993, DOCX (LibreOffice) 0.977–0.995, HTML (Chromium) 0.979–0.989, no missing marks. DOCX also renders correctly with no fonts installed (the embedded fonts are used: SSIM 0.992 poster, 0.995 certificate).
 - **A language not selected:** the poster analysed with English only leaves the Hindi line in the picture untouched and lists it under *Check → Not read* (before the fix it became "#" and was erased).
 - **JPEG and large pictures:** the poster saved as JPEG at quality 70, and the poster enlarged to 3000 × 4000 (analysed at 2250 × 3000), give the same layers as the original: all 7 text lines (Hindi included), button, outline box, both ellipses, rule, star, tick, photo and table, with stroke widths within 0.6 px (JPEG) and 1.2 px (enlarged) of the truth (`test_jpeg_compressed_poster`, `test_large_picture_is_analysed_at_working_size`).
 
@@ -78,6 +78,12 @@ Updated at the end of each phase. Every result below is from an actual run. Anyt
 - **The analysis cache** could return results from an older pipeline version (or another working size); its keys now carry a version and the working size.
 - **Edits could be reported "Not saved"** (found by repeating the app tests): two autosaves running at once shared one temporary file, so the second failed. Saves now run one at a time and in order in the app, and the worker writes each through its own temporary file.
 - **The design start page sent requests in an endless loop** (the list of designs and the OCR languages, over 100 queued at once), which slowed the worker and once made a test time out. It now loads them once.
+- **Found by the Windows CI and release runs:**
+  - The font and model downloads ran under the worker's own offline guard and were blocked (as designed). `run-python.mjs --online` now switches the guard off for build-time downloads only. On Windows the download step was PowerShell, which reports only the last command, so a failed font download went unnoticed; these steps now run in bash.
+  - `antlr4-python3-runtime` 4.9.3 (needed by omegaconf, which RapidOCR needs) is published as source only, and the Windows bundle installs wheels only. The bundler now builds that wheel first.
+  - **No text shaping on Windows.** Pillow loads FriBiDi at run time, and Windows has none, so text was measured unshaped: Indic conjuncts and vowel signs, Arabic joining and kerning were lost. The test pictures, also drawn by Pillow, were wrong too (OCR read "सवागत" for "स्वागत"; rebuilt-design SSIM 0.966–0.978). FriBiDi 1.0.17 is now bundled next to the app's Python, CI and the packaged test check that Pillow shapes text, and an analysis without shaping says so in its notes. **v0.3.0 was published before this was found and lacks it; v0.3.1 has it.**
+  - **Word text boxes in LibreOffice 26** (the bundled engine): centred text in non-wrapping Word text boxes was moved right by the box's own offset (poster DOCX SSIM 0.879, the button label off the page). Text boxes now wrap, with spare width away from the alignment edge (LibreOffice 24 renders the same as before).
+  - **No kerning in the Word export:** Word kerns only when a run asks for it, and LibreOffice follows that, while the design, PowerPoint and Impress kern. Runs now kern (certificate DOCX vs design 0.987 → 0.995, its 2 differing areas gone; poster 0.990 → 0.992).
 
 ### Known limits (Module 3)
 
@@ -88,6 +94,8 @@ Updated at the end of each phase. Every result below is from an actual run. Anyt
 - Tables are found from ruled lines only; borderless tables become text layers.
 - CJK fonts are not bundled (Lite bundle): Chinese text uses the fonts installed in Windows.
 - PowerPoint uses installed fonts (*Install the fonts* adds them for the user); text placement in Word and PowerPoint follows the rules measured in LibreOffice, and could differ by a fraction of a line in Microsoft Office, which is not available in this environment.
+- LibreOffice 26 draws the exact-height table rows of the Word export taller by the border width (2 px per row on the poster); LibreOffice 24, and Word as measured by others, keep the height the file asks for, which is what the export writes. The Windows test accepts exactly this difference and compares the rest of the page as strictly as before.
+- LibreOffice Writer shows the text of rotated text boxes from the Word export level (the export says so); the PowerPoint export keeps the rotation in LibreOffice too. Word rotates such boxes with their text, but Microsoft Word is not available here to check.
 - Cut-outs of objects with fine or hairy edges (non-person) can need touching up; there is no brush yet, only *Restore original*.
 
 ## Phase 2: Module 2 (Document Converter), 2026-10-01
