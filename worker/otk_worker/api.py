@@ -151,6 +151,102 @@ def engines_status(params: dict, ctx: Context) -> dict:
     return st
 
 
+# ------------------------------------------------------------------ design (Module 3)
+def _project(params: dict) -> Path:
+    project = Path(params["project"])
+    if not project.is_absolute():
+        raise InputError("The design folder must be an absolute path.")
+    return project
+
+
+def design_analyze(params: dict, ctx: Context) -> dict:
+    from .design import pipeline
+
+    check = compress.check_cancel(ctx.cancel_event)
+    scene = pipeline.analyze(params["source"], _project(params), langs=params.get("langs") or ["eng"],
+                             upscale=params.get("upscale", "auto"), deskew=bool(params.get("deskew", True)),
+                             denoise=bool(params.get("denoise", True)), check=check,
+                             progress=lambda f, m: ctx.progress({"fraction": f, "message": m}))
+    return {"scene": scene}
+
+
+def design_accuracy(params: dict, ctx: Context) -> dict:
+    from .design import project, verify
+
+    proj = _project(params)
+    scene = params.get("scene") or project.load(proj)
+    return verify.accuracy(scene, proj, host=_host(ctx), check=compress.check_cancel(ctx.cancel_event))
+
+
+def design_load(params: dict, ctx: Context) -> dict:
+    from .design import project
+
+    return {"scene": project.load(_project(params))}
+
+
+def design_save(params: dict, ctx: Context) -> dict:
+    from .design import project
+
+    return project.save(_project(params), params["scene"])
+
+
+def design_export(params: dict, ctx: Context) -> dict:
+    from .design import project
+
+    return project.export(_project(params), params["scene"], params["format"], Path(params["out"]),
+                          fonts_folder=bool(params.get("fontsFolder")))
+
+
+def design_open(params: dict, ctx: Context) -> dict:
+    from .design import project
+
+    return {"scene": project.unpack(Path(params["path"]), _project(params))}
+
+
+def design_import_image(params: dict, ctx: Context) -> dict:
+    from .design import project
+
+    return project.import_image(_project(params), params["path"])
+
+
+def design_cutout(params: dict, ctx: Context) -> dict:
+    from .design import project
+
+    return project.cutout(_project(params), params["asset"], params.get("mode", "auto"))
+
+
+def design_fonts(params: dict, ctx: Context) -> dict:
+    """The bundled fonts for the editor's font list: families, styles, scripts, licences and metrics."""
+    from .design import assets, layout
+
+    out = []
+    for f in assets.catalogue():
+        styles = [{"weight": w, "italic": it} for it in (False, True) for w in assets.weights(f["family"], it)]
+        m = layout.metrics(f["family"], 400, False)
+        out.append({"family": f["family"], "category": f.get("category"), "role": f.get("role"), "scripts": f["scripts"],
+                    "licence": f.get("licence"), "styles": styles,
+                    "metrics": {k: round(v, 4) for k, v in m.items()}})
+    return {"families": out}
+
+
+def design_font_file(params: dict, ctx: Context) -> dict:
+    """A static font file for one face (the editor loads exactly what the exports use)."""
+    from .design import fonts_out, layout
+
+    fam, w, it = params["family"], int(params.get("weight", 400)), bool(params.get("italic", False))
+    path = fonts_out.static_font(fam, w, it)
+    if path is None:
+        raise InputError(f"The font {fam} is not bundled.")
+    return {"path": str(path), "weight": fonts_out.snap_weight(w), "italic": it,
+            "metrics": layout.metrics(fam, fonts_out.snap_weight(w), it)}
+
+
+def design_install_fonts(params: dict, ctx: Context) -> dict:
+    from .design import project
+
+    return project.install_fonts(params["scene"])
+
+
 def register(server: Server) -> None:
     server.register("ping", ping, inline=True)
     server.register("selftest.canary", selftest_canary)
@@ -164,3 +260,14 @@ def register(server: Server) -> None:
     server.register("converter.plan", converter_plan)
     server.register("converter.run", converter_run)
     server.register("engines.status", engines_status)
+    server.register("design.analyze", design_analyze)
+    server.register("design.accuracy", design_accuracy)
+    server.register("design.load", design_load)
+    server.register("design.save", design_save)
+    server.register("design.export", design_export)
+    server.register("design.open", design_open)
+    server.register("design.importImage", design_import_image)
+    server.register("design.cutout", design_cutout)
+    server.register("design.fonts", design_fonts)
+    server.register("design.fontFile", design_font_file)
+    server.register("design.installFonts", design_install_fonts)

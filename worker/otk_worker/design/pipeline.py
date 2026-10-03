@@ -271,7 +271,8 @@ def analyze(source: str | Path, project: Path, *, langs: list[str] | None = None
             Image.fromarray(np.dstack([arr[y0:y1, x0:x1], (e.mask * 255).astype(np.uint8)]), "RGBA").save(
                 project / crop_name)
             layers.append(sc.layer("vector", lid, f"Graphic {counters['graphic']}", (x0, y0, x1 - x0, y1 - y0),
-                                   paths=paths, colors=e.colors, source={"pixels": crop_name}))
+                                   paths=paths, natural=[x1 - x0, y1 - y0], colors=e.colors,
+                                   source={"pixels": crop_name}))
     for blk in blocks:
         layers.append(_text_layer(blk, nid("text"), factor, scene["lowConfidence"]))
     scene["notes"] = notes
@@ -363,6 +364,7 @@ def _table_layer(t: tbl_mod.Table, lid: str) -> dict:
                     colWidths=[round(b - a, 2) for a, b in zip(t.xs, t.xs[1:])],
                     rowHeights=[round(b - a, 2) for a, b in zip(t.ys, t.ys[1:])],
                     border={"color": t.border_color, "width": t.border_width},
+                    padding=[round(v, 1) for v in t.padding],
                     style={"family": t.family, "size": round(t.size, 2), "color": t.color},
                     cells=cells, fontCandidates=[c.to_dict() for c in t.candidates])
 

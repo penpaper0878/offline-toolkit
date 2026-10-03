@@ -127,6 +127,35 @@ def faces_used(scene: dict) -> list[tuple[str, int, bool]]:
     return seen
 
 
+def export_files(scene: dict, dest: Path) -> list[Path]:
+    """Copy a static font file for every face the scene uses into `dest` (for installing, or for an
+    application that is not given the fonts inside the file)."""
+    import shutil
+
+    dest.mkdir(parents=True, exist_ok=True)
+    out = []
+    for fam, w, it in faces_used(scene):
+        src = static_font(fam, w, it)
+        if src is None:
+            continue
+        face, bold, ital = office_name(fam, w, it)
+        style = ("Bold" if bold else "") + ("Italic" if ital else "")
+        target = dest / f"{face.replace(' ', '')}-{style or 'Regular'}{src.suffix}"
+        shutil.copyfile(src, target)
+        out.append(target)
+    return out
+
+
+def fontconfig_env(font_dir: Path) -> dict:
+    """Environment that makes fontconfig programs (LibreOffice on Linux) see the fonts in `font_dir` too."""
+    conf = font_dir / "fonts.conf"
+    conf.write_text('<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "fonts.dtd"><fontconfig>'
+                    '<include ignore_missing="yes">/etc/fonts/fonts.conf</include>'
+                    f"<dir>{font_dir.resolve()}</dir><cachedir>{(font_dir / '.fc-cache').resolve()}</cachedir>"
+                    "</fontconfig>", encoding="utf-8")
+    return {"FONTCONFIG_FILE": str(conf.resolve())}
+
+
 def text_used(scene: dict, family: str, weight: int, italic: bool) -> str:
     chars: set[str] = set()
     for lyr in scene["layers"]:

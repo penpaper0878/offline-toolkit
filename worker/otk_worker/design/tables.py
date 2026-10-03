@@ -48,6 +48,7 @@ class Table:
     size: float = 14.0
     color: str = "#000000"
     candidates: list = field(default_factory=list)
+    padding: tuple[float, float, float, float] = (6.0, 2.0, 6.0, 2.0)   # cell insets (px): left, top, right, bottom
 
     @property
     def rows(self) -> int:
@@ -245,4 +246,11 @@ def _style(table: Table, arr: np.ndarray, clean: np.ndarray, gray: np.ndarray) -
         left, right = lx0 - x0, x1 - lx1
         cell.align = "center" if abs(left - right) < 0.15 * (x1 - x0) and left > 0.2 * (x1 - x0) else (
             "right" if right < left * 0.5 else "left")
+    # Insets: how far text starts from the rule in left-aligned cells (ends, in right-aligned ones).
+    half = table.border_width / 2
+    lefts = [min(li.box[0] for li in c.lines) - c.box[0] - half for c in table.cells if c.lines and c.align == "left"]
+    rights = [c.box[2] - max(li.box[2] for li in c.lines) - half for c in table.cells if c.lines and c.align == "right"]
+    pl = float(np.median(lefts)) if lefts else 6.0
+    pr = float(np.median(rights)) if rights else pl
+    table.padding = (max(0.0, pl), 2.0, max(0.0, pr), 2.0)
     return table

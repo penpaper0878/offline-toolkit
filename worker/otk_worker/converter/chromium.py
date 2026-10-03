@@ -36,17 +36,27 @@ def electron_binary() -> str | None:
 def render_pdf(ctx: StepContext, html: Path, out: Path, *, paper: str | None = None,
                page_size_pt: tuple[float, float] | None = None) -> dict:
     """Print `html` (a self-contained file in the job folder) to `out`."""
-    paper = paper or ctx.options.paper
-    request = {"html": str(html), "pdf": str(out), "paper": paper, "allowDir": str(ctx.work),
+    result = print_html(html, out, paper=paper or ctx.options.paper, page_size_pt=page_size_pt, allow_dir=ctx.work,
+                        host=ctx.host, check=ctx.check, request_file=ctx.path("render-request.json"))
+    for url in result.get("blocked", []):
+        ctx.note(f"Blocked while rendering (offline): {url}")
+    return result
+
+
+def print_html(html: Path, out: Path, *, paper: str = "a4", page_size_pt: tuple[float, float] | None = None,
+               allow_dir: Path, host=None, check=lambda: None, request_file: Path | None = None) -> dict:
+    """Print `html` to the PDF `out`: through the app when it runs the worker (`host`), else with a headless
+    Electron. Only files inside `allow_dir` (and data: URLs) can be loaded."""
+    request = {"html": str(html), "pdf": str(out), "paper": paper, "allowDir": str(allow_dir),
                "pageSize": list(page_size_pt) if page_size_pt else None}
-    if ctx.host is not None:
-        result = ctx.host.render_pdf(html, out, paper=paper, allow_dir=ctx.work, page_size=page_size_pt)
+    if host is not None:
+        result = host.render_pdf(html, out, paper=paper, allow_dir=allow_dir, page_size=page_size_pt)
     else:
         exe = electron_binary()
         if exe is None:
             raise engines.EngineMissing("Chromium (Electron) is needed to turn HTML into PDF, and it was not found.")
         script = _repo_root() / "scripts" / "render-pdf.cjs"
-        req_file = ctx.path("render-request.json")
+        req_file = request_file or out.with_suffix(".request.json")
         req_file.write_text(json.dumps(request), encoding="utf-8")
         cmd = [exe]
         if sys.platform.startswith("linux"):
@@ -54,15 +64,13 @@ def render_pdf(ctx: StepContext, html: Path, out: Path, *, paper: str | None = N
         cmd += [str(script), str(req_file)]
         env = engines.clean_env({"ELECTRON_ENABLE_LOGGING": "0", "ELECTRON_RUN_AS_NODE": ""})
         env.pop("ELECTRON_RUN_AS_NODE", None)
-        res = engines.run(cmd, check=ctx.check, timeout=300, env=env, what="Chromium")
+        res = engines.run(cmd, check=check, timeout=300, env=env, what="Chromium")
         try:
             result = json.loads(res.stdout.strip().splitlines()[-1])
         except (ValueError, IndexError):
             result = {}
     if not out.exists() or out.stat().st_size == 0:
         raise engines.EngineFailed("Chromium did not produce a PDF.")
-    for url in (result or {}).get("blocked", []):
-        ctx.note(f"Blocked while rendering (offline): {url}")
     return result or {}
 
 

@@ -5,6 +5,8 @@ Each connected part of the mask is filled by the method its surroundings call fo
 - textured surroundings: OpenCV xphoto FSR (frequency-selective reconstruction keeps the texture);
 - large regions are filled at reduced resolution and scaled up, so a removed photo leaves a smooth
   continuation of the background instead of streaks.
+- plain colour or a smooth gradient around (the commonest case on designed pages): a quadratic surface
+  fitted to the surroundings, with grain of the same strength, which continues a gradient exactly;
 The method sits behind `fill()`, so a learned inpainter could replace it later.
 """
 
@@ -15,6 +17,7 @@ from typing import Callable
 import numpy as np
 
 TEXTURED_STD = 6.0          # grey-level std of the surrounding ring above which a region counts as textured
+SMOOTH_STD = 3.0            # per-channel spread around a fitted smooth surface below which it is a gradient
 
 
 def paste_mask(full: np.ndarray, mask: np.ndarray, inv: np.ndarray, origin: tuple[float, float]) -> None:
@@ -61,6 +64,41 @@ def _ring_std(gray: np.ndarray, region: np.ndarray, known: np.ndarray, width: in
     return float(np.std(vals - a @ coef))
 
 
+def _surface(sub: np.ndarray, reg: np.ndarray, known: np.ndarray, width: int, seed: int,
+             limit: float = SMOOTH_STD) -> np.ndarray | None:
+    """The region filled with a quadratic surface fitted to the ring around it (plus matching grain), or
+    None when the ring is not a smooth surface."""
+    import cv2
+
+    ring = cv2.dilate(reg.astype(np.uint8), np.ones((2 * width + 1, 2 * width + 1), np.uint8)) > 0
+    ring &= known
+    ys, xs = np.nonzero(ring)
+    if len(xs) < 60:
+        return None
+    h, w = reg.shape
+    sx, sy = 2.0 / max(1, w), 2.0 / max(1, h)
+
+    def basis(xx, yy):
+        u, v = xx * sx - 1, yy * sy - 1
+        return np.column_stack([np.ones_like(u), u, v, u * u, u * v, v * v])
+
+    if len(xs) > 20000:
+        pick = np.random.default_rng(seed).choice(len(xs), 20000, replace=False)
+        xs, ys = xs[pick], ys[pick]
+    a = basis(xs.astype(np.float64), ys.astype(np.float64))
+    vals = sub[ys, xs].astype(np.float64)
+    coef, *_ = np.linalg.lstsq(a, vals, rcond=None)
+    resid = vals - a @ coef
+    std = resid.std(axis=0)
+    if float(std.max()) > limit:
+        return None
+    ry, rx = np.nonzero(reg)
+    est = basis(rx.astype(np.float64), ry.astype(np.float64)) @ coef
+    if float(std.mean()) > 0.8:
+        est += np.random.default_rng(seed).normal(0.0, 1.0, est.shape) * std
+    return np.clip(np.round(est), 0, 255).astype(np.uint8)
+
+
 def fill(arr: np.ndarray, mask: np.ndarray, *, check: Callable[[], None] = lambda: None) -> tuple[np.ndarray, dict]:
     """`arr` (RGB uint8) with `mask` (bool) filled in. Returns (image, stats).
 
@@ -73,10 +111,14 @@ def fill(arr: np.ndarray, mask: np.ndarray, *, check: Callable[[], None] = lambd
         return out, {"regions": 0}
     gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)
     H, W = mask.shape
+    # Grain of the whole picture (a scan's paper): a surface plus that much grain still counts as smooth.
+    from .preprocess import noise_sigma
+
+    limit = max(SMOOTH_STD, 1.6 * noise_sigma(gray))
     m8_all = mask.astype(np.uint8) * 255
     grouped = cv2.dilate(m8_all, np.ones((9, 9), np.uint8))
     n, labels, stats, _ = cv2.connectedComponentsWithStats(grouped, connectivity=8)
-    used = {"telea": 0, "fsr": 0, "multiscale": 0}
+    used = {"surface": 0, "telea": 0, "fsr": 0, "multiscale": 0}
     telea_mask = np.zeros_like(m8_all)
     for i in range(1, n):
         check()
@@ -93,7 +135,11 @@ def fill(arr: np.ndarray, mask: np.ndarray, *, check: Callable[[], None] = lambd
         big = min(w, h) > 60 and reg.mean() > 0.35
         sub = out[Y0:Y1, X0:X1]
         um8 = unknown.astype(np.uint8) * 255
-        if big:
+        smooth = _surface(sub, reg, ~unknown, max(4, min(16, tall // 2 + 2)), seed=i, limit=limit)
+        if smooth is not None:
+            sub[reg] = smooth
+            used["surface"] += 1
+        elif big:
             # Fill at low resolution (smooth, fast), then put back only the masked pixels.
             k = max(2, int(min(w, h) / 24))
             small = cv2.resize(sub, (max(1, sub.shape[1] // k), max(1, sub.shape[0] // k)), interpolation=cv2.INTER_AREA)
