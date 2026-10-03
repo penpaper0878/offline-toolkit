@@ -145,6 +145,7 @@ def run_props(u: _Units, family: str, weight: int, italic: bool, size_px: float,
     scale = int(round(100 * u.pt(size_px) * 2 / sz))
     if scale != 100:
         p.append(f'<w:w w:val="{scale}"/>')
+    p.append('<w:kern w:val="2"/>')   # pair kerning from 1 pt up, as the design draws it (Word's default is none)
     p += [f'<w:sz w:val="{sz}"/>', f'<w:szCs w:val="{sz}"/>']
     if underline:
         p.append('<w:u w:val="single"/>')
