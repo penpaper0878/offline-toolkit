@@ -76,6 +76,24 @@ def _regions(r: dict) -> list[tuple]:
     return [(g["x"], g["y"], g["w"], g["h"]) for g in r["regions"]]
 
 
+def _pdf_text(pdf: Path, width: int) -> list[str]:
+    """For a failure message: the fonts LibreOffice used and where each text span landed (page px)."""
+    import fitz
+
+    with fitz.open(pdf) as doc:
+        page = doc[0]
+        k = width / page.rect.width
+        out = ["fonts: " + ", ".join(f"{f[3]} ({f[1]}, {f[2]})" for f in page.get_fonts())]
+        for block in page.get_text("dict")["blocks"]:
+            for line in block.get("lines", []):
+                for sp in line["spans"]:
+                    if sp["text"].strip():
+                        x0, y0, x1, y1 = (round(v * k) for v in sp["bbox"])
+                        out.append(f"{sp['text'][:20]!r} {sp['font']} {sp['size'] * k:.1f}px #{sp['color']:06x} "
+                                   f"[{x0},{y0},{x1 - x0},{y1 - y0}]")
+    return out
+
+
 def test_every_text_line_is_read_and_styled(analysed):
     total = {"n": 0, "family": 0, "weight": 0, "size": 0, "color": 0, "align": 0}
     misses = []
@@ -231,7 +249,10 @@ def test_office_exports_look_like_the_design(analysed, tmp_path):
             project.export(proj, scene, fmt, out)
             img = verify.render_office(out, W, H, scene=scene)
             r = verify.compare(drawn, img)
-            assert r["ssim"] >= 0.975 and len(r["regions"]) <= 2, (name, fmt, r["ssim"], _regions(r), _text_offsets(scene, drawn, img))
+            if not (r["ssim"] >= 0.975 and len(r["regions"]) <= 2):
+                pytest.fail("\n".join([f"{name} {fmt}: SSIM {r['ssim']}, regions {_regions(r)}", "text offsets:",
+                                        *_text_offsets(scene, drawn, img), "LibreOffice's PDF:",
+                                        *_pdf_text(out.parent / f"{out.stem}-render" / f"{out.stem}.pdf", W)]))
         # HTML in Chromium.
         from otk_worker.converter import chromium
         from otk_worker.design import layout
