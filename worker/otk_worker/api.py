@@ -271,3 +271,8 @@ def register(server: Server) -> None:
     server.register("design.fonts", design_fonts)
     server.register("design.fontFile", design_font_file)
     server.register("design.installFonts", design_install_fonts)
+    from .passport import api as passport
+
+    for name in ("open_photo", "analyze", "autofit", "render", "auto", "export_photo", "sheet"):
+        rpc = {"open_photo": "open", "export_photo": "export"}.get(name, name)
+        server.register(f"passport.{rpc}", getattr(passport, name))

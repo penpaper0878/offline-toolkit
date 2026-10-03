@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "otk://schemas/passport-specs.schema.json",
+  "title": "Passport and ID photo specifications",
+  "description": "Every length is in the spec's own unit. Head height runs from the bottom of the chin to the crown; 'crown' is the top of the hair or the top of the skull, as the authority defines it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "specs"],
+  "$defs": {
+    "range": {
+      "type": "object", "additionalProperties": false,
+      "properties": { "min": { "type": "number", "exclusiveMinimum": 0 }, "max": { "type": "number", "exclusiveMinimum": 0 } }
+    },
+    "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "const": 1 },
+    "deletedDefaults": { "type": "array", "items": { "type": "string" }, "description": "Shipped specs you deleted (so updates don't bring them back)." },
+    "specs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "width", "height", "unit", "dpi", "head", "backgrounds", "source"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "description": { "type": "string", "maxLength": 1000 },
+          "width": { "type": "number", "exclusiveMinimum": 0, "maximum": 500 },
+          "height": { "type": "number", "exclusiveMinimum": 0, "maximum": 500 },
+          "unit": { "enum": ["mm", "cm", "in"] },
+          "dpi": { "type": "integer", "minimum": 72, "maximum": 1200 },
+          "head": {
+            "type": "object", "additionalProperties": false, "required": ["min", "max", "crown"],
+            "properties": {
+              "min": { "type": "number", "exclusiveMinimum": 0 },
+              "max": { "type": "number", "exclusiveMinimum": 0 },
+              "crown": { "enum": ["hair", "skull"], "description": "hair: chin to the top of the hair; skull: chin to the top of the head ignoring hair." }
+            }
+          },
+          "eyeLine": { "$ref": "#/$defs/range", "description": "Eye line height above the bottom edge." },
+          "topMargin": { "$ref": "#/$defs/range", "description": "Space between the crown and the top edge." },
+          "bottomMargin": { "$ref": "#/$defs/range", "description": "Space between the chin and the bottom edge." },
+          "headWidth": { "$ref": "#/$defs/range" },
+          "backgrounds": {
+            "type": "array", "minItems": 1,
+            "items": { "type": "object", "additionalProperties": false, "required": ["name", "color"],
+                       "properties": { "name": { "type": "string", "maxLength": 60 }, "color": { "$ref": "#/$defs/color" } } }
+          },
+          "digital": {
+            "type": "object", "additionalProperties": false, "required": ["width", "height"],
+            "properties": { "width": { "type": "integer", "minimum": 1 }, "height": { "type": "integer", "minimum": 1 } },
+            "description": "Pixel size the authority asks for in digital submissions (informational)."
+          },
+          "notes": { "type": "string", "maxLength": 2000 },
+          "source": {
+            "type": "object", "additionalProperties": false, "required": ["status"],
+            "properties": {
+              "status": { "enum": ["official-excerpt", "official", "unverified", "user"],
+                          "description": "official: read on the authority's page; official-excerpt: the authority's page as quoted by a search restricted to its domain (the page itself could not be opened); unverified: no authority rule found; user: your own." },
+              "authority": { "type": "string", "maxLength": 200 },
+              "url": { "type": "string", "maxLength": 500 },
+              "checked": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+              "quote": { "type": "string", "maxLength": 2000 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "otk://schemas/paper-sizes.schema.json",
+  "title": "Paper sizes for print sheets",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "papers"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "const": 1 },
+    "deletedDefaults": { "type": "array", "items": { "type": "string" } },
+    "papers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "width", "height", "unit"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,64}$" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "width": { "type": "number", "exclusiveMinimum": 0, "maximum": 2000 },
+          "height": { "type": "number", "exclusiveMinimum": 0, "maximum": 2000 },
+          "unit": { "enum": ["mm", "cm", "in"] }
+        }
+      }
+    }
+  }
+}

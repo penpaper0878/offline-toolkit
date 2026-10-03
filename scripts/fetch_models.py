@@ -7,7 +7,12 @@
   Published only as PyTorch weights; this script reads the checkpoint without PyTorch and writes the
   same network as ONNX (convolutions, PReLU, pixel shuffle, nearest-neighbour skip), which
   onnxruntime runs. tests check the ONNX graph against a NumPy implementation of the network.
-- MediaPipe selfie segmenter (Apache-2.0), person masks for cut-outs; OpenCV's DNN module reads it.
+- MediaPipe selfie segmenter (Apache-2.0), person masks for cut-outs and passport backgrounds; OpenCV's
+  DNN module reads it.
+- YuNet face detector (MIT, OpenCV model zoo), faces and their size and count for the passport module;
+  OpenCV's FaceDetectorYN runs it.
+- MediaPipe Face Landmarker's landmark model (Apache-2.0), 478 face points including the irises, taken
+  out of the published .task bundle; OpenCV's DNN module reads it.
 
 Downloads are pinned by SHA-256. models/manifest.json records what was fetched.
 """
@@ -33,6 +38,14 @@ ESRGAN_SHA256 = "8dc7edb9ac80ccdc30c3a5dca6616509367f05fbc184ad95b731f05bece9629
 SELFIE_URL = ("https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/1/"
               "selfie_segmenter.tflite")
 SELFIE_SHA256 = "191ac9529ae506ee0beefa6b2c945a172dab9d07d1e802a290a4e4038226658b"
+# The zoo serves the file from its default branch; the SHA-256 pins the exact file.
+YUNET_URL = ("https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_detection_yunet/"
+             "face_detection_yunet_2023mar.onnx")
+YUNET_SHA256 = "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4"
+FACE_TASK_URL = ("https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/"
+                 "face_landmarker.task")
+FACE_TASK_SHA256 = "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff"
+FACE_LANDMARKS_SHA256 = "c7d54204ce0448474c7f3fa9af494787c0965cbdd6f20fc72867e43046bd43d5"
 
 
 def log(msg: str) -> None:
@@ -181,6 +194,21 @@ def main() -> None:
     target.write_bytes(download(SELFIE_URL, SELFIE_SHA256))
     manifest["person"] = {"file": target.name, "model": "MediaPipe Selfie Segmenter (float16)", "licence": "Apache-2.0",
                           "source": SELFIE_URL, "sha256": SELFIE_SHA256}
+    target = dest / "face_detection_yunet_2023mar.onnx"
+    log("YuNet face detector")
+    target.write_bytes(download(YUNET_URL, YUNET_SHA256))
+    manifest["faceDetector"] = {"file": target.name, "model": "YuNet (2023mar)", "licence": "MIT",
+                                "source": YUNET_URL, "sha256": YUNET_SHA256}
+    target = dest / "face_landmarks_detector.tflite"
+    log("MediaPipe face landmarks (478 points with irises)")
+    with zipfile.ZipFile(io.BytesIO(download(FACE_TASK_URL, FACE_TASK_SHA256))) as z:
+        data = z.read("face_landmarks_detector.tflite")
+    if hashlib.sha256(data).hexdigest() != FACE_LANDMARKS_SHA256:
+        sys.exit("SHA-256 mismatch for face_landmarks_detector.tflite inside face_landmarker.task")
+    target.write_bytes(data)
+    manifest["faceLandmarks"] = {"file": target.name, "model": "MediaPipe Face Landmarker v2 (landmarks, float16)",
+                                 "licence": "Apache-2.0", "source": FACE_TASK_URL, "sourceSha256": FACE_TASK_SHA256,
+                                 "sha256": FACE_LANDMARKS_SHA256}
     (dest / "manifest.json").write_text(json.dumps(manifest, indent=1), encoding="utf-8")
     log(f"models in {dest}: {sum(p.stat().st_size for p in dest.iterdir()) / 1e6:.1f} MB")
 

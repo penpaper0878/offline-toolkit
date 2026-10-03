@@ -1,0 +1,130 @@
+{
+  "$schema": "../../schemas/passport-specs.schema.json",
+  "version": 1,
+  "specs": [
+    {
+      "id": "uk-passport",
+      "name": "UK passport — 35×45 mm",
+      "width": 35, "height": 45, "unit": "mm", "dpi": 300,
+      "head": { "min": 29, "max": 34, "crown": "skull" },
+      "backgrounds": [ { "name": "Light grey", "color": "#DCDCDC" }, { "name": "Cream", "color": "#F2EEDC" } ],
+      "digital": { "width": 600, "height": 750 },
+      "notes": "Plain cream or light grey background; no red eye; close-up of the full head and upper shoulders. Not all the hair needs to be in the photo.",
+      "source": {
+        "status": "official-excerpt", "authority": "HM Passport Office (GOV.UK)",
+        "url": "https://www.gov.uk/government/publications/passport-photos-guide-for-photographers/guidance-for-photographers",
+        "checked": "2026-10-03",
+        "quote": "Passport photos must measure 45 millimetres (mm) high by 35mm wide. The face must be between 29mm and 34mm from the bottom of the chin to the crown (the top of the head, not the top of the hair). Taken against a plain cream or light grey background."
+      }
+    },
+    {
+      "id": "schengen-visa",
+      "name": "Schengen visa (EU, ICAO) — 35×45 mm",
+      "width": 35, "height": 45, "unit": "mm", "dpi": 300,
+      "head": { "min": 31.5, "max": 36, "crown": "skull" },
+      "backgrounds": [ { "name": "Light grey", "color": "#E3E3E3" }, { "name": "Off-white", "color": "#F4F4F2" }, { "name": "White", "color": "#FFFFFF" } ],
+      "notes": "The face (chin to crown) must take up 70–80% of the photo height (31.5–36 mm). The crown is taken as the top of the head (ICAO usage); some consulates differ — check yours.",
+      "source": {
+        "status": "official-excerpt", "authority": "European Commission, Migration and Home Affairs (ICAO photograph guidelines)",
+        "url": "https://home-affairs.ec.europa.eu/document/download/5bb16566-c8c2-4afb-b038-530f488cb72a_en?filename=icao_photograph_guidelines_en.pdf",
+        "checked": "2026-10-03",
+        "quote": "Width 35–40mm; close-up showing head and top of shoulders; your face must take up 70–80% of the photograph. Follows ICAO Doc 9303."
+      }
+    },
+    {
+      "id": "india-passport",
+      "name": "India passport — 4.5×3.5 cm (35×45 mm)",
+      "width": 35, "height": 45, "unit": "mm", "dpi": 300,
+      "head": { "min": 36, "max": 38.25, "crown": "hair" },
+      "backgrounds": [ { "name": "White", "color": "#FFFFFF" } ],
+      "digital": { "width": 630, "height": 810 },
+      "notes": "Full head from top of hair to bottom of chin covering 80–85% of the photo height (36–38.25 mm). White background. Photos must be unaltered by computer software. Indian forms often write this size as 4.5 × 3.5 cm (height × width).",
+      "source": {
+        "status": "official-excerpt", "authority": "Passport Seva, Ministry of External Affairs, India",
+        "url": "https://embassy.passportindia.gov.in/pdf/Guidelines_for_ICAO_Compliant_Photographs_for_Passport_Applications.pdf",
+        "checked": "2026-10-03",
+        "quote": "Dimensions should be 630*810 Pixels, or 45mm x 35mm. The face should take up 80-85% of the photograph, with a full head from top of hair to bottom of chin. Background of the photograph should be White. Photos should be unaltered by computer software."
+      }
+    },
+    {
+      "id": "australia-passport",
+      "name": "Australia passport — 35×45 mm",
+      "width": 35, "height": 45, "unit": "mm", "dpi": 300,
+      "head": { "min": 32, "max": 36, "crown": "skull" },
+      "backgrounds": [ { "name": "White", "color": "#FFFFFF" }, { "name": "Light grey", "color": "#E3E3E3" } ],
+      "notes": "Photos may be 35–40 mm wide and 45–50 mm high; this preset uses the smallest. The excerpt does not say whether the crown includes hair; the top of the head (ICAO usage) is assumed.",
+      "source": {
+        "status": "official-excerpt", "authority": "Australian Passport Office",
+        "url": "https://www.passports.gov.au/help/passport-photos",
+        "checked": "2026-10-03",
+        "quote": "Photos must be 35–40 mm wide and 45–50 mm high. The height of your face, from your chin to your crown, must be 32–36 mm."
+      }
+    },
+    {
+      "id": "us-passport",
+      "name": "US passport — 2×2 in",
+      "width": 2, "height": 2, "unit": "in", "dpi": 300,
+      "head": { "min": 1, "max": 1.375, "crown": "hair" },
+      "eyeLine": { "min": 1.125, "max": 1.375 },
+      "backgrounds": [ { "name": "White", "color": "#FFFFFF" }, { "name": "Off-white", "color": "#F5F5F0" } ],
+      "digital": { "width": 600, "height": 600 },
+      "notes": "Defined in inches, so 300 DPI gives exactly 600×600 px (51 mm would give 602 px).",
+      "source": {
+        "status": "official-excerpt", "authority": "U.S. Department of State",
+        "url": "https://travel.state.gov/content/travel/en/passports/how-apply/photos.html",
+        "checked": "2026-10-03",
+        "quote": "The correct printed size of a passport photo is 2 x 2 inches (51 x 51 mm). Your head should be between 1 inch and 1-3/8 inches (between 25 and 35 mm) from the bottom of your chin to the top of your hair. Eye height between 1 1/8 inches to 1 3/8 inches (28 mm – 35 mm) from the bottom of the photo."
+      }
+    },
+    {
+      "id": "china-visa",
+      "name": "China visa — 33×48 mm",
+      "width": 33, "height": 48, "unit": "mm", "dpi": 300,
+      "head": { "min": 28, "max": 33, "crown": "hair" },
+      "headWidth": { "min": 15, "max": 22 },
+      "topMargin": { "min": 3, "max": 5 },
+      "bottomMargin": { "min": 7 },
+      "backgrounds": [ { "name": "White", "color": "#FFFFFF" } ],
+      "digital": { "width": 354, "height": 472 },
+      "notes": "White or close to white background, no frame. Ears visible, lips closed.",
+      "source": {
+        "status": "official-excerpt", "authority": "Chinese Visa Application Service Center / Chinese embassies",
+        "url": "https://visaforchina.cn/SYD3_EN/qianzhengyewu/jichuzhishi/changjianwenti/355135188537315328.html",
+        "checked": "2026-10-03",
+        "quote": "Photo size 48mm x 33mm; width of head 15mm to 22mm; head height (chin to crown) 28mm to 33mm; the space between the crown and the upper edge of the photo 3-5mm; the space between the chin and the lower edge ≥7mm. White or close to white background with no edge frame."
+      }
+    },
+    {
+      "id": "canada-passport",
+      "name": "Canada passport — 50×70 mm",
+      "width": 50, "height": 70, "unit": "mm", "dpi": 300,
+      "head": { "min": 31, "max": 36, "crown": "skull" },
+      "backgrounds": [ { "name": "White", "color": "#FFFFFF" }, { "name": "Light grey", "color": "#E6E6E6" } ],
+      "notes": "Taken by a commercial photographer. Plain white or light-coloured background. Neutral expression, mouth closed.",
+      "source": {
+        "status": "official-excerpt", "authority": "Immigration, Refugees and Citizenship Canada (Canada.ca)",
+        "url": "https://www.canada.ca/en/immigration-refugees-citizenship/services/canadian-passports/photos.html",
+        "checked": "2026-10-03",
+        "quote": "Photos must be 50 mm wide by 70 mm high. The height of your face must measure between 31 mm and 36 mm from chin to crown. \"Crown\" means the top of the head or (if obscured by hair or a head covering) where the top of the head or skull would be if it could be seen."
+      }
+    },
+    {
+      "id": "id-25x35",
+      "name": "ID photo — 25×35 mm (generic)",
+      "width": 25, "height": 35, "unit": "mm", "dpi": 300,
+      "head": { "min": 24.5, "max": 28, "crown": "hair" },
+      "backgrounds": [ { "name": "White", "color": "#FFFFFF" }, { "name": "Light blue", "color": "#D6E6F5" } ],
+      "notes": "A common small ID size. No issuing authority's rule was found for it, so the head range is the ICAO default (70–80% of the height). Set the rules of the office you are applying to.",
+      "source": { "status": "unverified", "checked": "2026-10-03" }
+    },
+    {
+      "id": "id-30x40",
+      "name": "ID photo — 3×4 cm (generic)",
+      "width": 30, "height": 40, "unit": "mm", "dpi": 300,
+      "head": { "min": 28, "max": 32, "crown": "hair" },
+      "backgrounds": [ { "name": "White", "color": "#FFFFFF" }, { "name": "Light blue", "color": "#D6E6F5" } ],
+      "notes": "A common ID size (forms in several countries ask for 3×4 cm). No issuing authority's rule was found for it, so the head range is the ICAO default (70–80% of the height). Set the rules of the office you are applying to.",
+      "source": { "status": "unverified", "checked": "2026-10-03" }
+    }
+  ]
+}
