@@ -7,11 +7,14 @@ the document shows the right typefaces on a computer that does not have them.
 
 Text placement: with exact line spacing (what this writer sets) a word-processor text frame puts the
 first baseline at 80% of the line pitch below its top, for every font (measured in LibreOffice; Word
-splits an exact line 80/20 the same way). The frame is placed from that rule.
+splits an exact line 80/20 the same way). The frame is placed from that rule. Text boxes wrap
+(wrap="square") and get spare width away from their alignment edge: the lines are broken already, and
+LibreOffice 26 moves centred text in non-wrapping (auto-growing) Word text boxes by the box's offset.
 """
 
 from __future__ import annotations
 
+import math
 import uuid
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -170,12 +173,22 @@ def textbox(u: _Units, lyr: dict, *, z: int, behind: bool) -> str:
                     underline=st.get("underline", False), rtl=g["rtl"])
     spacing = f'<w:spacing w:before="0" w:after="0" w:line="{max(1, u.tw(pitch))}" w:lineRule="exact"/>'
     paras = "".join(_para(t, rpr, jc=jc, spacing=spacing, rtl=g["rtl"]) for t in g["lines"])
+    # Spare width so a line drawn a little wider than measured does not wrap, added away from the alignment
+    # edge; the centre moves along the box's rotated x axis so the text stays where it is.
+    spare = max(0.1 * w, 1.5 * g["size"])
+    edge = g["align"] if g["align"] != "justify" else ("right" if g["rtl"] else "left")
+    grow_l, grow_r = {"left": (0.0, spare), "right": (spare, 0.0)}.get(edge, (spare / 2, spare / 2))
+    a = math.radians(lyr.get("rotation", 0.0))
+    shift = (grow_r - grow_l) / 2
+    w2 = w + grow_l + grow_r
+    x2 = x + w / 2 + shift * math.cos(a) - w2 / 2
+    top2 = top + shift * math.sin(a)
     sp = (f'<wps:wsp><wps:cNvSpPr txBox="1"/><wps:spPr><a:xfrm{_rot(lyr.get("rotation", 0.0))}><a:off x="0" y="0"/>'
-          f'<a:ext cx="{max(1, u.emu(w))}" cy="{max(1, u.emu(fh))}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>'
+          f'<a:ext cx="{max(1, u.emu(w2))}" cy="{max(1, u.emu(fh))}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>'
           f'<a:noFill/><a:ln><a:noFill/></a:ln></wps:spPr><wps:txbx><w:txbxContent>{paras}</w:txbxContent></wps:txbx>'
-          f'<wps:bodyPr rot="0" vert="horz" wrap="none" lIns="0" tIns="0" rIns="0" bIns="0" anchor="t" anchorCtr="0">'
+          f'<wps:bodyPr rot="0" vert="horz" wrap="square" lIns="0" tIns="0" rIns="0" bIns="0" anchor="t" anchorCtr="0">'
           f'<a:noAutofit/></wps:bodyPr></wps:wsp>')
-    return _run(_anchor(u, sp, x, top, w, fh, z=z, behind=behind, name=lyr["name"], uri=WPS_URI), "wps")
+    return _run(_anchor(u, sp, x2, top2, w2, fh, z=z, behind=behind, name=lyr["name"], uri=WPS_URI), "wps")
 
 
 def table(u: _Units, lyr: dict) -> str:
@@ -323,6 +336,9 @@ def write(scene: dict, project: Path, out: Path, *, embed_fonts: bool = True) ->
                      f'<w:rPr><w:sz w:val="2"/></w:rPr></w:pPr>{"".join(runs)}</w:p>')
     sect.addprevious(para)
     notes = [note] if note else []
+    if any(lyr["type"] == "text" and abs(lyr.get("rotation", 0.0)) > 0.05 for lyr in layers):
+        notes.append("Rotated text boxes are rotated in Word, but LibreOffice Writer shows their text level; "
+                     "the PowerPoint export keeps the rotation in both.")
     if embed_fonts:
         notes += _embed_fonts(doc, scene)
     doc.core_properties.title = scene["source"].get("name", "")
