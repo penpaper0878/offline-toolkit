@@ -22,6 +22,7 @@ if (!app.commandLine.hasSwitch('no-sandbox')) app.enableSandbox()
 
 let mainWindow: BrowserWindow | null = null
 let pool: WorkerPool | null = null
+let appLog: EventLog | null = null
 
 function createWindow(dark: boolean): BrowserWindow {
   const win = new BrowserWindow({
@@ -69,6 +70,7 @@ function buildMenu(): void {
 app.whenReady().then(async () => {
   const log = new EventLog(logsDir())
   await log.init()
+  appLog = log
   guardNode(log)
   guardSession(session.defaultSession, devServer)
   handleProtocol(rendererDir())
@@ -110,8 +112,10 @@ app.on('before-quit', (e) => {
   if (quitting || !pool) return
   quitting = true
   e.preventDefault()
+  const started = Date.now()
   void pool.stop().finally(async () => {
     await rm(previewDir(), { recursive: true, force: true }).catch(() => undefined)
+    appLog?.info('app', `Workers stopped in ${Date.now() - started} ms; quitting`)
     app.quit()
   })
 })

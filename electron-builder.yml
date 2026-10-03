@@ -22,6 +22,11 @@ extraResources:
       - "!**/__pycache__/**"
   - from: build/python-win
     to: engines/python
+  # Design module: open-source fonts (scripts/fetch_fonts.py) and models (scripts/fetch_models.py).
+  - from: fonts
+    to: fonts
+  - from: models
+    to: models
   # LibreOffice, Pandoc, Ghostscript, Tesseract (+ tessdata_fast), Java + veraPDF, resvg: scripts/fetch_engines.py
   - from: engines/win-x64
     to: engines

@@ -54,6 +54,33 @@ jobs:
       - name: Engine versions
         shell: pwsh
         run: Get-Content engines/win-x64/manifest.json
+      - name: Restore design fonts and models
+        id: design-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            fonts
+            models
+          key: design-assets-${{ runner.os }}-${{ hashFiles('scripts/fetch_fonts.py', 'scripts/fonts.lock.json', 'scripts/fetch_models.py') }}
+      - name: Design fonts and models (Module 3)
+        if: steps.design-cache.outputs.cache-hit != 'true'
+        run: |
+          python -m pip install fonttools==4.66.1 numpy==2.4.6 onnx==1.23.1
+          python scripts/fetch_fonts.py
+          python scripts/fetch_models.py
+      - name: Save design fonts and models
+        if: steps.design-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            fonts
+            models
+          key: design-assets-${{ runner.os }}-${{ hashFiles('scripts/fetch_fonts.py', 'scripts/fonts.lock.json', 'scripts/fetch_models.py') }}
+      - name: Design asset sizes
+        shell: pwsh
+        run: |
+          "fonts: {0:N1} MB" -f ((Get-ChildItem fonts -Recurse -File | Measure-Object Length -Sum).Sum / 1MB)
+          Get-Content models/manifest.json
       - run: npm run build
       - name: Build the installer (NSIS, per-user, no admin rights)
         run: npx electron-builder --win nsis --publish never
@@ -96,7 +123,7 @@ jobs:
           body: |
             Windows 10/11, 64-bit. Personal use.
 
-            **Contains:** Module 1 (Image Resizer & Compressor) and Module 2 (Document Converter, with LibreOffice, Pandoc, Ghostscript, Tesseract OCR, veraPDF and resvg bundled). Modules 3 and 4 arrive in later phases.
+            **Contains:** Module 1 (Image Resizer & Compressor), Module 2 (Document Converter, with LibreOffice, Pandoc, Ghostscript, Tesseract OCR, veraPDF and resvg bundled) and Module 3 (Image to Editable Design, with 73 open-source font families and offline super-resolution and cut-out models bundled). Module 4 arrives in a later phase.
 
             - `Offline-Toolkit-Setup-*.exe`: installer. Installs for your user only, no admin rights needed.
             - `*-portable-win-x64.zip`: portable. Unzip anywhere and run `Offline Toolkit.exe`. Settings stay in the `data` folder next to it.

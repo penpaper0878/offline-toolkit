@@ -1,6 +1,6 @@
 # Bundled components and licenses
 
-Status: Phase 2 (§0 lists what is actually bundled now; §1–§7 are the Phase 0 plan for the whole app), **Lite bundle, personal use** (decisions D1–D2, confirmed 2026-09-30). Python package versions are the latest on PyPI as of 2026-09-30. CLI engine versions get pinned (URL + SHA-256) in `scripts/engines.lock.json` at Phase 5, using the latest stable release at build time. The minimum versions listed here are the ones whose features the toolkit relies on.
+Status: Phase 3 (§0 and §0b list what is actually bundled now; §1–§7 are the Phase 0 plan for the whole app), **Lite bundle, personal use** (decisions D1–D2, confirmed 2026-09-30). Python package versions are the latest on PyPI as of 2026-09-30. CLI engine versions get pinned (URL + SHA-256) in `scripts/engines.lock.json` at Phase 5, using the latest stable release at build time. The minimum versions listed here are the ones whose features the toolkit relies on.
 
 Sizes are rough figures for Windows x64, unpacked. **Total ≈ 1.5–1.9 GB installed, ≈ 0.6–0.8 GB download.** The Lite bundle leaves out LaMa (≈ 200 MB), IS-Net (≈ 170 MB), the CJK fonts (≈ 130 MB) and switches Tesseract from `tessdata_best` to `tessdata_fast` (≈ 210 MB less).
 
@@ -21,7 +21,7 @@ Sizes are rough figures for Windows x64, unpacked. **Total ≈ 1.5–1.9 GB inst
 | veraPDF | 1.28.2 greenfield (CLI + its jars) | Maven Central, each jar SHA-1-checked | ≈ 20 MB |
 | resvg | 0.45.1 | GitHub release `resvg-win64.zip` | ≈ 4 MB |
 
-Python packages added in Phase 2 (all pinned in `worker/requirements.txt`): PyMuPDF 1.28.2, pikepdf[pdfa] 10.16.0, pypdfium2 5.13.0, pdf2docx 0.5.13, img2pdf 0.6.3, ocrmypdf 17.13.0, python-docx 1.2.0, python-pptx 1.0.2, openpyxl 3.1.5, xlrd 2.0.2 (reads .xls for verification, BSD-3), lxml 6.1.3, rapidfuzz 3.14.6, msoffcrypto-tool 6.0.0, docxcompose 2.2.0, charset-normalizer 3.5.2, opencv-python-headless 5.0.0.93 (Apache-2.0; the `contrib` build arrives with Module 3), fontTools 4.66.1.
+Python packages added in Phase 2 (all pinned in `worker/requirements.txt`): PyMuPDF 1.28.2, pikepdf[pdfa] 10.16.0, pypdfium2 5.13.0, pdf2docx 0.5.13, img2pdf 0.6.3, ocrmypdf 17.13.0, python-docx 1.2.0, python-pptx 1.0.2, openpyxl 3.1.5, xlrd 2.0.2 (reads .xls for verification, BSD-3), lxml 6.1.3, rapidfuzz 3.14.6, msoffcrypto-tool 6.0.0, docxcompose 2.2.0, charset-normalizer 3.5.2, opencv-python-headless 5.0.0.93 (Apache-2.0; replaced by the `contrib` build in Phase 3, see §0b), fontTools 4.66.1.
 
 **Differences from the plan below:**
 
@@ -30,6 +30,39 @@ Python packages added in Phase 2 (all pinned in `worker/requirements.txt`): PyMu
 - **No bundled fonts yet.** Conversions use the fonts LibreOffice ships (Liberation, Carlito, Caladea, DejaVu, Noto Sans/Serif and others) plus the fonts installed in Windows. The Noto families for the UI and Module 3 arrive in Phase 5 / Module 3. The verification report names every font substitution.
 - **sRGB ICC v2:** the profile shipped inside pikepdf is used for the PDF/A OutputIntent.
 - **Download size of v0.2.0:** 568 MB installer, 790 MB portable ZIP (see [TEST_REPORT.md](TEST_REPORT.md)). The per-engine sizes above are estimates.
+
+## 0b. What Phase 3 adds (Module 3, Image to Editable Design)
+
+Nothing is downloaded by the app. `scripts/fetch_fonts.py` and `scripts/fetch_models.py` fetch these once at build time (CI and release caches keep them); electron-builder copies `fonts/` and `models/` to `resources/fonts` and `resources/models`.
+
+**Fonts: 73 families, 71 MB** (`fonts/fonts.json` is the catalogue; each family's licence file sits next to its fonts). Source: [google/fonts](https://github.com/google/fonts) at commit `9710da1e`; every file's SHA-256 is pinned in `scripts/fonts.lock.json` and checked on fetch. Licences: 70 families SIL OFL-1.1, 2 Apache-2.0 (Roboto Slab, Satisfy), 1 Ubuntu Font Licence 1.0 (Ubuntu). Static families keep the weights 300/400/700/900 (italics for 400 and 700) to stay small; variable fonts are kept whole and cut into static instances on demand (fontTools instancer) for the exports and the editor.
+
+| Role | Families |
+|---|---|
+| Sans (37) | Archivo, Arimo, Barlow, Carlito, DM Sans, Fira Sans, Hind, Inter, Josefin Sans, Kanit, Lato, Manrope, Montserrat, Mukta, Noto Sans, Noto Sans Arabic, Noto Sans Bengali, Noto Sans Devanagari, Noto Sans Gujarati, Noto Sans Gurmukhi, Noto Sans Hebrew, Noto Sans Kannada, Noto Sans Malayalam, Noto Sans Oriya, Noto Sans Tamil, Noto Sans Telugu, Nunito, Open Sans, PT Sans, Poppins, Quicksand, Raleway, Roboto, Rubik, Source Sans 3, Ubuntu, Work Sans |
+| Serif (16) | Bitter, Caladea, Cormorant Garamond, Crimson Text, EB Garamond, Libre Baskerville, Lora, Merriweather, Noto Naskh Arabic, Noto Nastaliq Urdu, Noto Serif, Noto Serif Devanagari, PT Serif, Playfair Display, Roboto Slab, Tinos |
+| Display (10) | Abril Fatface, Alfa Slab One, Anton, Archivo Black, Baloo 2, Bebas Neue, Cinzel, Lobster, Oswald, Righteous |
+| Script (7) | Allura, Caveat, Dancing Script, Great Vibes, Kaushan Script, Pacifico, Satisfy |
+| Mono (3) | Cousine, Roboto Mono, Source Code Pro |
+
+Carlito, Caladea, Arimo, Tinos and Cousine have the metrics of Calibri, Cambria, Arial, Times New Roman and Courier New.
+
+**Models: 5 MB** (`models/manifest.json` records sources and hashes).
+
+| Model | Licence | Used for | How it is bundled |
+|---|---|---|---|
+| Real-ESRGAN `realesr-general-x4v3` | BSD-3-Clause | Enlarging small text before reading it | The official `.pth` (SHA-256 pinned) is read without PyTorch and written as ONNX (opset 17: Conv, PReLU, DepthToSpace, Resize, Add) at build time; run with ONNX Runtime. 4.9 MB |
+| MediaPipe Selfie Segmenter (float16) | Apache-2.0 | Person cut-outs | The `.tflite` (SHA-256 pinned), run with OpenCV DNN; the edge is refined with GrabCut and a guided filter. 0.25 MB |
+| PP-OCRv6 detection + recognition (small), PP-OCR angle classifier | Apache-2.0 | Reading Latin and Chinese text with word boxes | Inside the `rapidocr` wheel (no download at run time) |
+
+**Python packages added** (pinned in `worker/requirements.txt` / `requirements-nodeps.txt`): opencv-contrib-python-headless 5.0.0.93 (Apache-2.0, replaces the headless build: xphoto inpainting, ximgproc guided filter, DNN), onnxruntime 1.30.0 (MIT), rapidocr 3.9.2 (Apache-2.0, installed without its `opencv-python` requirement), vtracer 0.6.15 (MIT), brotli 1.2.0 (MIT, WOFF2), and RapidOCR's dependencies pyclipper 1.4.0 (MIT), shapely 2.1.2 (BSD-3), omegaconf 2.3.1 (BSD-3), PyYAML 6.0.3 (MIT), colorlog 6.12.0 (MIT), tqdm 4.70.1 (MPL-2.0/MIT), requests 2.34.2 (Apache-2.0; imported but never used to download, and blocked by the network guard), fire 0.7.1 (Apache-2.0), termcolor 3.3.0 (MIT), six 1.17.0 (MIT). Build time only: onnx 1.23.1 (Apache-2.0).
+
+**Differences from the plan below:**
+
+- **No layout model.** Text comes from OCR line boxes; tables from ruled-line detection; shapes, lines, graphics and photos from colour regions of the text-free picture, tested against ideal shapes. PP-DocLayout / SLANet+ (`rapid-layout`, `rapid-table`) and MediaPipe as a package are not bundled.
+- **No HarfBuzz package.** Pillow's raqm layout (HarfBuzz + FriBiDi inside Pillow's wheels) shapes text for font matching.
+- **Cut-outs** use the MediaPipe selfie segmenter for people and GrabCut for objects (MODNet arrives with Module 4 if needed).
+- **Inpainting** adds a smooth-surface fill (quadratic fit plus matched grain) for plain and gradient backgrounds, the commonest case on designed pages, besides Telea and xphoto FSR.
 
 ## 1. Runtimes and CLI engines
 

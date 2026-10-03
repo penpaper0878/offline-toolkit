@@ -32,6 +32,30 @@ jobs:
         run: sudo chown root:root node_modules/electron/dist/chrome-sandbox && sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
       - run: npm run setup:py
 
+      # Module 3: the bundled fonts (google/fonts at a pinned commit, checked against scripts/fonts.lock.json)
+      # and models (Real-ESRGAN converted to ONNX, MediaPipe selfie segmenter), cached per OS.
+      - name: Restore design fonts and models
+        id: design-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            fonts
+            models
+          key: design-assets-${{ runner.os }}-${{ hashFiles('scripts/fetch_fonts.py', 'scripts/fonts.lock.json', 'scripts/fetch_models.py') }}
+      - name: Design fonts and models
+        if: steps.design-cache.outputs.cache-hit != 'true'
+        run: |
+          node scripts/run-python.mjs scripts/fetch_fonts.py
+          node scripts/run-python.mjs scripts/fetch_models.py
+      - name: Save design fonts and models
+        if: steps.design-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            fonts
+            models
+          key: design-assets-${{ runner.os }}-${{ hashFiles('scripts/fetch_fonts.py', 'scripts/fonts.lock.json', 'scripts/fetch_models.py') }}
+
       # Conversion engines (Module 2). Linux: distribution packages + pinned downloads.
       # Windows: the same script the release uses (Chocolatey + pinned downloads), cached.
       - name: Engines (Linux)

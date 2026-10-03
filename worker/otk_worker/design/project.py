@@ -12,6 +12,7 @@ import os
 import re
 import shutil
 import sys
+import threading
 import uuid
 import zipfile
 from pathlib import Path
@@ -61,11 +62,19 @@ def validate(scene: dict, project: Path) -> None:
                 raise InputError(f"The picture of layer {lyr.get('name')!r} is missing ({lyr.get('asset')}).")
 
 
+_save_lock = threading.Lock()
+
+
 def save(project: Path, scene: dict) -> dict:
+    """Write scene.json atomically (own temporary file per call, one write at a time)."""
     validate(scene, project)
-    tmp = project / "scene.json.tmp"
-    sc.save(scene, tmp)
-    tmp.replace(project / "scene.json")
+    with _save_lock:
+        tmp = project / f"scene.json.{uuid.uuid4().hex[:8]}.tmp"
+        try:
+            sc.save(scene, tmp)
+            tmp.replace(project / "scene.json")
+        finally:
+            tmp.unlink(missing_ok=True)
     return {"saved": True}
 
 

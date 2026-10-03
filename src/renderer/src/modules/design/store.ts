@@ -86,6 +86,8 @@ interface DesignStore {
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
+let saving: Promise<void> | null = null
+let saveAgain = false
 let progressUnsub: (() => void) | null = null
 
 function log(message: string): void {
@@ -248,20 +250,34 @@ export const useDesign = create<DesignStore>((set, get) => ({
   },
 
   async save() {
-    const { id } = get()
-    const scene = get().scene()
-    if (!id || !scene) return
+    // One save at a time, in order: a change made while saving is saved right after.
+    if (saving) {
+      saveAgain = true
+      return saving
+    }
     if (saveTimer) clearTimeout(saveTimer)
     saveTimer = null
-    set({ saveState: 'saving' })
-    try {
-      await otk().design.save(id, scene)
-      if (get().scene() === scene) set({ saveState: 'saved' })
-      else set({ saveState: 'dirty' })
-    } catch (e) {
-      set({ saveState: 'error' })
-      useUi.getState().reportError('The design could not be saved', e)
-    }
+    saving = (async () => {
+      do {
+        saveAgain = false
+        const { id } = get()
+        const scene = get().scene()
+        if (!id || !scene) return
+        set({ saveState: 'saving' })
+        try {
+          await otk().design.save(id, scene)
+          set({ saveState: get().scene() === scene ? 'saved' : 'dirty' })
+          if (get().scene() !== scene) saveAgain = true
+        } catch (e) {
+          set({ saveState: 'error' })
+          useUi.getState().reportError('The design could not be saved', e)
+          return
+        }
+      } while (saveAgain)
+    })().finally(() => {
+      saving = null
+    })
+    return saving
   },
 
   addText() {

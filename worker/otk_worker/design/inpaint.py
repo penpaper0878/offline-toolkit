@@ -17,6 +17,7 @@ from typing import Callable
 import numpy as np
 
 TEXTURED_STD = 6.0          # grey-level std of the surrounding ring above which a region counts as textured
+FSR_MAX_AREA = 250_000      # px; xphoto FSR is slow on large regions, which are filled at reduced resolution
 SMOOTH_STD = 3.0            # per-channel spread around a fitted smooth surface below which it is a gradient
 
 
@@ -152,7 +153,7 @@ def fill(arr: np.ndarray, mask: np.ndarray, *, check: Callable[[], None] = lambd
             filled = np.where((edge > 0)[..., None], fine, filled)
             sub[reg] = filled[reg]
             used["multiscale"] += 1
-        elif textured and hasattr(cv2, "xphoto"):
+        elif textured and hasattr(cv2, "xphoto") and w * h <= FSR_MAX_AREA:
             valid = (~unknown).astype(np.uint8) * 255   # xphoto: non-zero = known pixels
             dst = np.zeros_like(sub)
             cv2.xphoto.inpaint(np.ascontiguousarray(sub), valid, dst, cv2.xphoto.INPAINT_FSR_FAST)

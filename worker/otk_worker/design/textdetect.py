@@ -135,7 +135,8 @@ def detect(img: Image.Image, langs: list[str], *, check: Callable[[], None] = la
     if not ppocr_available():
         return _tesseract_page(img, langs, check)
     progress(0.0, "Finding text lines")
-    res = _ppocr()(arr, return_word_box=True)
+    # RapidOCR takes a NumPy array as OpenCV BGR (it converts only files and PIL images).
+    res = _ppocr()(np.ascontiguousarray(arr[:, :, ::-1]), return_word_box=True)
     lines: list[TextLine] = []
     boxes = [] if res.boxes is None else list(res.boxes)
     words_by_line = list(res.word_results or [])
@@ -162,7 +163,50 @@ def detect(img: Image.Image, langs: list[str], *, check: Callable[[], None] = la
             line.words = [Word(line.text, line.box, line.conf)]
         lines.append(line)
         progress((i + 1) / max(1, len(boxes)), f"Reading line {i + 1} of {len(boxes)}")
+    if other_scripts:
+        # PP-OCR's detector is trained on Latin and Chinese: whether it finds a Devanagari or Arabic line at
+        # all depends on colours and size. Tesseract's own line finder, with the chosen languages, fills in.
+        progress(1.0, "Looking for lines in other scripts")
+        lines = _merge_other_scripts(lines, _tesseract_page(img, langs, check))
     return lines
+
+
+def _script(text: str) -> str:
+    from .fontmatch import script_of
+
+    return script_of(text)
+
+
+def _overlap(a: tuple, b: tuple) -> float:
+    """Intersection over the smaller box."""
+    w = min(a[2], b[2]) - max(a[0], b[0])
+    h = min(a[3], b[3]) - max(a[1], b[1])
+    if w <= 0 or h <= 0:
+        return 0.0
+    small = min((a[2] - a[0]) * (a[3] - a[1]), (b[2] - b[0]) * (b[3] - b[1]))
+    return w * h / max(1.0, small)
+
+
+def _merge_other_scripts(lines: list[TextLine], extra: list[TextLine]) -> list[TextLine]:
+    """Add Tesseract's lines that are in a non-Latin script, replacing what PP-OCR made of the same place
+    when that is not a reading in that script (a symbol, a fragment, Latin letters guessed from shapes)."""
+    out = list(lines)
+    for t in extra:
+        script = _script(t.text)
+        if script == "latin" or t.conf < 0.5 or _letters(t.text) < 2:
+            continue
+        hits = [ln for ln in out if _overlap(ln.box, t.box) > 0.3]
+        same = [ln for ln in hits if _script(ln.text) == script]
+        if same:
+            ux0, ux1 = min(ln.box[0] for ln in same), max(ln.box[2] for ln in same)
+            spans = (t.box[2] - t.box[0]) >= 0.9 * (ux1 - ux0)
+            # Keep PP-OCR's line (re-read by Tesseract) when it is one line as good as the page reading;
+            # take the page reading when it joins fragments into one line, or is clearly better.
+            if not spans or (len(same) == 1 and same[0].conf >= t.conf - 0.05):
+                continue
+        out = [ln for ln in out if ln not in hits]
+        out.append(t)
+    return sorted(out, key=lambda ln: (ln.box[1], ln.box[0]))
 
 
 def _tesseract_page(img: Image.Image, langs: list[str], check: Callable[[], None]) -> list[TextLine]:

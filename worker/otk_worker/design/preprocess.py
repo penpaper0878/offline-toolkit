@@ -4,6 +4,8 @@
 - Skew: the projection-profile angle (±5°) is applied only when it sharpens the text rows clearly
   (a poster with diagonal art keeps its angle).
 - Noise: estimated per image (Immerkær); denoising runs only above a threshold and scales with it.
+- Size: a picture longer than WORK_SIDE px (a phone photo of a poster, a 600 DPI scan) is analysed on a
+  copy reduced to that size; photos are still cut from the full-resolution pixels.
 """
 
 from __future__ import annotations
@@ -16,6 +18,8 @@ from PIL import Image
 
 from ..common import imageio
 
+WORK_SIDE = 3000
+
 
 @dataclass
 class Prepared:
@@ -27,6 +31,8 @@ class Prepared:
     noise: float = 0.0                 # estimated sigma (0..255)
     denoised: bool = False
     notes: list[str] = field(default_factory=list)
+    scale: float = 1.0                 # working size / full size
+    full: Image.Image | None = None    # straightened at full resolution (only when scale < 1)
 
 
 def load(path: str) -> tuple[Image.Image, float, bool, list[str]]:
@@ -97,13 +103,21 @@ def prepare(path: str, *, deskew: bool = True, denoise: bool = True) -> Prepared
 
     img, dpi, assumed, notes = load(path)
     prep = Prepared(image=img, original=img, dpi=dpi, dpi_assumed=assumed, notes=notes)
-    gray = np.asarray(img.convert("L"))
+    k = min(1.0, WORK_SIDE / max(img.size))
+    small = img if k >= 1.0 else img.resize((max(1, round(img.width * k)), max(1, round(img.height * k))), Image.Resampling.BOX)
     if deskew:
-        angle, gain = skew(gray)
+        angle, gain = skew(np.asarray(small.convert("L")))
         if 0.3 <= abs(angle) <= 5.0 and gain >= 1.3:
             prep.image = rotate(img, angle)
             prep.rotation = angle
             notes.append(f"Straightened by {abs(angle):.1f}°.")
+    if k < 1.0:
+        prep.full = prep.image
+        prep.image = prep.image.resize(small.size, Image.Resampling.BOX)
+        prep.scale = k
+        prep.dpi = dpi * k
+        notes.append(f"The picture is large ({img.width} × {img.height} px); it was analysed at {prep.image.width} × "
+                     f"{prep.image.height} px. Photos keep their full resolution.")
     prep.noise = noise_sigma(np.asarray(prep.image.convert("L")))
     if denoise and prep.noise >= 4.0:
         h = float(min(15.0, max(3.0, prep.noise * 1.1)))

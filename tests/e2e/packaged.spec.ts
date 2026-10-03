@@ -17,7 +17,7 @@ const exe = process.env.OTK_PACKAGED_EXE
 
 test.skip(!exe, 'Set OTK_PACKAGED_EXE to the packaged app to run this test')
 
-test('packaged app: bundled Python and engines, offline self-test, HEIC, resize, convert to PDF/A-2b', async () => {
+test('packaged app: bundled Python and engines, offline self-test, HEIC, resize, convert to PDF/A-2b, image to design', async () => {
   const data = tempDir('pkg-data')
   const inputs = tempDir('pkg-in')
   const out = tempDir('pkg-out')
@@ -96,6 +96,34 @@ print(json.dumps({k: str(v) for k, v in corpus.build(Path(sys.argv[1]), legacy=F
       const r = JSON.parse(readFileSync(join(convOut, `${name}.report.json`), 'utf-8')) as { checks: { id: string; status: string }[] }
       expect(r.checks.find((c) => c.id === 'pdfa')?.status, name).toBe('pass')
     }
+
+    // Module 3 with the bundled Python, fonts and models: analyse a poster, cut out its photo, check it
+    // against the picture (the app's Chromium) and export Word (fonts embedded).
+    const poster = py<string>(`import sys, json
+sys.path.insert(0, ${JSON.stringify(join(ROOT, 'worker', 'tests'))})
+import design_samples
+from pathlib import Path
+p, _ = design_samples.build(Path(sys.argv[1]), ['poster'])['poster']
+print(json.dumps(str(p)))`, tempDir('pkg-design'))
+    const designOut = tempDir('pkg-design-out')
+    await page.getByTestId('nav-design').click()
+    await stubDialogs(app, [poster], designOut)
+    await page.getByTestId('design-open-image').click()
+    await expect(page.getByTestId('design-editor')).toBeVisible({ timeout: 300_000 })
+    await page.locator('[data-testid^="layer-row-photo"]').first().click()
+    await page.getByTestId('design-cutout').click()
+    await expect(page.getByText('Background removed')).toBeVisible({ timeout: 120_000 })
+    await page.getByTestId('design-tab-check').click()
+    await expect(page.getByTestId('design-score')).toBeVisible({ timeout: 180_000 })
+    await page.screenshot({ path: 'test-results/screens/packaged-design.png' })
+    const docx = join(designOut, 'poster.docx')
+    await app.evaluate(({ dialog }, path) => {
+      dialog.showSaveDialog = (async () => ({ canceled: false, filePath: path })) as typeof dialog.showSaveDialog
+    }, docx)
+    await page.getByTestId('design-export').click()
+    await page.getByTestId('design-export-format').locator('[data-value="docx"]').click()
+    await page.getByTestId('design-export-go').click()
+    await expect.poll(() => readdirSync(designOut).includes('poster.docx'), { timeout: 120_000 }).toBe(true)
   } finally {
     await app.close()
   }

@@ -28,6 +28,8 @@ from .. import __version__
 from . import elements as el_mod
 from . import fontmatch, inpaint, preprocess, scene as sc, superres, tables as tbl_mod, textdetect, textstyle, vectorize
 
+LOSSY = {".jpg", ".jpeg", ".jpe", ".jfif", ".webp", ".heic", ".heif", ".hif"}
+CACHE_VERSION = 4           # bump when a cached stage changes what it produces
 SMALL_TEXT_PX = 20          # detected line height below which text is read on an upscaled copy
 LOW_CONFIDENCE = 0.80
 
@@ -47,17 +49,23 @@ def _cached_prepared(cache: Path, key: str, build: Callable[[], preprocess.Prepa
     if meta.exists() and png.exists() and orig.exists():
         try:
             d = json.loads(meta.read_text(encoding="utf-8"))
+            full = cache / f"{key}-full.png"
             return preprocess.Prepared(image=Image.open(png).convert("RGB"), original=Image.open(orig).convert("RGB"),
                                        dpi=d["dpi"], dpi_assumed=d["dpiAssumed"], rotation=d["rotation"],
-                                       noise=d["noise"], denoised=d["denoised"], notes=d["notes"])
+                                       noise=d["noise"], denoised=d["denoised"], notes=d["notes"],
+                                       scale=d.get("scale", 1.0),
+                                       full=Image.open(full).convert("RGB") if d.get("scale", 1.0) < 1 else None)
         except (OSError, ValueError, KeyError):
             pass
     prep = build()
     cache.mkdir(parents=True, exist_ok=True)
     prep.image.save(png)
     prep.original.save(orig)
+    if prep.full is not None:
+        prep.full.save(cache / f"{key}-full.png")
     meta.write_text(json.dumps({"dpi": prep.dpi, "dpiAssumed": prep.dpi_assumed, "rotation": prep.rotation,
-                                "noise": prep.noise, "denoised": prep.denoised, "notes": prep.notes}), encoding="utf-8")
+                                "noise": prep.noise, "denoised": prep.denoised, "notes": prep.notes,
+                                "scale": prep.scale}), encoding="utf-8")
     return prep
 
 
@@ -117,7 +125,7 @@ def analyze(source: str | Path, project: Path, *, langs: list[str] | None = None
 
     # 1. prepare ------------------------------------------------------------------------------
     stage("prepare", 0.02, "Preparing the picture")
-    prep = _cached_prepared(cache, f"prep-{src_hash}-{int(deskew)}{int(denoise)}",
+    prep = _cached_prepared(cache, f"prep{CACHE_VERSION}-{src_hash}-{int(deskew)}{int(denoise)}-{preprocess.WORK_SIDE}",
                    lambda: preprocess.prepare(str(source), deskew=deskew, denoise=denoise))
     notes += prep.notes
     if prep.dpi_assumed:
@@ -129,7 +137,7 @@ def analyze(source: str | Path, project: Path, *, langs: list[str] | None = None
 
     # 2. text ---------------------------------------------------------------------------------
     stage("text", 0.08, "Reading the text")
-    key = f"text-{src_hash}-{int(deskew)}{int(denoise)}-{'+'.join(langs)}"
+    key = f"text{CACHE_VERSION}-{src_hash}-{int(deskew)}{int(denoise)}-{preprocess.WORK_SIDE}-{'+'.join(langs)}"
     lines = _cached_lines(cache, key + "-1x", lambda: textdetect.detect(prep.image, langs, check=check))
     factor, method = 1.0, None
     heights = [ln.height for ln in lines]
@@ -139,7 +147,7 @@ def analyze(source: str | Path, project: Path, *, langs: list[str] | None = None
     analysis = prep.image
     if factor > 1:
         stage("superres", 0.15, f"Enlarging {factor:.0f}x for small text")
-        big = _cached_upscale(cache, f"sr-{src_hash}-{int(deskew)}{int(denoise)}-{factor:g}",
+        big = _cached_upscale(cache, f"sr{CACHE_VERSION}-{src_hash}-{int(deskew)}{int(denoise)}-{preprocess.WORK_SIDE}-{factor:g}",
                       lambda: superres.upscale(prep.image, factor, check=check))
         analysis, method = big
         lines = [ln.scaled(1 / factor) for ln in _cached_lines(cache, key + f"-{factor:g}x",
@@ -150,6 +158,7 @@ def analyze(source: str | Path, project: Path, *, langs: list[str] | None = None
 
     # Lines the OCR could not read (another script, handwriting): they stay part of the picture, untouched,
     # instead of becoming wrong live text.
+    lines = [ln for ln in lines if not _glyph_like_shape(ln)]
     unreadable = [ln for ln in lines if not _readable(ln)]
     lines = [ln for ln in lines if _readable(ln)]
 
@@ -176,7 +185,19 @@ def analyze(source: str | Path, project: Path, *, langs: list[str] | None = None
     # 5. elements --------------------------------------------------------------------------------
     stage("elements", 0.50, "Finding shapes, icons and photos")
     keep = [tuple(int(round(v)) for v in ln.box) for ln in unreadable]
-    elements = el_mod.detect(clean, exclude=[t.box for t in tables] + keep)
+    # Compression ringing (JPEG, WEBP, HEIC), resampling halos and grain break the colour tests and leave
+    # slivers along edges. Shapes and colours are judged on an edge-preserving smoothed copy; edges are
+    # found on the picture itself, so a pale shape on a pale page keeps its outline.
+    lossy = source.suffix.lower() in LOSSY or prep.noise >= 3.0
+    elem_src = cv2.bilateralFilter(clean, 7, 30, 5)
+    elements = el_mod.detect(elem_src, exclude=[t.box for t in tables] + keep, edges=clean)
+    # A row of same-coloured "graphics" shaped like words is text the OCR did not see (a script outside the
+    # chosen languages): it stays in the picture, untouched, and is reported with the lines not read.
+    for row in _text_like_rows(elements):
+        elements = [e for e in elements if e not in row]
+        x0, y0 = min(e.box[0] for e in row), min(e.box[1] for e in row)
+        x1, y1 = max(e.box[2] for e in row), max(e.box[3] for e in row)
+        unreadable.append(textdetect.TextLine("", [[x0, y0], [x1, y0], [x1, y1], [x0, y1]], 0.0, "none", []))
     containers = [tuple(map(float, e.box)) for e in elements if e.kind == "shape" and e.fill]
     guides = [tuple(map(float, e.box)) for e in elements if e.kind == "line" and e.line[1] == e.line[3]]
 
@@ -200,7 +221,8 @@ def analyze(source: str | Path, project: Path, *, langs: list[str] | None = None
     for t in tables:
         x0, y0, x1, y1 = (int(v) for v in t.box)
         removal[max(0, y0 - 3):y1 + 4, max(0, x0 - 3):x1 + 4] = True
-    removal = cv2.dilate(removal.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
+    grow = 7 if lossy else 5   # wider on lossy pictures: the ringing around an edge goes with the element
+    removal = cv2.dilate(removal.astype(np.uint8), np.ones((grow, grow), np.uint8)) > 0
     background, bg_stats = inpaint.fill(clean, removal, check=check)
     Image.fromarray(background).save(assets_dir / "background.png")
     page_bg = _hex(np.median(background.reshape(-1, 3), axis=0))
@@ -211,6 +233,7 @@ def analyze(source: str | Path, project: Path, *, langs: list[str] | None = None
         "name": source.name, "sha256": src_hash, "width": prep.original.width, "height": prep.original.height,
         "dpi": round(prep.dpi, 2), "dpiAssumed": prep.dpi_assumed, "rotation": prep.rotation,
         "denoised": prep.denoised, "noise": round(prep.noise, 2), "upscale": factor, "upscaleMethod": method,
+        "workScale": round(prep.scale, 5),
         "languages": langs, "app": __version__})
     scene["page"]["background"] = page_bg
     scene["assets"] = {"original": "assets/original.png", "prepared": "assets/prepared.png",
@@ -235,6 +258,7 @@ def analyze(source: str | Path, project: Path, *, langs: list[str] | None = None
         return -(x1 - x0) * (y1 - y0)
 
     stack = sorted(list(elements) + list(tables), key=box_area)
+    trace_src = cv2.bilateralFilter(arr, 7, 30, 5)
     traced = 0
     for item in stack:
         if isinstance(item, tbl_mod.Table):
@@ -245,13 +269,21 @@ def analyze(source: str | Path, project: Path, *, langs: list[str] | None = None
         if e.kind == "photo":
             lid = nid("photo")
             crop = Image.fromarray(arr[y0:y1, x0:x1])
+            if prep.full is not None:
+                # From the full-resolution pixels: the layer keeps its page box, the picture its detail.
+                k = 1.0 / prep.scale
+                fx0, fy0 = int(round(x0 * k)), int(round(y0 * k))
+                fx1, fy1 = min(prep.full.width, int(round(x1 * k))), min(prep.full.height, int(round(y1 * k)))
+                crop = prep.full.crop((fx0, fy0, fx1, fy1))
             if e.mask.all():
                 name = f"assets/{lid}.{'jpg' if jpeg_source else 'png'}"
                 crop.save(project / name, quality=95) if jpeg_source else crop.save(project / name)
             else:
                 name = f"assets/{lid}.png"
-                rgba = np.dstack([arr[y0:y1, x0:x1], (e.mask * 255).astype(np.uint8)])
-                Image.fromarray(rgba, "RGBA").save(project / name)
+                alpha = Image.fromarray((e.mask * 255).astype(np.uint8)).resize(crop.size, Image.Resampling.BILINEAR)
+                rgba = crop.convert("RGB").copy()
+                rgba.putalpha(alpha)
+                rgba.save(project / name)
             layers.append(sc.layer("image", lid, f"Photo {counters['photo']}", (x0, y0, x1 - x0, y1 - y0),
                                    asset=name, kind="photo", source={"box": [x0, y0, x1, y1]}))
         elif e.kind == "shape":
@@ -272,7 +304,7 @@ def analyze(source: str | Path, project: Path, *, langs: list[str] | None = None
             traced += 1
             progress(0.88 + 0.08 * traced / max(1, len(graphics)), f"Tracing graphic {traced} of {len(graphics)}")
             lid = nid("graphic")
-            paths = vectorize.trace(arr, e.mask, e.box)
+            paths = vectorize.trace(trace_src, e.mask, e.box)
             crop_name = f"assets/{lid}-pixels.png"
             Image.fromarray(np.dstack([arr[y0:y1, x0:x1], (e.mask * 255).astype(np.uint8)]), "RGBA").save(
                 project / crop_name)
@@ -300,6 +332,44 @@ def analyze(source: str | Path, project: Path, *, langs: list[str] | None = None
     sc.save(scene, project / "scene.json")
     progress(1.0, "Done")
     return scene
+
+
+def _text_like_rows(elements: list) -> list[list]:
+    """Groups of 3+ graphics in one colour, of similar height, on one line, close together and of varying
+    widths: words of a script the OCR could not see."""
+    def rgb(h: str) -> np.ndarray:
+        return np.array([int(h[i:i + 2], 16) for i in (1, 3, 5)], float)
+
+    cands = [e for e in elements if e.kind == "graphic" and e.colors]
+    cands.sort(key=lambda e: e.box[0])
+    rows, used = [], set()
+    for i, a in enumerate(cands):
+        if id(a) in used:
+            continue
+        row = [a]
+        for b in cands[i + 1:]:
+            if id(b) in used:
+                continue
+            ha, hb = row[0].box[3] - row[0].box[1], b.box[3] - b.box[1]
+            hm = float(np.median([e.box[3] - e.box[1] for e in row]))
+            cy_a = np.median([(e.box[1] + e.box[3]) / 2 for e in row])
+            same = (np.abs(rgb(b.colors[0]) - rgb(row[0].colors[0])).sum() <= 40 and 0.5 * hm <= hb <= 2.0 * hm
+                    and abs((b.box[1] + b.box[3]) / 2 - cy_a) <= 0.5 * hm and b.box[0] - row[-1].box[2] <= 1.2 * hm)
+            if same:
+                row.append(b)
+        widths = np.array([e.box[2] - e.box[0] for e in row], float)
+        if len(row) >= 3 and widths.std() / max(1.0, widths.mean()) > 0.3:
+            rows.append(row)
+            used.update(id(e) for e in row)
+    return rows
+
+
+def _glyph_like_shape(ln: textdetect.TextLine) -> bool:
+    """One or two characters read without confidence from a squarish area: almost always a shape or an
+    icon the OCR took for a letter (a ring as "O", a tick as "V"). It is left to the shape detection."""
+    x0, y0, x1, y1 = ln.box
+    text = ln.text.strip()
+    return len(text) <= 2 and ln.conf < 0.9 and (x1 - x0) < 2.5 * (y1 - y0)
 
 
 def _readable(ln: textdetect.TextLine) -> bool:

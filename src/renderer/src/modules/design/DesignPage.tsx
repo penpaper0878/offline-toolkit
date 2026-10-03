@@ -53,9 +53,10 @@ function Home(): ReactElement {
   const st = useDesign.getState()
   const [langs, setLangs] = useState<string[]>([])
   useEffect(() => {
-    void st.refreshList()
+    // Once per visit of the start page (the store object changes on every update, so it is not a dependency).
+    void useDesign.getState().refreshList()
     otk().converter.catalog().then((c) => setLangs(c.ocrLanguages), () => setLangs(['eng']))
-  }, [st])
+  }, [])
   const toggleLang = (l: string) => {
     const has = settings.languages.includes(l)
     const next = has ? settings.languages.filter((x) => x !== l) : [...settings.languages, l]

@@ -148,8 +148,30 @@ def _colourfulness(pixels: np.ndarray) -> tuple[int, float]:
     return int(np.searchsorted(cum, 0.95) + 1), 0.0
 
 
-def classify(arr: np.ndarray, mask: np.ndarray, box, *, around: np.ndarray | None = None) -> Element:
+def classify(arr: np.ndarray, mask: np.ndarray, box, *, around: np.ndarray | None = None, _strict: bool = False) -> Element:
     """`around`: the Lab colour just outside the element (to tell a filled outline from an empty one)."""
+    import cv2
+
+    el = _classify(arr, mask, box, around)
+    if el.kind in ("graphic", "photo") and around is not None and not _strict:
+        # A faint halo along the edges (resampling or compression ringing) can make a plain line or
+        # outline look multicoloured. Without the pixels close to the background colour, look again.
+        x0, y0, x1, y1 = box
+        lab = cv2.cvtColor(np.ascontiguousarray(arr[y0:y1, x0:x1]), cv2.COLOR_RGB2LAB).astype(np.float32)
+        dist = np.linalg.norm(lab - around, axis=2)
+        if mask.any():
+            strong = mask & (dist >= 0.5 * float(np.percentile(dist[mask], 90)))
+            ys, xs = np.nonzero(strong)
+            if 0 < len(xs) < 0.97 * np.count_nonzero(mask):
+                bx0, by0, bx1, by1 = xs.min(), ys.min(), xs.max() + 1, ys.max() + 1
+                again = classify(arr, strong[by0:by1, bx0:bx1], (x0 + bx0, y0 + by0, x0 + bx1, y0 + by1),
+                                 around=around, _strict=True)
+                if again.kind in ("shape", "line") and again.content is None:
+                    return again
+    return el
+
+
+def _classify(arr: np.ndarray, mask: np.ndarray, box, around: np.ndarray | None) -> Element:
     import cv2
 
     x0, y0, x1, y1 = box
@@ -172,8 +194,12 @@ def classify(arr: np.ndarray, mask: np.ndarray, box, *, around: np.ndarray | Non
     core_px = sub[core] if core.any() else pixels
     lab = cv2.cvtColor(core_px.reshape(-1, 1, 3), cv2.COLOR_RGB2LAB).reshape(-1, 3).astype(np.float32)
     med = np.median(lab, axis=0)
-    off = np.linalg.norm(lab - med, axis=1) > 14
+    spread = np.linalg.norm(lab - med, axis=1)
+    off = spread > 14
     uniform = off.mean() < 0.02 if len(off) else True
+    # An outline is thin, so resampling or compression shading along its edges is a large share of it;
+    # it may vary more (a photo or a picture with a hole is still far more varied).
+    ring_uniform = (spread > 22).mean() < 0.2 if len(spread) else True
     filled_mask = cv2.morphologyEx(mask.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8)) > 0
     holes = _fill_holes(filled_mask) & ~filled_mask
     if uniform and holes.mean() < 0.01:
@@ -184,7 +210,7 @@ def classify(arr: np.ndarray, mask: np.ndarray, box, *, around: np.ndarray | Non
             outer = _fill_holes(filled_mask)
             return Element("shape", box, outer, shape=shape, fill=_hex(fill), radius=round(r, 1), score=round(s, 4),
                            content=_content(sub, outer, fill))
-    if uniform and holes.mean() >= 0.2:
+    if ring_uniform and holes.mean() >= 0.2:
         # An outline: the element is a ring around a hole of background colour.
         outer = _fill_holes(filled_mask)
         fit = _fit_solid(outer)
@@ -213,12 +239,19 @@ def classify(arr: np.ndarray, mask: np.ndarray, box, *, around: np.ndarray | Non
     if w >= 12 and h >= 12 and len(lab) >= 50:
         fit = _fit_solid(outer)
         if fit and fit[2] >= 0.965:
-            main = _dominant_colors(core_px, 4)[0][0]
+            # Measured over the whole shape (inside included), so a ring around page colour is not a
+            # filled shape with "content".
+            inside = cv2.erode(outer.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
+            area_px = sub[inside] if inside.any() else core_px
+            alab = cv2.cvtColor(area_px.reshape(-1, 1, 3), cv2.COLOR_RGB2LAB).reshape(-1, 3).astype(np.float32)
+            main = _dominant_colors(area_px, 4)[0][0]
             mlab = cv2.cvtColor(np.array([[[int(main[i:i + 2], 16) for i in (1, 3, 5)]]], np.uint8),
                                 cv2.COLOR_RGB2LAB).reshape(3).astype(np.float32)
-            near = np.linalg.norm(lab - mlab, axis=1) < 6
-            if near.mean() >= 0.6:
-                fill = np.median(core_px[near], axis=0)
+            near = np.linalg.norm(alab - mlab, axis=1) < 6
+            # The main colour must also be the element's own colour, not page colour showing through.
+            own = np.linalg.norm(lab - mlab, axis=1) < 6
+            if near.mean() >= 0.6 and own.mean() >= 0.5:
+                fill = np.median(area_px[near], axis=0)
                 shape, r, s = fit
                 return Element("shape", box, outer, shape=shape, fill=_hex(fill), radius=round(r, 1),
                                score=round(s, 4), content=_content(sub, outer, fill))
@@ -285,15 +318,18 @@ def _fill_holes(mask: np.ndarray) -> np.ndarray:
     return (flood[1:-1, 1:-1] != 2)
 
 
-def detect(arr: np.ndarray, *, exclude: list[tuple[int, int, int, int]] = (), min_area: int = 60) -> list[Element]:
-    """Elements of a text-free picture. `exclude`: boxes already handled (tables)."""
+def detect(arr: np.ndarray, *, exclude: list[tuple[int, int, int, int]] = (), min_area: int = 60,
+           edges: np.ndarray | None = None) -> list[Element]:
+    """Elements of a text-free picture. `exclude`: boxes already handled (tables). `edges`: the unsmoothed
+    picture when `arr` was smoothed (faint edges, e.g. of a pale shape, are found on it; colours and shape
+    tests use `arr`)."""
     import cv2
 
     H, W = arr.shape[:2]
-    bg = background_mask(arr)
+    bg = background_mask(edges if edges is not None else arr)
     fg = (~bg).astype(np.uint8)
     for x0, y0, x1, y1 in exclude:
-        fg[max(0, y0 - 2):y1 + 3, max(0, x0 - 2):x1 + 3] = 0
+        fg[max(0, y0 - 6):y1 + 7, max(0, x0 - 6):x1 + 7] = 0   # a table's own rules and their soft edges
     fg = _open2(fg)
     lab = cv2.cvtColor(arr, cv2.COLOR_RGB2LAB).astype(np.float32)
     n, labels, stats, _ = cv2.connectedComponentsWithStats(fg, connectivity=8)
@@ -330,7 +366,11 @@ def detect(arr: np.ndarray, *, exclude: list[tuple[int, int, int, int]] = (), mi
         el = classify(arr, mask, box, around=ref)
         out.append(el)
         if el.content is not None:
-            out.extend(_inner_elements(arr, el, min_area))
+            # Things on the shape that are elements of their own already are not found a second time.
+            own = labels[box[1]:box[3], box[0]:box[2]]
+            el.content = el.content & ((own == 0) | (own == i))
+            if el.content.any():
+                out.extend(_inner_elements(arr, el, min_area))
         if el.kind == "photo":
             # A photo keeps its whole rectangle, background-coloured parts included.
             el.mask = region[by0:by1, bx0:bx1] | mask
@@ -343,6 +383,30 @@ def detect(arr: np.ndarray, *, exclude: list[tuple[int, int, int, int]] = (), mi
             if np.count_nonzero(el.mask) > np.count_nonzero(mask):
                 sub = arr[box[1]:box[3], box[0]:box[2]]
                 el.colors = [c for c, share in _dominant_colors(sub[el.mask], 6) if share >= 0.02]
+    return drop_fringes(out)
+
+
+def drop_fringes(found: list[Element], band: int = 5) -> list[Element]:
+    """Remove thin slivers that hug the outline of a larger element: the halo that compression or resampling
+    leaves along an edge (JPEG ringing), not a drawn line. A real rule or frame keeps its distance."""
+    big = [e for e in found if min(e.box[2] - e.box[0], e.box[3] - e.box[1]) > 2 * band]
+    out = []
+    for e in found:
+        x0, y0, x1, y1 = e.box
+        thin = min(x1 - x0, y1 - y0) <= 4 or e.area < 40
+        fringe = False
+        if thin:
+            for b in big:
+                if b is e:
+                    continue
+                bx0, by0, bx1, by1 = b.box
+                inside = bx0 - band <= x0 and x1 <= bx1 + band and by0 - band <= y0 and y1 <= by1 + band
+                gap = min(abs(x0 - bx0), abs(x1 - bx1), abs(y0 - by0), abs(y1 - by1))
+                if inside and gap <= band:
+                    fringe = True
+                    break
+        if not fringe:
+            out.append(e)
     return out
 
 
@@ -356,8 +420,8 @@ def _inner_elements(arr: np.ndarray, shape: Element, min_area: int) -> list[Elem
     out = []
     for i in range(1, n):
         x, y, w, h, area = stats[i]
-        if area < max(20, min_area // 3):
-            continue
+        if area < min_area:
+            continue   # specks (compression residue around removed text), not an icon
         m = labels[y:y + h, x:x + w] == i
         box = (shape.box[0] + int(x), shape.box[1] + int(y), shape.box[0] + int(x + w), shape.box[1] + int(y + h))
         el = classify(arr, m, box, around=around)
