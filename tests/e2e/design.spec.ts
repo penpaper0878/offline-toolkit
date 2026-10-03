@@ -167,6 +167,12 @@ test('edit on the canvas: drag, type in place, recolour, table cells, cut-out, l
     await page.getByTestId('design-open-image').click()
     await expect(page.getByTestId('design-editor')).toBeVisible({ timeout: 170_000 })
     const canvas = page.getByTestId('design-canvas')
+    // A small laptop screen (the Windows CI desktop is 1024 x 768): the module bar folds to icons, the canvas
+    // keeps a usable width and the page is fitted again.
+    const zoomBefore = Number(await canvas.getAttribute('data-zoom'))
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1008, 655))
+    await expect.poll(async () => (await canvas.boundingBox())!.width).toBeGreaterThan(440)
+    await expect.poll(async () => Number(await canvas.getAttribute('data-zoom'))).toBeLessThan(zoomBefore)
     // Page px -> screen px from the canvas's view state.
     const toScreen = async (x: number, y: number) => {
       const box = (await canvas.boundingBox())!

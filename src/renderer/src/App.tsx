@@ -109,11 +109,12 @@ export function App() {
       onDragLeave={(e) => { if (e.currentTarget === e.target || !e.relatedTarget) setDragging(false) }}
       onDrop={(e) => { setDragging(false); void handleDrop(e).catch((err) => useUi.getState().reportError('Could not add the files', err)) }}>
       <nav className="sidebar" aria-label="Modules">
-        <div className="brand"><Icon name="shield" size={20} /> Offline Toolkit</div>
+        <div className="brand"><Icon name="shield" size={20} /> <span className="brand-name">Offline Toolkit</span></div>
         {NAV.map((n) => (
           <button key={n.page} className={`nav-item ${page === n.page ? 'active' : ''}`} data-testid={`nav-${n.page}`}
+            aria-label={n.label} title={n.label}
             aria-current={page === n.page ? 'page' : undefined} onClick={() => setPage(n.page)}>
-            <Icon name={n.icon} /> <span>{n.label}</span>
+            <Icon name={n.icon} /> <span className="nav-label">{n.label}</span>
             {n.phase && <span className="soon">soon</span>}
           </button>
         ))}

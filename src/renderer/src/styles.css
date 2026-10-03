@@ -334,4 +334,9 @@ input[type="range"] { accent-color: var(--accent); }
   .design-layers { width: 190px; }
   .design-side { width: 290px; }
   .design-home { grid-template-columns: 1fr; }
+  /* Small screens (e.g. 1366 x 768 at 125%): the module bar shows icons only, leaving room for the work. */
+  .sidebar { width: 56px; padding: 12px 6px; }
+  .sidebar .brand { justify-content: center; padding: 6px 0 14px; }
+  .sidebar .brand-name, .nav-item .nav-label, .nav-item .soon, .sidebar-foot { display: none; }
+  .nav-item { justify-content: center; padding: 10px 0; }
 }

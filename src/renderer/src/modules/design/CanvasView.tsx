@@ -16,6 +16,8 @@ interface ViewState {
   x: number
   y: number
   fitToken: number
+  /** The page was fitted and the user has not zoomed or panned since: resizing the canvas fits it again. */
+  fitted: boolean
   set(v: Partial<Omit<ViewState, 'set' | 'fit' | 'zoomBy'>>): void
   fit(): void
   zoomBy(f: number): void
@@ -26,9 +28,10 @@ export const useView = create<ViewState>((set, get) => ({
   x: 0,
   y: 0,
   fitToken: 0,
-  set: (v) => set(v),
+  fitted: true,
+  set: (v) => set({ fitted: false, ...v }),
   fit: () => set({ fitToken: get().fitToken + 1 }),
-  zoomBy: (f) => set({ zoom: Math.max(0.05, Math.min(16, get().zoom * f)) })
+  zoomBy: (f) => set({ fitted: false, zoom: Math.max(0.05, Math.min(16, get().zoom * f)) })
 }))
 
 function useImageEl(url: string | null): HTMLImageElement | null {
@@ -275,11 +278,24 @@ export function CanvasView(): ReactElement {
 
   const pageW = scene?.page.width ?? 1
   const pageH = scene?.page.height ?? 1
+  // Fit the page when asked, for a new picture, and on every resize until the user zooms or pans; after
+  // that a resize keeps the same part of the page in the middle.
+  const fitFor = useRef({ token: -1, sha: '' })
+  const lastSize = useRef(size)
   useEffect(() => {
+    const prev = lastSize.current
+    lastSize.current = size
     if (!size.w || !size.h) return
+    const v = useView.getState()
+    const sha = scene?.source.sha256 ?? ''
+    if (fitFor.current.token === fitToken && fitFor.current.sha === sha && !v.fitted) {
+      if (prev.w && prev.h) v.set({ x: v.x + (size.w - prev.w) / 2, y: v.y + (size.h - prev.h) / 2 })
+      return
+    }
+    fitFor.current = { token: fitToken, sha }
     const z = Math.min((size.w - 48) / pageW, (size.h - 48) / pageH, 4)
-    useView.getState().set({ zoom: z, x: (size.w - pageW * z) / 2, y: (size.h - pageH * z) / 2 })
-  }, [fitToken, pageW, pageH, size.w > 0 && size.h > 0, scene?.source.sha256]) // eslint-disable-line react-hooks/exhaustive-deps
+    v.set({ zoom: z, x: (size.w - pageW * z) / 2, y: (size.h - pageH * z) / 2, fitted: true })
+  }, [fitToken, pageW, pageH, size.w, size.h, scene?.source.sha256]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
