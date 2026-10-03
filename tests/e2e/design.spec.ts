@@ -179,8 +179,20 @@ test('edit on the canvas: drag, type in place, recolour, table cells, cut-out, l
     // Drag the title 60 px right and 40 px down (Alt: no snapping).
     const title = layers().find((l) => l.text === 'Summer Music Festival')!
     const c = await toScreen(title.box[0] + title.box[2] / 2, title.box[1] + title.box[3] / 2)
+    // What is under the point, the window and whether animation frames run (Konva draws its hit areas in
+    // them): reported if the click does not select the title.
+    const where = await page.evaluate(`(async () => {
+      const e = document.elementFromPoint(${c.x}, ${c.y})
+      const r = document.querySelector('[data-testid="design-canvas"]').getBoundingClientRect()
+      const frame = await Promise.race([new Promise((ok) => requestAnimationFrame(() => ok(true))),
+        new Promise((ok) => setTimeout(() => ok(false), 1000))])
+      return JSON.stringify({ x: ${c.x}, y: ${c.y}, at: e ? e.tagName + '.' + e.className : null,
+        window: [innerWidth, innerHeight, devicePixelRatio], canvas: [r.x, r.y, r.width, r.height],
+        visibility: document.visibilityState, frame })
+    })()`)
     await page.mouse.click(c.x, c.y)
-    await expect(page.getByTestId(`layer-row-${title.id}`)).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByTestId(`layer-row-${title.id}`), `title ${title.box} not selected: ${where}`)
+      .toHaveAttribute('aria-selected', 'true', { timeout: 5_000 })
     await page.keyboard.down('Alt')
     await page.mouse.move(c.x, c.y)
     await page.mouse.down()
