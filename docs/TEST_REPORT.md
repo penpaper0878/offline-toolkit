@@ -19,7 +19,9 @@ Updated at the end of each phase. Every result below is from an actual run. Anyt
 | Python tests (pytest): Phases 1–2 plus 25 design tests (13 unit, 12 on the ground-truth samples: every layer checked against the truth, exports drawn back and compared, project file round trip) | `npm run test:py` | **212 / 212 pass**, none skipped |
 | End-to-end, real app + worker (Playwright): resizer ×2, converter, design ×2 (analyse a poster, edit, check, export every format; edit on the canvas: drag, type in place, recolour, table cells, cut-out, layer controls) | `npm run test:e2e` | **5 / 5 pass** (the packaged-app test runs on Windows only) |
 | Same converter and design app tests, repeated three times each | `playwright test … --repeat-each=3` | **9 / 9 pass** (after fixing the two faults this found, listed below) |
-| Ubuntu and Windows CI, packaged Windows app | `.github/workflows/ci.yml`, `release.yml` | see *Windows packaging (Phase 3)* below |
+| Ubuntu CI (`ubuntu-latest`): all of the above, plus a check that Pillow shapes text, and the no-network run | `.github/workflows/ci.yml`, run 37151110103 | **all pass** (40 vitest, 212 pytest, 5 E2E, no-network run) |
+| Windows CI (`windows-latest`, bundled engines incl. LibreOffice 26, FriBiDi on PATH) | same run | **all pass** (40 vitest, 212 pytest including the design samples and their exports drawn by LibreOffice 26, 5 E2E with the canvas test at 1008 × 655) |
+| Packaged Windows app | `.github/workflows/release.yml` | see *Windows packaging (Phase 3)* below |
 
 ### Analysis accuracy on the ground-truth samples
 
@@ -83,6 +85,8 @@ Updated at the end of each phase. Every result below is from an actual run. Anyt
   - `antlr4-python3-runtime` 4.9.3 (needed by omegaconf, which RapidOCR needs) is published as source only, and the Windows bundle installs wheels only. The bundler now builds that wheel first.
   - **No text shaping on Windows.** Pillow loads FriBiDi at run time, and Windows has none, so text was measured unshaped: Indic conjuncts and vowel signs, Arabic joining and kerning were lost. The test pictures, also drawn by Pillow, were wrong too (OCR read "सवागत" for "स्वागत"; rebuilt-design SSIM 0.966–0.978). FriBiDi 1.0.17 is now bundled next to the app's Python, CI and the packaged test check that Pillow shapes text, and an analysis without shaping says so in its notes. **v0.3.0 was published before this was found and lacks it; v0.3.1 has it.**
   - **Word text boxes in LibreOffice 26** (the bundled engine): centred text in non-wrapping Word text boxes was moved right by the box's own offset (poster DOCX SSIM 0.879, the button label off the page). Text boxes now wrap, with spare width away from the alignment edge (LibreOffice 24 renders the same as before).
+  - **The editor on a small screen** (the Windows CI desktop is 1024 × 768): the module bar, layer list and inspector left the canvas 300 px wide, and the page was fitted only once, so after the window shrank part of the page was out of sight. Below 1200 px the module bar now shows icons only (canvas 470 px at 1008 px), and the page refits on resize until the user zooms or pans. The canvas test now runs at 1008 × 655 on every system.
+  - The canvas test itself could read the saved scene before an edit reached it (it waited for the "Saved" label, which can still show the previous save); it now waits for each edit to appear in the saved file.
   - **No kerning in the Word export:** Word kerns only when a run asks for it, and LibreOffice follows that, while the design, PowerPoint and Impress kern. Runs now kern (certificate DOCX vs design 0.987 → 0.995, its 2 differing areas gone; poster 0.990 → 0.992).
 
 ### Known limits (Module 3)
