@@ -396,6 +396,7 @@ export function CanvasView(): ReactElement {
 
   return (
     <div className={`design-canvas ${space ? 'panning' : ''}`} ref={wrapRef} data-testid="design-canvas"
+      data-zoom={z} data-pan-x={panX} data-pan-y={panY}
       onWheel={(e) => {
         const v = useView.getState()
         if (e.ctrlKey || e.metaKey) {

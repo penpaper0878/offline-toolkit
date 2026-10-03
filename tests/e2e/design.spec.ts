@@ -146,3 +146,110 @@ test('analyse a poster, edit it, check it against the original and export every 
     await app.close()
   }
 })
+
+interface FullLayer { id: string; type: string; name: string; box: number[]; text?: string; visible: boolean; locked: boolean
+  asset?: string; paths?: { fill: string }[]; cells?: { row: number; col: number; text: string }[]; shape?: string; fill?: string | null }
+
+test('edit on the canvas: drag, type in place, recolour, table cells, cut-out, layer controls', async () => {
+  const data = tempDir('data')
+  const inputs = tempDir('design-in')
+  const poster = makePoster(inputs)
+  const { app, page } = await launch(data)
+  const errors: string[] = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  const layers = () => (savedScene(data) as unknown as { layers: FullLayer[] }).layers
+  const saved = () => expect(page.getByTestId('design-save-state')).toHaveText('Saved', { timeout: 15_000 })
+  try {
+    await stubDialogs(app, [poster], inputs)
+    await page.getByTestId('nav-design').click()
+    await page.getByTestId('design-open-image').click()
+    await expect(page.getByTestId('design-editor')).toBeVisible({ timeout: 170_000 })
+    const canvas = page.getByTestId('design-canvas')
+    // Page px -> screen px from the canvas's view state.
+    const toScreen = async (x: number, y: number) => {
+      const box = (await canvas.boundingBox())!
+      const z = Number(await canvas.getAttribute('data-zoom'))
+      const px = Number(await canvas.getAttribute('data-pan-x'))
+      const py2 = Number(await canvas.getAttribute('data-pan-y'))
+      return { x: box.x + px + x * z, y: box.y + py2 + y * z, z }
+    }
+
+    // Drag the title 60 px right and 40 px down (Alt: no snapping).
+    const title = layers().find((l) => l.text === 'Summer Music Festival')!
+    const c = await toScreen(title.box[0] + title.box[2] / 2, title.box[1] + title.box[3] / 2)
+    await page.mouse.click(c.x, c.y)
+    await page.keyboard.down('Alt')
+    await page.mouse.move(c.x, c.y)
+    await page.mouse.down()
+    await page.mouse.move(c.x + 30 * c.z, c.y + 20 * c.z, { steps: 5 })
+    await page.mouse.move(c.x + 60 * c.z, c.y + 40 * c.z, { steps: 5 })
+    await page.mouse.up()
+    await page.keyboard.up('Alt')
+    await saved()
+    const moved = layers().find((l) => l.id === title.id)!
+    expect(moved.box[0] - title.box[0]).toBeCloseTo(60, -1)
+    expect(moved.box[1] - title.box[1]).toBeCloseTo(40, -1)
+
+    // Double-click the button label and retype it in place.
+    const label = layers().find((l) => l.text === 'Book tickets')!
+    const b = await toScreen(label.box[0] + label.box[2] / 2, label.box[1] + label.box[3] / 2)
+    await page.mouse.dblclick(b.x, b.y)
+    const editor = page.getByTestId('design-text-editor')
+    await expect(editor).toBeVisible()
+    await editor.fill('Buy tickets')
+    await editor.press('Control+Enter')
+    await saved()
+    expect(layers().find((l) => l.id === label.id)!.text).toBe('Buy tickets')
+
+    // Recolour the star graphic.
+    const star = layers().find((l) => l.type === 'vector' && l.paths?.some((p) => p.fill === '#f2a900'))!
+    await page.getByTestId(`layer-row-${star.id}`).click()
+    await page.getByRole('textbox', { name: 'Colour #f2a900 hex' }).fill('#ff0000')
+    await saved()
+    expect(layers().find((l) => l.id === star.id)!.paths!.every((p) => p.fill !== '#f2a900')).toBe(true)
+
+    // Edit a table cell.
+    const table = layers().find((l) => l.type === 'table')!
+    await page.getByTestId(`layer-row-${table.id}`).click()
+    await page.getByTestId('design-table-editor').locator('textarea').first().fill('Date')
+    await saved()
+    expect(layers().find((l) => l.id === table.id)!.cells!.find((x) => x.row === 0 && x.col === 0)!.text).toBe('Date')
+
+    // Remove the background of the photo (kept: a new picture with transparency; the old one can be restored).
+    const photo = layers().find((l) => l.type === 'image' && l.name.startsWith('Photo'))!
+    await page.getByTestId(`layer-row-${photo.id}`).click()
+    await page.getByTestId('design-cutout').click()
+    await expect(page.getByText('Background removed')).toBeVisible({ timeout: 60_000 })
+    await saved()
+    expect(layers().find((l) => l.id === photo.id)!.asset).toContain('-cutout-')
+    await page.getByRole('button', { name: 'Restore original' }).click()
+    await saved()
+    expect(layers().find((l) => l.id === photo.id)!.asset).toBe(photo.asset)
+
+    // Hide and lock a layer; duplicate and delete; add a rectangle.
+    await page.getByTestId(`layer-row-${star.id}`).getByRole('button', { name: 'Hide' }).click()
+    await page.getByTestId(`layer-row-${star.id}`).getByRole('button', { name: 'Lock' }).click()
+    await saved()
+    const s1 = layers().find((l) => l.id === star.id)!
+    expect([s1.visible, s1.locked]).toEqual([false, true])
+    const n = layers().length
+    await page.getByTestId(`layer-row-${title.id}`).click()
+    await canvas.click({ position: { x: 3, y: 3 } })
+    await page.getByTestId(`layer-row-${title.id}`).click()
+    await page.getByRole('button', { name: 'Duplicate' }).click()
+    await saved()
+    expect(layers().length).toBe(n + 1)
+    await page.getByRole('button', { name: 'Delete' }).click()
+    await saved()
+    expect(layers().length).toBe(n)
+    await page.getByTestId('design-add-shape').click()
+    await page.getByRole('button', { name: 'Rectangle', exact: true }).click()
+    await saved()
+    const rect = layers()[layers().length - 1]
+    expect([rect.type, rect.shape]).toEqual(['shape', 'rect'])
+    await page.screenshot({ path: 'test-results/screens/24-design-edited.png' })
+    expect(errors).toEqual([])
+  } finally {
+    await app.close()
+  }
+})
