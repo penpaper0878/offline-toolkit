@@ -27,7 +27,7 @@ opencv-contrib-python-headless==5.0.0.93
 onnxruntime==1.30.0
 vtracer==0.6.15
 brotli==1.2.0
-# needed by pdf2docx, rapidocr and rapid-layout (requirements-nodeps.txt)
+# needed by pdf2docx and rapidocr (requirements-nodeps.txt)
 fire==0.7.1
 termcolor==3.3.0
 pyclipper==1.4.0
@@ -35,6 +35,8 @@ shapely==2.1.2
 six==1.17.0
 PyYAML==6.0.3
 omegaconf==2.3.1
+# published as source only; scripts/bundle-python-win.mjs builds its wheel first
+antlr4-python3-runtime==4.9.3
 colorlog==6.12.0
 tqdm==4.70.1
 requests==2.34.2

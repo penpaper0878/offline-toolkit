@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url'
 
 const PY_VERSION = '3.11.9' // last 3.11 release with Windows binaries
 const URL = `https://www.python.org/ftp/python/${PY_VERSION}/python-${PY_VERSION}-embed-amd64.zip`
+const SOURCE_ONLY = ['antlr4-python3-runtime==4.9.3'] // needed by omegaconf (rapidocr's configuration)
 // Pinned after the first verified download; the build fails if the file changes.
 const SHA256 = process.env.OTK_PY_EMBED_SHA256 ?? null
 
@@ -76,14 +77,19 @@ async function main() {
 
   // Install win_amd64 wheels for CPython 3.11 into Lib/site-packages (works from any OS).
   const host = process.env.OTK_PYTHON_BOOTSTRAP ?? (process.platform === 'win32' ? 'python' : 'python3')
+  // Pure-Python packages published as source only: build their (platform-independent) wheels first so the
+  // install below stays binary-only. The versions match worker/requirements.txt.
+  const wheels = join(cache, 'wheels')
+  rmSync(wheels, { recursive: true, force: true })
+  run(host, ['-m', 'pip', 'wheel', '--no-cache-dir', '--disable-pip-version-check', '--no-deps', '--use-pep517', '-w', wheels, ...SOURCE_ONLY])
   run(host, ['-m', 'pip', 'install', '--no-cache-dir', '--disable-pip-version-check',
     '--target', join(target, 'Lib', 'site-packages'),
     '--platform', 'win_amd64', '--python-version', '3.11', '--implementation', 'cp', '--abi', 'cp311',
-    '--only-binary=:all:', '-r', join(root, 'worker', 'requirements.txt')])
+    '--only-binary=:all:', '--find-links', wheels, '-r', join(root, 'worker', 'requirements.txt')])
   run(host, ['-m', 'pip', 'install', '--no-cache-dir', '--disable-pip-version-check', '--no-deps',
     '--target', join(target, 'Lib', 'site-packages'),
     '--platform', 'win_amd64', '--python-version', '3.11', '--implementation', 'cp', '--abi', 'cp311',
-    '--only-binary=:all:', '-r', join(root, 'worker', 'requirements-nodeps.txt')])
+    '--only-binary=:all:', '--find-links', wheels, '-r', join(root, 'worker', 'requirements-nodeps.txt')])
 
   // Drop caches and bundled test suites (not needed at run time).
   const prune = (p) => {

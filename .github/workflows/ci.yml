@@ -44,9 +44,10 @@ jobs:
           key: design-assets-${{ runner.os }}-${{ hashFiles('scripts/fetch_fonts.py', 'scripts/fonts.lock.json', 'scripts/fetch_models.py') }}
       - name: Design fonts and models
         if: steps.design-cache.outputs.cache-hit != 'true'
+        shell: bash   # stops at the first failing command (pwsh only reports the last one)
         run: |
-          node scripts/run-python.mjs scripts/fetch_fonts.py
-          node scripts/run-python.mjs scripts/fetch_models.py
+          node scripts/run-python.mjs --online scripts/fetch_fonts.py
+          node scripts/run-python.mjs --online scripts/fetch_models.py
       - name: Save design fonts and models
         if: steps.design-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4

@@ -44,8 +44,8 @@ Settings → *Conversion engines* shows what was found and where.
 **Fonts and models (Module 3) in development.** Run once (needs the internet; the files are checked against pinned hashes):
 
 ```bash
-node scripts/run-python.mjs scripts/fetch_fonts.py    # 73 families from google/fonts at a pinned commit -> fonts/ (71 MB)
-node scripts/run-python.mjs scripts/fetch_models.py   # Real-ESRGAN (converted to ONNX) and MediaPipe selfie segmenter -> models/ (5 MB)
+node scripts/run-python.mjs --online scripts/fetch_fonts.py    # 73 families from google/fonts at a pinned commit -> fonts/ (71 MB)
+node scripts/run-python.mjs --online scripts/fetch_models.py   # Real-ESRGAN (converted to ONNX) and MediaPipe selfie segmenter -> models/ (5 MB)
 ```
 
 `npm run dev` starts the app with hot reload instead. It uses a local Vite dev server, which is the only address the offline guard allows, and only in development.
