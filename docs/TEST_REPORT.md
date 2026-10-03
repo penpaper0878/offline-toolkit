@@ -59,7 +59,18 @@ Updated at the end of each phase. Every result below is from an actual run. Anyt
 
 ### Windows packaging (Phase 3)
 
-*Filled in from the CI and release runs of this version.*
+**Release v0.3.1 (`release.yml`, run 37152148881): every step passed.**
+
+- The smoke test ran against the packaged `Offline Toolkit.exe` (not skipped, 52 s). Besides the Phase 2 checks (bundled Python and engines, offline self-test, HEIC, resize, Word and HTML to PDF/A-2b with veraPDF), it checked that:
+  - the bundled Pillow shapes text (FriBiDi next to the bundled Python);
+  - Module 3 works with the bundled Python, fonts and models: a poster is analysed, its photo cut out, the design checked against the picture, and the design exported to Word.
+- Files (published as pre-release [v0.3.1](https://github.com/penpaper0878/offline-toolkit/releases/tag/v0.3.1)):
+  - `Offline-Toolkit-Setup-0.3.1.exe`: **649 MB** installer
+  - `Offline-Toolkit-0.3.1-portable-win-x64.zip`: **890 MB** portable ZIP
+
+  The growth from v0.2.0 (568 / 790 MB) is the fonts (71 MB), the models (5 MB), OpenCV with its extra modules, and ONNX Runtime.
+- **v0.3.0** (run 37144728654, installer 649 MB, ZIP 890 MB) was published from an earlier commit of this phase, before Windows CI could run the design tests. It lacks FriBiDi, so text is measured unshaped on Windows, and it lacks the Word-export and small-screen fixes below. Use v0.3.1.
+- The builds are not code-signed.
 
 ### Found and fixed in this phase
 
