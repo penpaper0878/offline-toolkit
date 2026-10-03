@@ -31,6 +31,8 @@ export interface WorkerOptions {
   resourcesDir: string
   enginesDir?: string
   cacheDir?: string
+  fontsDir?: string
+  modelsDir?: string
   log: EventLog
   /** Requests the worker sends to the app (e.g. host.renderPdf). */
   hostHandler?: (method: string, params: unknown) => Promise<unknown>
@@ -67,6 +69,8 @@ export class WorkerProcess extends EventEmitter {
       OTK_HOST_RPC: this.opts.hostHandler ? '1' : '0',
       ...(this.opts.enginesDir ? { OTK_ENGINES: this.opts.enginesDir } : {}),
       ...(this.opts.cacheDir ? { OTK_CACHE: this.opts.cacheDir } : {}),
+      ...(this.opts.fontsDir ? { OTK_FONTS: this.opts.fontsDir } : {}),
+      ...(this.opts.modelsDir ? { OTK_MODELS: this.opts.modelsDir } : {}),
       // Any library that honours proxies fails fast instead of reaching out.
       HTTP_PROXY: 'http://127.0.0.1:9',
       HTTPS_PROXY: 'http://127.0.0.1:9',

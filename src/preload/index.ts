@@ -62,6 +62,23 @@ const api: OtkApi = {
     run: (req) => call(IPC.converterRun, req),
     onProgress: (cb) => subscribe<ConverterProgress>(IPC.converterProgress, cb)
   },
+  design: {
+    list: () => call(IPC.designList),
+    remove: (id) => call(IPC.designDelete, id),
+    pickImage: () => call(IPC.designPickImage),
+    analyze: (req) => call(IPC.designAnalyze, req),
+    load: (id) => call(IPC.designLoad, id),
+    save: (id, scene) => call(IPC.designSave, id, scene),
+    accuracy: (req) => call(IPC.designAccuracy, req),
+    assetUrl: (id, rel) => call(IPC.designAssetUrl, id, rel),
+    importImage: (id, path) => call(IPC.designImportImage, id, path ?? null),
+    cutout: (req) => call(IPC.designCutout, req),
+    fonts: () => call(IPC.designFonts),
+    fontFace: (req) => call(IPC.designFontFace, req),
+    exportAs: (req) => call(IPC.designExport, req),
+    openFile: (path) => call(IPC.designOpenFile, path ?? null),
+    installFonts: (scene) => call(IPC.designInstallFonts, scene)
+  },
   jobs: {
     cancel: (jobId) => call(IPC.jobsCancel, jobId),
     onProgress: (cb) => subscribe<JobProgress>(IPC.jobsProgress, cb)

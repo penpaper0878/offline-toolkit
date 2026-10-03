@@ -53,6 +53,15 @@ export function enginesDir(): string {
   return join(projectRoot(), 'engines', `${os}-${arch}`)
 }
 
+/** Bundled fonts and models for the design module (scripts/fetch_fonts.py, scripts/fetch_models.py). */
+export function fontsDir(): string {
+  return process.env.OTK_FONTS ?? (isPackaged ? join(process.resourcesPath, 'fonts') : join(projectRoot(), 'fonts'))
+}
+
+export function modelsDir(): string {
+  return process.env.OTK_MODELS ?? (isPackaged ? join(process.resourcesPath, 'models') : join(projectRoot(), 'models'))
+}
+
 export const logsDir = (): string => join(dataDir(), 'logs')
 export const cacheDir = (): string => join(dataDir(), 'cache')
 export const previewDir = (): string => join(cacheDir(), 'previews')

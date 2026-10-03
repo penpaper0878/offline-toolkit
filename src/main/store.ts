@@ -15,7 +15,7 @@ import type { DeepPartial } from '@shared/api'
 import type { AppSettings, Preset, PresetState, SettingsState } from '@shared/types'
 import type { EventLog } from './log'
 
-const SCHEMAS = ['resizer-settings.schema.json', 'converter-settings.schema.json', 'settings.schema.json', 'resizer-presets.schema.json']
+const SCHEMAS = ['resizer-settings.schema.json', 'converter-settings.schema.json', 'design-settings.schema.json', 'settings.schema.json', 'resizer-presets.schema.json']
 
 interface PresetFile {
   $schema?: string

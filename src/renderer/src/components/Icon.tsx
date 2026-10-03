@@ -21,7 +21,25 @@ const PATHS: Record<string, string> = {
   x: 'M6 6l12 12M18 6L6 18',
   shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
   swap: 'M7 4v16M3 16l4 4 4-4M17 20V4M21 8l-4-4-4 4',
-  save: 'M5 3h12l2 2v16H5zM8 3v6h8V3M8 21v-7h8v7'
+  save: 'M5 3h12l2 2v16H5zM8 3v6h8V3M8 21v-7h8v7',
+  text: 'M5 6V4h14v2M12 4v16M9 20h6',
+  square: 'M4 4h16v16H4z',
+  circle: 'M12 21a9 9 0 100-18 9 9 0 000 18z',
+  line: 'M4 20L20 4',
+  image: 'M3 5h18v14H3zM3 16l5-5 4 4 3-3 6 6M15.5 9.5h.01',
+  eye: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 15a3 3 0 100-6 3 3 0 000 6z',
+  'eye-off': 'M3 3l18 18M10.6 6.1A9.7 9.7 0 0112 6c6 0 10 6 10 6a17 17 0 01-3.2 3.8M6.6 6.6C3.8 8.3 2 12 2 12s4 7 10 7a9.6 9.6 0 004.3-1',
+  up: 'M12 19V5M5 12l7-7 7 7',
+  down: 'M12 5v14M5 12l7 7 7-7',
+  copy: 'M8 8h12v12H8zM4 16V4h12',
+  export: 'M12 3v12M7 8l5-5 5 5M4 15v5h16v-5',
+  'zoom-in': 'M10.5 17a6.5 6.5 0 100-13 6.5 6.5 0 000 13zM20 20l-4.8-4.8M10.5 7.5v6M7.5 10.5h6',
+  'zoom-out': 'M10.5 17a6.5 6.5 0 100-13 6.5 6.5 0 000 13zM20 20l-4.8-4.8M7.5 10.5h6',
+  fit: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
+  compare: 'M12 3v18M4 5h5v14H4zM15 5h5v14h-5z',
+  scissors: 'M6 9a3 3 0 100-6 3 3 0 000 6zM6 21a3 3 0 100-6 3 3 0 000 6zM20 4L8.1 15.9M14.5 14.5L20 20M8.1 8.1L12 12',
+  layers: 'M12 3l9 5-9 5-9-5zM3 13l9 5 9-5M3 17l9 5 9-5',
+  open: 'M3 7h6l2 2h10v10H3zM3 7v12'
 }
 
 export function Icon({ name, size = 18, title }: { name: keyof typeof PATHS | string; size?: number; title?: string }) {

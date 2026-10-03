@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "otk://schemas/design-settings.schema.json",
+  "title": "Image to editable design settings (Module 3)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["languages", "upscale", "deskew", "denoise", "exportFormat", "exportDir", "fontsFolder", "highlightLowConfidence", "snap"],
+  "properties": {
+    "languages": { "type": "array", "items": { "type": "string", "pattern": "^[A-Za-z_]{3,16}$" }, "minItems": 1, "uniqueItems": true,
+                   "description": "Languages of the text in the pictures (OCR)." },
+    "upscale": { "enum": ["auto", "always", "never"], "description": "Read small text on an enlarged copy (offline super-resolution)." },
+    "deskew": { "type": "boolean", "description": "Straighten tilted pictures before reading them." },
+    "denoise": { "type": "boolean", "description": "Reduce grain on noisy scans and photos of pages." },
+    "exportFormat": { "enum": ["pptx", "docx", "svg", "html", "otkd"] },
+    "exportDir": { "type": ["string", "null"] },
+    "fontsFolder": { "type": "boolean", "description": "Also write the fonts the design uses next to the exported file." },
+    "highlightLowConfidence": { "type": "boolean", "description": "Mark words the OCR was unsure of on the canvas." },
+    "snap": { "type": "boolean", "description": "Snap moved layers to page edges, centres and other layers." }
+  }
+}

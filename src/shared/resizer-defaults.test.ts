@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { clientIssues, RESIZER_DEFAULTS, toStoredSettings, withDefaults } from './resizer-defaults'
 
 const res = (p: string) => JSON.parse(readFileSync(resolve(__dirname, '../../resources', p), 'utf-8'))
-const schemas = ['resizer-settings.schema.json', 'converter-settings.schema.json', 'settings.schema.json', 'resizer-presets.schema.json'].map((n) => res(`schemas/${n}`))
+const schemas = ['resizer-settings.schema.json', 'converter-settings.schema.json', 'design-settings.schema.json', 'settings.schema.json', 'resizer-presets.schema.json'].map((n) => res(`schemas/${n}`))
 
 function ajv() {
   const a = new Ajv2020({ allErrors: true, strict: false })

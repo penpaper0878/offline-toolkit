@@ -63,7 +63,59 @@ export interface AppSettings {
     lastPresetId: string | null
   }
   converter: ConverterSettings
+  design: DesignSettings
   logging: { hashPaths: boolean }
+}
+
+export type DesignExportFormat = 'pptx' | 'docx' | 'svg' | 'html' | 'otkd'
+
+export interface DesignSettings {
+  languages: string[]
+  upscale: 'auto' | 'always' | 'never'
+  deskew: boolean
+  denoise: boolean
+  exportFormat: DesignExportFormat
+  exportDir: string | null
+  fontsFolder: boolean
+  highlightLowConfidence: boolean
+  snap: boolean
+}
+
+export interface DesignSummary {
+  id: string
+  name: string
+  modified: number
+  width: number
+  height: number
+  layers: number
+  thumbUrl: string | null
+}
+
+export interface DesignAnalyzeRequest {
+  jobId: string
+  source: string
+  options: Pick<DesignSettings, 'languages' | 'upscale' | 'deskew' | 'denoise'>
+}
+
+export interface DesignExportRequest {
+  id: string
+  scene: import('./design').DesignScene
+  format: DesignExportFormat
+  fontsFolder: boolean
+}
+
+export interface DesignExportResult {
+  path: string
+  notes: string[]
+  fonts: string[]
+}
+
+export interface DesignAccuracy {
+  ssim: number
+  alignment: number[] | string
+  regions: { x: number; y: number; w: number; h: number; pixels: number }[]
+  snapshots: string[]
+  meanDifference: number
 }
 
 export interface SettingsState {

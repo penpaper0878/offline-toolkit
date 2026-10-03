@@ -90,6 +90,9 @@
     },
     "converter": {
       "$ref": "otk://schemas/converter-settings.schema.json"
+    },
+    "design": {
+      "$ref": "otk://schemas/design-settings.schema.json"
     }
   }
 }

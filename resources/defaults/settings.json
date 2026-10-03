@@ -21,5 +21,9 @@
     "jpegQuality": 92, "paper": "a4", "notesPages": false, "pdfaEmbedSource": false, "keepPdfaId": true,
     "merge": false, "verifyAppearance": true, "txtSplitTabs": false, "txtLinesPerSlide": 20
   },
+  "design": {
+    "languages": ["eng"], "upscale": "auto", "deskew": true, "denoise": true, "exportFormat": "pptx", "exportDir": null,
+    "fontsFolder": false, "highlightLowConfidence": true, "snap": true
+  },
   "logging": { "hashPaths": false }
 }

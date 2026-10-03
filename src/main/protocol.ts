@@ -35,7 +35,8 @@ const byPath = new Map<string, string>()
 
 export function registerSchemes(): void {
   protocol.registerSchemesAsPrivileged([
-    { scheme: 'otk', privileges: { standard: true, secure: true, supportFetchAPI: false, stream: true, codeCache: true } }
+    // corsEnabled: fonts are always fetched in CORS mode (the design editor loads its fonts from otk://file).
+    { scheme: 'otk', privileges: { standard: true, secure: true, supportFetchAPI: false, corsEnabled: true, stream: true, codeCache: true } }
   ])
 }
 
@@ -74,7 +75,9 @@ export function handleProtocol(rendererDir: string): void {
     if (url.host === 'file') {
       const token = url.pathname.slice(1).replace(/\.[a-z0-9]+$/i, '')
       const path = files.get(token)
-      return path ? serve(path) : new Response('Not found', { status: 404 })
+      if (!path) return new Response('Not found', { status: 404 })
+      const font = /\.(ttf|otf|woff2?)$/i.test(path)
+      return serve(path, font ? { 'access-control-allow-origin': '*' } : {})
     }
     if (url.host === 'app') {
       const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '') || 'index.html'

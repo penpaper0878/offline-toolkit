@@ -5,6 +5,7 @@ import { type Page, useUi } from './lib/ui-store'
 import { Icon } from './components/Icon'
 import { Toasts } from './components/Toasts'
 import { ConverterPage, useConverterBoot } from './modules/converter/ConverterPage'
+import { DesignPage, dropToDesign, useDesignBoot } from './modules/design/DesignPage'
 import { useConverter } from './modules/converter/store'
 import { ResizerPage, useResizerBoot } from './modules/resizer/ResizerPage'
 import { useResizer } from './modules/resizer/store'
@@ -15,7 +16,7 @@ import { SettingsPage } from './pages/SettingsPage'
 const NAV: { page: Page; label: string; icon: string; phase?: number }[] = [
   { page: 'resizer', label: 'Image Resizer', icon: 'resize' },
   { page: 'converter', label: 'Document Converter', icon: 'convert' },
-  { page: 'design', label: 'Image to Design', icon: 'design', phase: 3 },
+  { page: 'design', label: 'Image to Design', icon: 'design' },
   { page: 'passport', label: 'Passport Photo', icon: 'passport', phase: 4 },
   { page: 'log', label: 'Event log', icon: 'log' },
   { page: 'settings', label: 'Settings', icon: 'settings' }
@@ -51,6 +52,13 @@ async function handleDrop(e: React.DragEvent): Promise<void> {
     if (item.webkitGetAsEntry()?.isDirectory) folders.push(path)
     else paths.push(path)
   }
+  // On the design page a picture is analysed and a .otkd design opens.
+  if (useUi.getState().page === 'design' && await dropToDesign(paths)) return
+  if (paths.some((p) => p.toLowerCase().endsWith('.otkd'))) {
+    useUi.getState().setPage('design')
+    await dropToDesign(paths)
+    return
+  }
   // Documents go to the converter; images go to the resizer unless the converter is open.
   const toConverter = useUi.getState().page === 'converter' || paths.some((p) => !IMAGE_RE.test(p))
   if (toConverter) {
@@ -80,6 +88,7 @@ export function App() {
   useTheme()
   useResizerBoot()
   useConverterBoot()
+  useDesignBoot()
 
   useEffect(() => {
     void useUi.getState().loadSettings().catch((e) => useUi.getState().reportError('Could not load settings', e))
@@ -89,7 +98,8 @@ export function App() {
     { keys: 'mod+l', run: () => setPage('log'), inInputs: true },
     { keys: 'mod+,', run: () => setPage('settings'), inInputs: true },
     { keys: 'mod+1', run: () => setPage('resizer'), inInputs: true },
-    { keys: 'mod+2', run: () => setPage('converter'), inInputs: true }
+    { keys: 'mod+2', run: () => setPage('converter'), inInputs: true },
+    { keys: 'mod+3', run: () => setPage('design'), inInputs: true }
   ])
 
   return (
@@ -117,14 +127,14 @@ export function App() {
           <>
             {page === 'resizer' && <ResizerPage />}
             {page === 'converter' && <ConverterPage />}
-            {page === 'design' && <ComingSoon title="Image to Editable Design" phase={3} />}
+            {page === 'design' && <DesignPage />}
             {page === 'passport' && <ComingSoon title="Passport Photo Maker" phase={4} />}
             {page === 'log' && <LogPage />}
             {page === 'settings' && <SettingsPage />}
           </>
         )}
       </div>
-      {dragging && <div className="drop-overlay" aria-hidden><div>{page === 'converter' ? 'Drop documents or a folder to convert them' : 'Drop images or a folder to add them'}</div></div>}
+      {dragging && <div className="drop-overlay" aria-hidden><div>{page === 'converter' ? 'Drop documents or a folder to convert them' : page === 'design' ? 'Drop a picture to turn it into an editable design' : 'Drop images or a folder to add them'}</div></div>}
       <Toasts />
     </div>
   )

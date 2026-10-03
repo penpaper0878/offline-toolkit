@@ -1,9 +1,11 @@
 /** The API the preload script exposes as `window.otk`. */
 
+import type { DesignScene, FontFamilyInfo, FontMetrics } from './design'
 import type {
   AppInfo, AppSettings, BatchRequest, BatchResult, BatchItem, ConvertRequest, ConvertResult, ConverterCatalog,
-  ConverterOptions, ConverterProgress, JobProgress, LogEntry, LogLevel, Preset, PresetState, PreflightResult,
-  PreviewResult, ProbeResult, ResizerSettings, SelfTestReport, SettingsState
+  ConverterOptions, ConverterProgress, DesignAccuracy, DesignAnalyzeRequest, DesignExportRequest, DesignExportResult,
+  DesignSummary, JobProgress, LogEntry, LogLevel, Preset, PresetState, PreflightResult, PreviewResult, ProbeResult,
+  ResizerSettings, SelfTestReport, SettingsState
 } from './types'
 
 export type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] }
@@ -46,6 +48,23 @@ export interface OtkApi {
     inspect(req: { paths: string[]; target: string; mode: string; options: ConverterOptions; passwords?: Record<string, string> }): Promise<{ files: PreflightResult[] }>
     run(req: ConvertRequest): Promise<ConvertResult>
     onProgress(cb: (p: ConverterProgress) => void): () => void
+  }
+  design: {
+    list(): Promise<DesignSummary[]>
+    remove(id: string): Promise<void>
+    pickImage(): Promise<string | null>
+    analyze(req: DesignAnalyzeRequest): Promise<{ id: string; scene: DesignScene }>
+    load(id: string): Promise<{ scene: DesignScene }>
+    save(id: string, scene: DesignScene): Promise<{ saved: boolean }>
+    accuracy(req: { jobId: string; id: string; scene: DesignScene }): Promise<DesignAccuracy>
+    assetUrl(id: string, rel: string): Promise<string>
+    importImage(id: string, path?: string | null): Promise<{ asset: string; width: number; height: number } | null>
+    cutout(req: { jobId: string; id: string; asset: string; mode: 'auto' | 'person' | 'subject' }): Promise<{ asset: string; method: string; coverage: number }>
+    fonts(): Promise<FontFamilyInfo[]>
+    fontFace(req: { family: string; weight: number; italic: boolean }): Promise<{ url: string; weight: number; italic: boolean; metrics: FontMetrics }>
+    exportAs(req: DesignExportRequest): Promise<DesignExportResult | null>
+    openFile(path?: string | null): Promise<{ id: string; scene: DesignScene } | null>
+    installFonts(scene: DesignScene): Promise<{ installed: string[]; where: string }>
   }
   jobs: {
     cancel(jobId: string): Promise<void>
@@ -101,5 +120,20 @@ export const IPC = {
   logAdd: 'log:add',
   logEntry: 'log:entry',
   selftestOffline: 'selftest:offline',
+  designList: 'design:list',
+  designDelete: 'design:delete',
+  designPickImage: 'design:pickImage',
+  designAnalyze: 'design:analyze',
+  designLoad: 'design:load',
+  designSave: 'design:save',
+  designAccuracy: 'design:accuracy',
+  designAssetUrl: 'design:assetUrl',
+  designImportImage: 'design:importImage',
+  designCutout: 'design:cutout',
+  designFonts: 'design:fonts',
+  designFontFace: 'design:fontFace',
+  designExport: 'design:export',
+  designOpenFile: 'design:openFile',
+  designInstallFonts: 'design:installFonts',
   cspViolation: 'guard:cspViolation'
 } as const

@@ -148,6 +148,11 @@ def analyze(source: str | Path, project: Path, *, langs: list[str] | None = None
                      f"({'Real-ESRGAN' if method == 'realesrgan' else 'Lanczos'}).")
     big_arr = np.asarray(analysis)
 
+    # Lines the OCR could not read (another script, handwriting): they stay part of the picture, untouched,
+    # instead of becoming wrong live text.
+    unreadable = [ln for ln in lines if not _readable(ln)]
+    lines = [ln for ln in lines if _readable(ln)]
+
     # 3. text removal ----------------------------------------------------------------------------
     stage("removal", 0.30, "Removing the text from the background")
     big_lines = [ln.scaled(factor) for ln in lines] if factor > 1 else lines
@@ -170,7 +175,8 @@ def analyze(source: str | Path, project: Path, *, langs: list[str] | None = None
 
     # 5. elements --------------------------------------------------------------------------------
     stage("elements", 0.50, "Finding shapes, icons and photos")
-    elements = el_mod.detect(clean, exclude=[t.box for t in tables])
+    keep = [tuple(int(round(v)) for v in ln.box) for ln in unreadable]
+    elements = el_mod.detect(clean, exclude=[t.box for t in tables] + keep)
     containers = [tuple(map(float, e.box)) for e in elements if e.kind == "shape" and e.fill]
     guides = [tuple(map(float, e.box)) for e in elements if e.kind == "line" and e.line[1] == e.line[3]]
 
@@ -275,6 +281,12 @@ def analyze(source: str | Path, project: Path, *, langs: list[str] | None = None
                                    source={"pixels": crop_name}))
     for blk in blocks:
         layers.append(_text_layer(blk, nid("text"), factor, scene["lowConfidence"]))
+    scene["unreadable"] = [{"box": [round(v, 1) for v in (ln.box[0], ln.box[1], ln.box[2] - ln.box[0], ln.box[3] - ln.box[1])],
+                            "text": ln.text, "conf": round(ln.conf, 3)} for ln in unreadable]
+    if unreadable:
+        x0, y0 = (int(v) for v in unreadable[0].box[:2])
+        notes.append(f"{len(unreadable)} line(s) could not be read and were left in the picture as they are (the first "
+                     f"at {x0}, {y0}). If they are in another language, add it under Reading options and analyse again.")
     scene["notes"] = notes
     scene["limits"] = _limits(blocks, tables, elements, langs, factor)
     timings["end"] = time.monotonic()
@@ -288,6 +300,21 @@ def analyze(source: str | Path, project: Path, *, langs: list[str] | None = None
     sc.save(scene, project / "scene.json")
     progress(1.0, "Done")
     return scene
+
+
+def _readable(ln: textdetect.TextLine) -> bool:
+    """False for a line whose reading is clearly wrong: a symbol or two, or a low-confidence fragment, where
+    the line is wide enough for many letters (typical of a script the selected languages do not cover)."""
+    x0, y0, x1, y1 = ln.box
+    h = max(1.0, min(y1 - y0, x1 - x0) if abs(ln.angle) > 45 else (y1 - y0))
+    expected = max(x1 - x0, y1 - y0) / (0.55 * h)
+    text = ln.text.strip()
+    letters = sum(ch.isalnum() for ch in text)
+    if not text or (letters == 0 and expected >= 3):
+        return False
+    if len(text) <= 2 and expected >= 6:
+        return False
+    return not (ln.conf < 0.5 and len(text) < 0.35 * expected)
 
 
 def _hex(rgb) -> str:
@@ -352,6 +379,7 @@ def _text_layer(blk: textstyle.TextBlock, lid: str, factor: float, low: list) ->
                    fontCandidates=[{**c.to_dict(), "size": round(c.size * k, 2)} for c in blk.candidates],
                    engine=blk.lines[0].line.engine)
     lyr["rotation"] = round(rotation, 2)
+    lyr["analysisBox"] = list(lyr["box"])   # the word boxes are relative to this frame
     return lyr
 
 
