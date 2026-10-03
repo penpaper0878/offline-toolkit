@@ -2,6 +2,94 @@
 
 Updated at the end of each phase. Every result below is from an actual run. Anything not run is listed as such.
 
+## Phase 3: Module 3 (Image to Editable Design), 2026-10-03
+
+### Environment
+
+- **Machine:** the same Linux container (Ubuntu 24.04, x86-64, 4 cores, 15 GB RAM), run as root, Xvfb for the app tests.
+- **Engines and assets here:** as in Phase 2, plus the bundled fonts (73 families, 71 MB) and models (5 MB) fetched by `scripts/fetch_fonts.py` and `scripts/fetch_models.py`. Tesseract languages installed here: eng, hin, ara, heb, tam.
+- **Ground truth:** `worker/tests/design_samples.py` draws four pictures and records every element: a poster (1200 × 1600: Latin and Hindi text in seven fonts, photo, star, badge, button, outline box, ellipse, rule, 4 × 3 table), a certificate (1100 × 780: script, serif and capitals fonts, double frame, seal, signature lines), a scanned page (A4 at 150 DPI, tilted 1.6°, noise σ 9, 3 × 3 table) and a 420 × 300 screenshot (13–18 px UI text).
+
+### Results
+
+| Suite | Command | Result |
+|---|---|---|
+| TypeScript typecheck | `npm run typecheck` | **pass** |
+| JavaScript unit tests (vitest), including the shared design geometry (text baselines, rotation, table cells) | `npm test` | **40 / 40 pass** |
+| Python tests (pytest): Phases 1–2 plus 25 design tests (13 unit, 12 on the ground-truth samples: every layer checked against the truth, exports drawn back and compared, project file round trip) | `npm run test:py` | **212 / 212 pass**, none skipped |
+| End-to-end, real app + worker (Playwright): resizer ×2, converter, design ×2 (analyse a poster, edit, check, export every format; edit on the canvas: drag, type in place, recolour, table cells, cut-out, layer controls) | `npm run test:e2e` | **5 / 5 pass** (the packaged-app test runs on Windows only) |
+| Same converter and design app tests, repeated three times each | `playwright test … --repeat-each=3` | **9 / 9 pass** (after fixing the two faults this found, listed below) |
+| Ubuntu and Windows CI, packaged Windows app | `.github/workflows/ci.yml`, `release.yml` | see *Windows packaging (Phase 3)* below |
+
+### Analysis accuracy on the ground-truth samples
+
+| | poster | certificate | scan | small (13 px) | all |
+|---|---|---|---|---|---|
+| Text lines read exactly | 7 / 7 | 6 / 6 | 2 / 2 | 5 / 5 | **20 / 20** |
+| Font family | 7 / 7 | 6 / 6 | 2 / 2 | 4 / 5 | **19 / 20** |
+| Weight and italic | 7 / 7 | 6 / 6 | 2 / 2 | 4 / 5 | **19 / 20** |
+| Size within 5% | 7 / 7 | 6 / 6 | 2 / 2 | 4 / 5 | **19 / 20** |
+| Colour (sum of RGB differences ≤ 12) | 7 / 7 | 6 / 6 | 1 / 2 | 5 / 5 | **19 / 20** |
+| Alignment | 7 / 7 | 6 / 6 | 2 / 2 | 5 / 5 | **20 / 20** |
+
+- The one miss on the small screenshot is the 14 px bold "Notifications": Roboto 500 at 15 px instead of Inter 600 at 14 px (the label is short and the two faces are close at that size). The scan's body text measures #0a0a0a instead of #111111 after denoising the grain.
+- Every shape, rule, frame, graphic, photo and table cell in the truth files is found with the right kind, colours and stroke widths (`test_design_pipeline.py`); the scan is straightened by −1.6°; the screenshot is read on a 2× Real-ESRGAN copy.
+- **Rebuilt design vs picture** (the scene drawn by Chromium from its SVG, compared like the converter's appearance check): poster SSIM 0.988, certificate 0.982, scan 0.984, small 0.988; no missing or extra marks except 3 small areas on the scan, where the title is 2% wider than the original (size 57 vs 56 px on the noisy page).
+- **Exports drawn back vs the rebuilt design:** PPTX (LibreOffice) 0.980–0.993, DOCX (LibreOffice) 0.977–0.995, HTML (Chromium) 0.979–0.989, no missing marks. DOCX also renders correctly with no fonts installed (the embedded fonts are used: SSIM 0.990 poster, 0.988 certificate).
+- **A language not selected:** the poster analysed with English only leaves the Hindi line in the picture untouched and lists it under *Check → Not read* (before the fix it became "#" and was erased).
+- **JPEG and large pictures:** the poster saved as JPEG at quality 70, and the poster enlarged to 3000 × 4000 (analysed at 2250 × 3000), give the same layers as the original: all 7 text lines (Hindi included), button, outline box, both ellipses, rule, star, tick, photo and table, with stroke widths within 0.6 px (JPEG) and 1.2 px (enlarged) of the truth (`test_jpeg_compressed_poster`, `test_large_picture_is_analysed_at_working_size`).
+
+### Measured performance (Linux container, idle, one analysis at a time)
+
+| Case | Analysis time | Peak memory (worker) | Layers |
+|---|---|---|---|
+| Poster 1200 × 1600, English + Hindi | 26.7 s (OCR 9.1 s, fonts and styles 10.6 s) | 0.48 GB | 17 |
+| Certificate 1100 × 780 | 9.3 s | 0.40 GB | 13 |
+| Scanned A4 page (150 DPI, tilted, grainy) | 17.9 s | 0.52 GB | 4 |
+| Screenshot 420 × 300 (13–18 px text, 2× super-resolution) | 9.6 s | 0.43 GB | 9 |
+| Poster enlarged to 3000 × 4000 (12 MP) | 43.2 s | 0.91 GB | 17 |
+
+- **Check against the original** (the *Check* tab: the design drawn by Chromium and compared): 6.1 s for the poster, 11.1 s for the 12 MP one.
+- **Exports** of the poster: PowerPoint 0.1 s (0.47 MB), Word 0.2 s (1.5 MB, fonts embedded), SVG 2.4 s (0.65 MB) and HTML 4.0 s (0.76 MB) with WOFF2 font subsets, project file 0.0 s (1.5 MB). The 12 MP version: 0.2–3.8 s, 2.8–7.7 MB.
+- Analysing the same picture again (for example after changing an option that does not affect reading) reuses the cached preparation, OCR and super-resolution: the poster then takes 18.3 s instead of 26.7 s.
+- Everything stays far below the 8 GB target: the largest peak is 0.91 GB, for a 12 MP picture.
+
+
+### Windows packaging (Phase 3)
+
+*Filled in from the CI and release runs of this version.*
+
+### Found and fixed in this phase
+
+- **Converter deskew (Phase 2 bug):** tilted scans were rotated the wrong way, doubling the tilt. Fixed and tested.
+- **Font weights one step heavy** (Open Sans 400 read as 500, 13 px Inter 600 as 700): shape overlap favours heavier faces; the weight is now chosen by ink coverage.
+- **Small caption sizes 10% low** (Lora 22 px read as 19.7): hinting snaps small heights; the size now also uses the line's width.
+- **Element masks shifted by one pixel:** OpenCV anchors a 2 × 2 kernel off-centre, so an opening moved every mask; replaced by an anchored opening.
+- **A filled button found as a table, a frame inside a frame merged into one element, a 1 px input-box outline erased, a header bar at the page edge treated as background, an icon on a button found twice**: each fixed in the element and table stages, with a test.
+- **Small-text colours too dark** when read from the super-resolved copy: colours and weights are measured on the original pixels.
+- **Canvas fonts failed to load** in the app ("A network error occurred"): fonts load in CORS mode; the `otk://` scheme is now CORS-enabled for font files.
+- **A stale accuracy score** after edits: the score is marked out of date until checked again.
+- **Red and blue swapped for the OCR detector:** RapidOCR takes NumPy images as BGR and was given RGB. Fixed; detection now sees the true colours.
+- **Hindi lines missed by PP-OCR's detector** (trained on Latin and Chinese; whether it finds a Devanagari line depends on colours and size): when another script is chosen, Tesseract's line finder runs too and its lines in that script are merged in.
+- **Large pictures** (3000 × 4000): 154 s, 1.3 GB, a slow texture fill (98 s) and halo slivers turned into stray layers. Now analysed at up to 3000 px with photos cut from full resolution (45 s, 0.9 GB), large regions skip the slow fill, and edges are judged on a smoothed copy.
+- **JPEG ringing** turned an outline box and a rule into noisy graphics, a tick into a "photo", and left slivers along shape edges. Fixed with edge-preserving smoothing for the shape tests, sliver suppression, and a wider clean-up around removed elements.
+- **Shapes read as letters** (a ring as "O", a tick as "V"): low-confidence one- or two-character readings in squarish areas go to shape detection.
+- **Text in an unselected script that the OCR did not even detect** became a row of traced graphics without any note; such rows are now reported as lines not read.
+- **The analysis cache** could return results from an older pipeline version (or another working size); its keys now carry a version and the working size.
+- **Edits could be reported "Not saved"** (found by repeating the app tests): two autosaves running at once shared one temporary file, so the second failed. Saves now run one at a time and in order in the app, and the worker writes each through its own temporary file.
+- **The design start page sent requests in an endless loop** (the list of designs and the OCR languages, over 100 queued at once), which slowed the worker and once made a test time out. It now loads them once.
+
+### Known limits (Module 3)
+
+- Handwriting, heavily decorative or distorted lettering and text on curves are not rebuilt as live text (a line the OCR cannot read stays in the picture and is listed).
+- Gradients and shading inside graphics become flat colour bands when traced; the original pixels are kept with each graphic (*Use original pixels instead*).
+- Text over a photo is removed by estimation and can leave smudges; textured backgrounds use xphoto FSR, which is weaker than a learned inpainter (Lite bundle: no LaMa).
+- Short labels in small UI text can get a near-identical family (Roboto for Inter); the inspector lists the closest matches.
+- Tables are found from ruled lines only; borderless tables become text layers.
+- CJK fonts are not bundled (Lite bundle): Chinese text uses the fonts installed in Windows.
+- PowerPoint uses installed fonts (*Install the fonts* adds them for the user); text placement in Word and PowerPoint follows the rules measured in LibreOffice, and could differ by a fraction of a line in Microsoft Office, which is not available in this environment.
+- Cut-outs of objects with fine or hairy edges (non-person) can need touching up; there is no brush yet, only *Restore original*.
+
 ## Phase 2: Module 2 (Document Converter), 2026-10-01
 
 ### Environment
