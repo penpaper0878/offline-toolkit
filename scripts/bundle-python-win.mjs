@@ -2,7 +2,7 @@
 /**
  * Build the Python runtime that ships inside the Windows app:
  * build/python-win = official CPython 3.11 embeddable package + the worker's
- * wheels (win_amd64) in Lib/site-packages.
+ * wheels (win_amd64) in Lib/site-packages + FriBiDi for Pillow's text shaping.
  *
  * The embeddable package uses python311._pth instead of PYTHONPATH: it lists
  * the worker folder (resources/worker, two levels up from
@@ -19,6 +19,7 @@ import { dirname, join } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
+import { fetchFribidi } from './fetch-fribidi-win.mjs'
 
 const PY_VERSION = '3.11.9' // last 3.11 release with Windows binaries
 const URL = `https://www.python.org/ftp/python/${PY_VERSION}/python-${PY_VERSION}-embed-amd64.zip`
@@ -90,6 +91,9 @@ async function main() {
     '--target', join(target, 'Lib', 'site-packages'),
     '--platform', 'win_amd64', '--python-version', '3.11', '--implementation', 'cp', '--abi', 'cp311',
     '--only-binary=:all:', '--find-links', wheels, '-r', join(root, 'worker', 'requirements-nodeps.txt')])
+
+  // FriBiDi next to python.exe, where Windows looks first: Pillow needs it to shape text (see the script).
+  await fetchFribidi(target)
 
   // Drop caches and bundled test suites (not needed at run time).
   const prune = (p) => {

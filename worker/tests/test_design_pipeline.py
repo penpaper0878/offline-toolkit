@@ -44,6 +44,38 @@ def _same_color(a: str, b: str, tol: int = 12) -> bool:
     return sum(abs(int(a[i:i + 2], 16) - int(b[i:i + 2], 16)) for i in (1, 3, 5)) <= tol
 
 
+def _text_offsets(scene: dict, a, b, reach: int = 10) -> list[str]:
+    """For a failure message: where each text layer of picture `b` sits relative to `a`.
+
+    "name dx,dy left%" = the shift (px) that best lines the layer's ink up, and how much of the
+    difference is left after shifting (0% = only moved; high = different glyphs, size or font).
+    """
+    import numpy as np
+
+    A = 255 - np.asarray(a.convert("L"), dtype=np.int32)
+    B = 255 - np.asarray(b.convert("L"), dtype=np.int32)
+    H, W = A.shape
+    out = []
+    for lyr in scene["layers"]:
+        if lyr["type"] != "text":
+            continue
+        x, y, w, h = (int(round(v)) for v in lyr["box"])
+        x, y = max(x, reach), max(y, reach)
+        w, h = min(w, W - reach - x), min(h, H - reach - y)
+        if w <= 0 or h <= 0:
+            continue
+        ref = A[y:y + h, x:x + w]
+        errs = {(dx, dy): int(np.abs(B[y + dy:y + dy + h, x + dx:x + dx + w] - ref).sum())
+                for dy in range(-reach, reach + 1) for dx in range(-reach, reach + 1)}
+        (dx, dy), best = min(errs.items(), key=lambda kv: kv[1])
+        out.append(f"{lyr['name'][:24]!r} {dx:+d},{dy:+d} left {100 * best / max(errs[0, 0], 1):.0f}%")
+    return out
+
+
+def _regions(r: dict) -> list[tuple]:
+    return [(g["x"], g["y"], g["w"], g["h"]) for g in r["regions"]]
+
+
 def test_every_text_line_is_read_and_styled(analysed):
     total = {"n": 0, "family": 0, "weight": 0, "size": 0, "color": 0, "align": 0}
     misses = []
@@ -163,13 +195,18 @@ def test_cache_makes_a_second_analysis_identical(analysed):
 def test_rebuilt_design_looks_like_the_picture(analysed):
     from otk_worker.design import verify
 
-    results = {}
+    from PIL import Image
+
+    results, detail = {}, {}
     for name, (proj, scene, _) in analysed.items():
         r = verify.accuracy(scene, proj)
         results[name] = (r["ssim"], len(r["regions"]))
+        if r["ssim"] < 0.98 or len(r["regions"]) > 3:
+            detail[name] = (_regions(r), _text_offsets(scene, Image.open(proj / "assets" / "prepared.png"),
+                                                       Image.open(proj / "cache" / "render" / "drawn.png")))
     for name, (ssim, regions) in results.items():
-        assert ssim >= 0.98, results
-        assert regions <= 3, results
+        assert ssim >= 0.98, (results, detail)
+        assert regions <= 3, (results, detail)
 
 
 @needs_chromium
@@ -194,7 +231,7 @@ def test_office_exports_look_like_the_design(analysed, tmp_path):
             project.export(proj, scene, fmt, out)
             img = verify.render_office(out, W, H, scene=scene)
             r = verify.compare(drawn, img)
-            assert r["ssim"] >= 0.975 and len(r["regions"]) <= 2, (name, fmt, r["ssim"], r["regions"])
+            assert r["ssim"] >= 0.975 and len(r["regions"]) <= 2, (name, fmt, r["ssim"], _regions(r), _text_offsets(scene, drawn, img))
         # HTML in Chromium.
         from otk_worker.converter import chromium
         from otk_worker.design import layout

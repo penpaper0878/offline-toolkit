@@ -31,6 +31,13 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo chown root:root node_modules/electron/dist/chrome-sandbox && sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
       - run: npm run setup:py
+      # Pillow loads FriBiDi at run time for text shaping (Indic conjuncts, Arabic joining, kerning), and
+      # Windows has none: the app bundles it next to its Python (scripts/fetch-fribidi-win.mjs); here it goes on PATH.
+      - name: FriBiDi for Pillow (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          node scripts/fetch-fribidi-win.mjs build/fribidi-win
+          Add-Content -Path $env:GITHUB_PATH -Value (Resolve-Path build/fribidi-win).Path
 
       # Module 3: the bundled fonts (google/fonts at a pinned commit, checked against scripts/fonts.lock.json)
       # and models (Real-ESRGAN converted to ONNX, MediaPipe selfie segmenter), cached per OS.
@@ -66,7 +73,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends libreoffice-core libreoffice-writer libreoffice-calc \
             libreoffice-impress libreoffice-draw ghostscript tesseract-ocr tesseract-ocr-hin tesseract-ocr-ara \
             tesseract-ocr-heb tesseract-ocr-tam default-jre-headless fonts-noto-core fonts-crosextra-carlito \
-            fonts-crosextra-caladea fonts-liberation2 fonts-dejavu-core xvfb
+            fonts-crosextra-caladea fonts-liberation2 fonts-dejavu-core libfribidi0 xvfb
           python scripts/fetch_engines.py --platform linux-x64
       - name: Restore engines (Windows)
         if: runner.os == 'Windows'
@@ -86,6 +93,8 @@ jobs:
           path: engines/win-x64
           key: engines-win-x64-${{ hashFiles('scripts/fetch_engines.py') }}
 
+      - name: Pillow shapes text (raqm with FriBiDi)
+        run: node scripts/run-python.mjs -c "from PIL import features; assert features.check('raqm'), 'Pillow cannot shape text: FriBiDi missing'; print('raqm', features.version('raqm'), 'fribidi', features.version('fribidi'))"
       - run: npm run typecheck
       - run: npm test
       - run: npm run test:py

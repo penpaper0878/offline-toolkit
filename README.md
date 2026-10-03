@@ -37,6 +37,7 @@ npm start              # runs the built app
 **Conversion engines (Module 2) in development.** The converter needs LibreOffice, Pandoc, Ghostscript, Tesseract, Java + veraPDF and resvg. The app looks in `engines/<platform>/` first (or `OTK_ENGINES`), then on `PATH`.
 
 - Windows: `python scripts/fetch_engines.py --platform win-x64` fetches all of them into `engines\win-x64\` (uses Chocolatey for LibreOffice, Ghostscript, Tesseract and Java; about 1 GB of downloads).
+- Windows, for the design module: `node scripts/fetch-fribidi-win.mjs build\fribidi-win`, then add that folder to `PATH`. Pillow needs FriBiDi to shape text (Hindi, Arabic, kerning); the packaged app has it next to its Python.
 - Linux: install `libreoffice`, `ghostscript`, `tesseract-ocr` (+ the language packs you want) and a Java runtime with your package manager, then `python3 scripts/fetch_engines.py --platform linux-x64` for Pandoc, veraPDF and resvg.
 
 Settings → *Conversion engines* shows what was found and where.

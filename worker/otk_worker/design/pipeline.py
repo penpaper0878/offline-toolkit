@@ -319,6 +319,11 @@ def analyze(source: str | Path, project: Path, *, langs: list[str] | None = None
         x0, y0 = (int(v) for v in unreadable[0].box[:2])
         notes.append(f"{len(unreadable)} line(s) could not be read and were left in the picture as they are (the first "
                      f"at {x0}, {y0}). If they are in another language, add it under Reading options and analyse again.")
+    from PIL import features
+
+    if not features.check("raqm"):   # FriBiDi missing (the Windows app bundles it next to its Python)
+        notes.append("Text shaping is not available (no FriBiDi library), so fonts were matched on unshaped text: "
+                     "font, size and weight can be less accurate, above all for Indic, Arabic and Hebrew text.")
     scene["notes"] = notes
     scene["limits"] = _limits(blocks, tables, elements, langs, factor)
     timings["end"] = time.monotonic()

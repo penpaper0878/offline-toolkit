@@ -60,7 +60,7 @@ Carlito, Caladea, Arimo, Tinos and Cousine have the metrics of Calibri, Cambria,
 **Differences from the plan below:**
 
 - **No layout model.** Text comes from OCR line boxes; tables from ruled-line detection; shapes, lines, graphics and photos from colour regions of the text-free picture, tested against ideal shapes. PP-DocLayout / SLANet+ (`rapid-layout`, `rapid-table`) and MediaPipe as a package are not bundled.
-- **No HarfBuzz package.** Pillow's raqm layout (HarfBuzz + FriBiDi inside Pillow's wheels) shapes text for font matching.
+- **No HarfBuzz package.** Pillow's raqm layout shapes text for font matching. Pillow's wheels contain HarfBuzz and libraqm but load **FriBiDi** 1.0.17 (LGPL-2.1-or-later) at run time: Linux has it (`libfribidi0`), and for Windows `scripts/fetch-fribidi-win.mjs` takes conda-forge's build (SHA-256 pinned, 0.1 MB) and puts `fribidi-0.dll` next to the bundled `python.exe`, with its licence. Without it, text is measured unshaped and the analysis says so in its notes.
 - **Cut-outs** use the MediaPipe selfie segmenter for people and GrabCut for objects (MODNet arrives with Module 4 if needed).
 - **Inpainting** adds a smooth-surface fill (quadratic fit plus matched grain) for plain and gradient backgrounds, the commonest case on designed pages, besides Telea and xphoto FSR.
 
@@ -132,7 +132,7 @@ Carlito, Caladea, Arimo, Tinos and Cousine have the metrics of Calibri, Cambria,
 | **Pandoc** | GPL-2.0+ | Separate executable (aggregation) | Ship its license and corresponding source (or a written offer) | Low |
 | veraPDF | GPL-3.0+ / MPL-2.0 | Separate process | Choose MPL-2.0: ship the license, plus source for any files we modify (none) | Low |
 | Temurin JRE | GPL-2.0 + Classpath Exception | Separate runtime | Ship the license | Low |
-| libheif / libde265 (pi-heif), FFmpeg (OpenCV, Electron) | LGPL | Dynamic libraries | Ship licenses, keep them replaceable (they are separate DLLs), offer source | Low |
+| libheif / libde265 (pi-heif), FFmpeg (OpenCV, Electron), FriBiDi (Pillow, Windows build) | LGPL | Dynamic libraries | Ship licenses, keep them replaceable (they are separate DLLs), offer source | Low |
 | img2pdf | LGPL-3.0 | Python module (replaceable file) | Ship the license | Low |
 | LibreOffice, pikepdf, OCRmyPDF | MPL-2.0 | Separate process / library | Ship licenses, plus source of any MPL files we modify (none planned) | Low |
 

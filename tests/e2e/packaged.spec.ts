@@ -98,7 +98,11 @@ print(json.dumps({k: str(v) for k, v in corpus.build(Path(sys.argv[1]), legacy=F
     }
 
     // Module 3 with the bundled Python, fonts and models: analyse a poster, cut out its photo, check it
-    // against the picture (the app's Chromium) and export Word (fonts embedded).
+    // against the picture (the app's Chromium) and export Word (fonts embedded). The bundled Pillow must
+    // shape text (FriBiDi next to python.exe), or Hindi and Arabic are measured unshaped.
+    expect(py<boolean>(`import json
+from PIL import features
+print(json.dumps(features.check('raqm')))`)).toBe(true)
     const poster = py<string>(`import sys, json
 sys.path.insert(0, ${JSON.stringify(join(ROOT, 'worker', 'tests'))})
 import design_samples
