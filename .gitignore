@@ -17,3 +17,4 @@ playwright-report/
 build/cache/
 build/python-win/
 worker/tests/golden/**/*.actual.png
+worker/tests/golden/**/*.diff.png

@@ -113,7 +113,10 @@ jobs:
         if: always()
         with:
           name: test-results-${{ matrix.os }}
-          path: test-results/
+          path: |
+            test-results/
+            worker/tests/golden/**/*.actual.png
+            worker/tests/golden/**/*.diff.png
           if-no-files-found: ignore
 
   # Every route on the sample corpus (about 270 conversions), on demand or with [matrix] in the commit message.

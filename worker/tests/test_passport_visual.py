@@ -41,11 +41,15 @@ needs_models = pytest.mark.skipif(
     reason="face and segmentation models not fetched (python scripts/fetch_models.py)")
 
 
-def _compare(name: str, img: Image.Image, min_ssim: float, max_side: int = 1024) -> float:
+def _compare(name: str, img: Image.Image, min_ssim: float, max_side: int = 1024, info: dict | None = None) -> float:
+    """Compare with the reference picture; `info` (measurements) is stored next to it and shown on failure."""
     path = GOLD / f"{name}.png"
+    meta = path.with_suffix(".json")
     if UPDATE:
         GOLD.mkdir(parents=True, exist_ok=True)
         img.save(path, optimize=True)
+        if info is not None:
+            meta.write_text(json.dumps(info, indent=1, sort_keys=True) + "\n")
         return 1.0
     if not path.is_file():
         pytest.fail(f"No reference picture {path.name}; create it with OTK_UPDATE_GOLDEN=1 and review it.")
@@ -53,9 +57,22 @@ def _compare(name: str, img: Image.Image, min_ssim: float, max_side: int = 1024)
     assert ref.size == img.size, f"{name}: {img.size} instead of {ref.size}"
     s = ssim(ref, img.convert("RGB"), max_side)
     if s < min_ssim:
-        img.save(path.with_name(f"{name}.actual.png"))     # for review; ignored by git
-    assert s >= min_ssim, f"{name}: SSIM {s:.4f} < {min_ssim} against the reference (saved {name}.actual.png)"
+        # For review (ignored by git, uploaded by CI): the new picture and the difference, 4x amplified.
+        img.save(path.with_name(f"{name}.actual.png"))
+        diff = np.abs(np.asarray(ref, np.int16) - np.asarray(img.convert("RGB"), np.int16)).max(2)
+        Image.fromarray(np.clip(diff * 4, 0, 255).astype(np.uint8)).save(path.with_name(f"{name}.diff.png"))
+        was = json.loads(meta.read_text()) if meta.is_file() else None
+        pytest.fail(f"{name}: SSIM {s:.4f} < {min_ssim} against the reference (saved {name}.actual.png and .diff.png)\n"
+                    f"  now:       {json.dumps(info, sort_keys=True)}\n  reference: {json.dumps(was, sort_keys=True)}")
     return s
+
+
+def _measures(m: dict) -> dict:
+    keep = ("head", "headPercent", "crownFrom", "crown", "chin", "eyeLine", "topMargin", "bottomMargin", "eyeTilt",
+            "uncovered", "personCut", "place")
+    r = lambda v: [r(x) for x in v] if isinstance(v, list) else ({k: r(x) for k, x in v.items()} if isinstance(v, dict)  # noqa: E731
+                                                                 else float(f"{v:.6g}") if isinstance(v, float) else v)
+    return {k: r(m[k]) for k in keep if k in m}
 
 
 def test_crop_matches_the_reference():
@@ -85,9 +102,9 @@ def test_passport_photo_matches_the_reference(spec_id, px, tmp_path):
     assert (rb["width"], rb["height"]) == px
     im = Image.open(out)
     assert tuple(round(v) for v in im.info["dpi"]) == (300, 300)
-    _compare(f"photo-{spec_id}", im.convert("RGB"), 0.97)
-    # The head sits inside the spec's range and the photo is fitted the same way as when the reference was made.
+    # The head sits inside the spec's range, and the picture matches the reference.
     rr = R.render(S.get(o["id"]), crop, None, R.Spec.parse(spec), background=WHITE)
+    _compare(f"photo-{spec_id}", im.convert("RGB"), 0.97, info=_measures(rr.measures))
     h = {x["id"]: x for x in rr.hints}
     assert h["head"]["level"] == "ok" and h["centre"]["level"] == "ok" and h["frame"]["level"] == "ok"
 

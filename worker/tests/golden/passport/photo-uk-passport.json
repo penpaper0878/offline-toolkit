@@ -1,0 +1,25 @@
+{
+ "bottomMargin": 7.806,
+ "chin": [
+  208.9,
+  438.8
+ ],
+ "crown": [
+  211.4,
+  66.8
+ ],
+ "crownFrom": "skull",
+ "eyeLine": 24.642,
+ "eyeTilt": 0.0,
+ "head": 31.5,
+ "headPercent": 70.0,
+ "personCut": 0.0,
+ "place": {
+  "angle": 0.268541,
+  "scale": 0.00216533,
+  "x": 0.499021,
+  "y": 0.710976
+ },
+ "topMargin": 5.652,
+ "uncovered": 0.0736
+}
