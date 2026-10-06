@@ -67,6 +67,9 @@ JRE_MODULES = ["java.base", "java.compiler", "java.datatransfer", "java.desktop"
 TESS_LANGS = ["eng", "osd", "hin", "mar", "san", "nep", "ben", "guj", "pan", "tam", "tel", "kan", "mal", "ori", "urd",
               "ara", "heb"]
 
+# The mature LibreOffice series (TDF's "still" branch), the one the converter's tests were tuned on; a new feature
+# series (x.8.0, x.2.0) waits until it has had its bug-fix releases.
+LIBREOFFICE_SERIES = "26.2"
 TDF_ARCHIVE = "https://downloadarchive.documentfoundation.org/libreoffice/old/"
 ADOPTIUM = ("https://api.adoptium.net/v3/assets/latest/21/hotspot?architecture=x64&image_type=jdk&os=windows"
             "&vendor=eclipse")
@@ -151,14 +154,22 @@ def get(file: dict) -> Path:
 Resolved = tuple[str, list[dict]]
 
 
+def _vkey(name: str) -> tuple[int, ...]:
+    return tuple(int(n) for n in re.findall(r"\d+", name))
+
+
 def _github_latest(repo: str, pattern: str) -> tuple[dict, dict]:
-    for rel in json.loads(text(f"https://api.github.com/repos/{repo}/releases?per_page=20")):
-        if rel.get("draft") or rel.get("prerelease"):
-            continue
-        for asset in rel.get("assets", []):
-            if re.fullmatch(pattern, asset["name"]):
-                return rel, asset
-    raise SystemExit(f"no release of {repo} has a file matching {pattern}")
+    """The highest-numbered file matching `pattern` among the repository's published (non-draft, non-pre-) releases."""
+    found = []
+    for rel in json.loads(text(f"https://api.github.com/repos/{repo}/releases?per_page=100")):
+        hits = [a for a in rel.get("assets", []) if re.fullmatch(pattern, a["name"])]
+        log(f"  {repo} {rel.get('tag_name')}: {'draft ' if rel.get('draft') else ''}"
+            f"{'pre-release ' if rel.get('prerelease') else ''}{', '.join(a['name'] for a in hits) or '-'}")
+        if not (rel.get("draft") or rel.get("prerelease")):
+            found += [(rel, a) for a in hits]
+    if not found:
+        raise SystemExit(f"no release of {repo} has a file matching {pattern}")
+    return max(found, key=lambda ra: _vkey(ra[1]["name"]))
 
 
 def _asset(asset: dict) -> dict:
@@ -198,9 +209,12 @@ def resolve_resvg(plat: str) -> Resolved:
 
 
 def resolve_libreoffice(plat: str) -> Resolved:
-    """The newest release in The Document Foundation's archive (permanent URLs, unlike the mirrors)."""
+    """The newest release of the LIBREOFFICE_SERIES in The Document Foundation's archive (permanent URLs, unlike
+    the mirrors, which drop a release when the next one comes out)."""
     found = re.findall(r'href="(\d+\.\d+\.\d+\.\d+)/"', text(TDF_ARCHIVE))
-    for v in sorted({tuple(int(p) for p in v.split(".")) for v in found}, reverse=True)[:6]:
+    series = tuple(int(p) for p in LIBREOFFICE_SERIES.split("."))
+    candidates = {tuple(int(p) for p in v.split(".")) for v in found}
+    for v in sorted((c for c in candidates if c[:2] == series), reverse=True)[:6]:
         ver = ".".join(map(str, v))
         folder = f"{TDF_ARCHIVE}{ver}/win/x86_64/"
         try:
@@ -210,7 +224,7 @@ def resolve_libreoffice(plat: str) -> Resolved:
         m = re.search(r'href="(LibreOffice_[\d.]+_Win_x86-64\.msi)"', listing)
         if m:
             return f"LibreOffice {ver}", [{"name": m.group(1), "url": folder + m.group(1)}]
-    raise SystemExit("no LibreOffice MSI found in the archive")
+    raise SystemExit(f"no LibreOffice {LIBREOFFICE_SERIES} MSI found in the archive")
 
 
 def resolve_ghostscript(plat: str) -> Resolved:
@@ -255,6 +269,9 @@ LOCKED = {"win-x64": ["python", "pandoc", "verapdf", "resvg", "libreoffice", "gh
 
 
 def relock(plat: str, names: list[str]) -> None:
+    names = [n for n in names if n in LOCKED[plat]]
+    if not names:
+        return
     lock = json.loads(LOCK.read_text(encoding="utf-8")) if LOCK.exists() else {}
     section = lock.setdefault(plat, {})
     for name in names:

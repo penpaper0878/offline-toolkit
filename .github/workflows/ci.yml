@@ -8,7 +8,7 @@ on:
 jobs:
   test:
     # A [relock] commit only rewrites scripts/engines.lock.json (engines-lock.yml); CI runs on the commit after it.
-    if: "!contains(github.event.head_commit.message, '[relock]')"
+    if: "!contains(github.event.head_commit.message, '[relock')"
     strategy:
       fail-fast: false
       matrix:

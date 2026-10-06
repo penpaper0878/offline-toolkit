@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   relock:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[relock]')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[relock')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,9 +25,12 @@ jobs:
       - name: Resolve, download and hash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          python scripts/fetch_engines.py --platform win-x64 --relock
-          python scripts/fetch_engines.py --platform linux-x64 --relock
+          # [relock:libreoffice,tesseract] re-resolves only those components.
+          ONLY=$(printf '%s' "$MESSAGE" | grep -oP '\[relock:\K[a-z,]+(?=\])' || true)
+          python scripts/fetch_engines.py --platform win-x64 --relock ${ONLY:+--components "$ONLY"}
+          python scripts/fetch_engines.py --platform linux-x64 --relock ${ONLY:+--components "$ONLY"}
           python -c "import json; l = json.load(open('scripts/engines.lock.json')); [print(f'::notice title=engines.lock {p}::' + '; '.join(f'{n}: {e[\"version\"]}' for n, e in l[p].items())) for p in ('win-x64', 'linux-x64')]"
       - name: Commit the lock
         run: |
