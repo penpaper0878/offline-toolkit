@@ -1,6 +1,6 @@
 # Offline Toolkit — Phase 0: architecture
 
-Status: decisions confirmed on 2026-09-30 (§0). **Phases 1–3 (Modules 1–3) are implemented** (Module 2 as built: §7.7; Module 3 as built: §8.1); test results are in [TEST_REPORT.md](TEST_REPORT.md). The Module 2 route planner is written and tested, because the conversion matrix is generated from it (see [CONVERSION_MATRIX.md](CONVERSION_MATRIX.md)).
+Status: decisions confirmed on 2026-09-30 (§0). **All five phases are implemented (v1.0.0)**: Module 2 as built §7.7, Module 3 §8.1, Module 4 §9.1, the merged app and its home screen §11.1, offline proof as built §4.1, large files §5.1, packaging §15.1. Test results are in [TEST_REPORT.md](TEST_REPORT.md). The Module 2 route planner is written and tested, because the conversion matrix is generated from it (see [CONVERSION_MATRIX.md](CONVERSION_MATRIX.md)).
 
 **Phase 1 implementation notes (differences from the plan below, all intentional):**
 
@@ -132,6 +132,12 @@ flowchart LR
   - **Linux:** the whole test suite runs inside `unshare -rn` (a network namespace with no interfaces). Any engine that needed the network would fail the tests.
   - **Windows** (`windows-latest` runner): an outbound-block firewall rule for the app folder, plus Windows Filtering Platform auditing (`auditpol /set /subcategory:"Filtering Platform Connection" /failure:enable`). Afterwards the test fails if event 5157 lists any toolkit process.
 
+### 4.1 As built
+
+- **Where the self-tests live.** Settings → *Run offline self-test* runs the canary checks (renderer fetch, main-process `https`, Python socket, Java, a LibreOffice document with a remote image, and more; it passes only if every attempt is blocked and logged). Settings → *Check every module* (Phase 5) runs one small real job per module with the network blocked: resize to a size limit, Word → validated PDF/A-2b, OCR, HTML → EPUB, HTML → PDF in the app's Chromium, SVG → PNG, a poster read into layers, super-resolution, a person cut-out and a passport photo (10 checks, 10–30 s), then confirms that no guard logged a violation while they ran. There is no Help menu and no `npm run selftest:offline`; the end-to-end tests drive both buttons.
+- **No connection sampler.** The `psutil.net_connections` sampler was not built: the guards' logs, the canaries and the OS-level runs below proved enough, and a sampler would add a dependency that can only ever give evidence, not proof.
+- **OS-level proof.** Linux: CI runs the Python tests and the end-to-end tests inside a network namespace with only a loopback interface (`scripts/test-offline.sh`). Windows (Phase 5): the release's smoke test of the packaged app runs with a Windows Firewall rule blocking outbound connections for every `.exe` in the app (Electron, Python, LibreOffice, Ghostscript, Tesseract, Java, Pandoc, resvg) and Windows Filtering Platform auditing on; it fails if the app needed the network, or if any blocked attempt to reach another computer (event 5157) was logged. The CI test job on Windows runs with the in-app guards only.
+
 ---
 
 ## 5. Jobs, IPC, memory and large files
@@ -148,6 +154,12 @@ flowchart LR
   - Pixel buffers are processed in float32 only per tile, never for the whole image.
 - **Large PDFs.** Documents open lazily and are processed page by page: thumbnails on demand, rendering/OCR/verification one page at a time with results streamed to disk. A 100+ MB PDF never loads all its pages into memory.
 - **Disk.** Before a job starts, its temp and output sizes are estimated and checked against free space. The temp folder is on the same drive as the output when possible, and job folders are removed on success (kept on failure for the report, auto-purged after 7 days).
+
+### 5.1 As built: large files (Phase 5)
+
+`tests/e2e/large-files.spec.ts` sends a 50-megapixel photo through the resizer, a 32-page 107 MB PDF through the converter (to page images, cancelled mid-way) and a 50-megapixel portrait through the passport wizard, timing every animation frame and a main-process IPC round trip every 50 ms. The work runs in the worker processes, so the window keeps drawing: on the Linux run, the longest pause between frames was 67 ms, no frame came later than 250 ms, the slowest main-process answer took 79 ms, a click on another page was answered in 115 ms and a cancel in 265 ms. The test fails above 1 s for any frame, 3 frames over 250 ms, 500 ms for any main-process answer or 100 ms at the 95th percentile. Deviations from the plan: there is no RAM-aware scheduler (two workers, one for interactive previews and one for batches, keep previews responsive) and no disk-space pre-check before a job (a full disk ends the job with the system's "No space left on device" error and the file it was writing).
+
+The 50 MP portrait exposed a fault the small test photos never could: the passport wizard's head-and-shoulders crop is analysed at 1600 px, where a close-up face is about 750 px high, and YuNet (whose anchors reach about 300 px) returned two partial boxes. Faces are now found on a copy at most 640 px long; the landmarks are still measured at full size.
 
 ---
 
@@ -500,6 +512,15 @@ The app gives compliance *hints*. It cannot promise that an authority will accep
   - User text uses `dir="auto"`, and the layout uses logical CSS properties.
   - File names in any script round-trip correctly. Engines work on ASCII-named copies (§7.2), and the original names are restored on output.
 
+### 11.1 As built in Phase 5: one app and its home screen
+
+- **Navigation.** The side bar has Home, the four modules, Event log and Settings. There is no separate Jobs page or job drawer: each module shows its own progress and *Cancel*, and the event log keeps the history. Ctrl+Shift+H or the *Offline Toolkit* title goes home; Ctrl+1…4 open the modules. There is no F1 help and no `?` sheet: the shortcuts are in the README and in tooltips.
+- **Home screen** (`src/renderer/src/pages/HomePage.tsx`). Four module cards (open, drop files on it, *Try a sample*), *Open a file…* (Ctrl+O), recent work across the modules and a status row (offline guard, engines, fonts, models, and a link to *Check every module*). Settings → *Home screen*: start on the home screen or where you left off; keep the recent list or not.
+- **Routing** (`src/shared/home.ts`, unit-tested). One rule decides where files go, for *Open a file…* and for drops anywhere in the window: documents → converter, `.otkd` projects → design, pictures → a chooser on the home screen (resize or compress, editable design, passport photo), otherwise the current module if it takes them, else the resizer. A folder goes to the resizer or the converter.
+- **Recent work** (`src/main/recent.ts`): `<data>/recent.json`, at most 20 entries, newest first, one per module and set of files (or design), each with whether its files still exist. Writes are serialised and atomic. Nothing is kept while the setting is off; turning it off clears the list.
+- **Samples** (`src/main/samples.ts`): *Try a sample* copies the module's file from `resources/samples` into `<data>/samples` and opens it there, so results can be saved next to it.
+- **About & licences** (`src/main/about.ts`, `src/renderer/src/pages/AboutLicences.tsx`): the generated list of every bundled component (`resources/licenses/third-party.json`, §15.1) with the copyleft parts first, filters, search and each licence text (read only from inside the licences folder).
+
 ---
 
 ## 12. Security hardening
@@ -621,6 +642,15 @@ Each phase ends with a results table: what ran, where, pass/fail counts, and eve
 - **Licence files.** `THIRD_PARTY_NOTICES.txt` is generated, and a `licenses/` folder ships the full licence texts. No source-offer bundle is needed for personal use (D1).
 - **No code signing** (personal use). On first run, Windows SmartScreen may say "Windows protected your PC". Choose *More info → Run anyway* once. The README will show this with a screenshot.
 
+### 15.1 As built (v1.0.0)
+
+- **Engines** come from official downloads pinned in `scripts/engines.lock.json` (URL + SHA-256), resolved and re-pinned by `fetch_engines.py --relock` or the `[relock]` workflow (ENGINES.md §0d). Instead of unpacking with lessmsi and 7-Zip, the build runs the official MSI and NSIS installers silently into `build/engine-install` (the GitHub runner is an administrator) and copies their program folders. The Java runtime is cut from the Temurin JDK with `jlink` (12 modules, 56 MB).
+- **Checksums are checked at build time**, not on first start: the files are inside the installed app, which only the user can change.
+- **Licences.** `scripts/collect_licenses.py` writes `third-party.json`, the licence texts and `THIRD-PARTY-NOTICES.txt` into `build/licenses`; electron-builder ships them as `resources/licenses` and puts the notices file next to the exe; the release attaches it too.
+- **Samples** ship in `resources/samples` (1 MB); the full set is in the repository's `samples/`.
+- **Release pipeline** (`.github/workflows/release.yml`, on a `[release]` commit or a `v*` tag): bundle Python, fetch engines, fonts and models (each cached by its lock), build, licence list, NSIS installer, the packaged smoke test with the network blocked by Windows Firewall (§4.1), the portable ZIP, and a GitHub release with both files and the notices.
+- The README explains the SmartScreen prompt in words; there is no screenshot of it (no Windows desktop to take one from).
+
 ---
 
 ## 16. Known limits (stated up front)
@@ -639,6 +669,7 @@ Each phase ends with a results table: what ran, where, pass/fail counts, and eve
 
 ## 17. What I can and cannot verify from this environment
 
-- **Available here:** Python 3.11, Node 22, Java 21 and LibreOffice 24.2 (preinstalled). From apt: Pandoc 3.1, Ghostscript 10.02, Tesseract 5.3. PyPI and npm work. Maven Central works (veraPDF). Google's model storage appears reachable (MediaPipe models).
+- **Available here:** Python 3.11, Node 22, Java 21 (with `jdeps` and `jlink`) and LibreOffice 24.2 (preinstalled). From apt: Pandoc 3.1, Ghostscript 10.02, Tesseract 5.3. PyPI and npm work. Maven Central works (veraPDF). Google's model storage, GitHub release files and raw.githubusercontent.com are reachable.
+- **Phase 5:** documentfoundation.org, python.org, the Adoptium API and other repositories' GitHub pages and API are not reachable from here, so the Windows engine lock was resolved and hashed by the `[relock]` workflow on GitHub, and the Windows installers were tested only there. The trimmed Java runtime was checked here with this machine's JDK 21 before it was used on Windows.
 - **Blocked here:** downloads from documentfoundation.org, pandoc.org, verapdf.org, GitHub release assets, Hugging Face and ModelScope. Some ONNX models (MODNet, Real-ESRGAN, layout/table models) may therefore not be fetchable in this session. Where that happens, those tests will be written and marked **not run here**, to run in CI or on your machine with `scripts/fetch_engines.py`.
 - **No Windows machine here.** Windows-specific behaviour (Job Objects, NSIS, firewall offline test) is exercised only by the CI workflow.

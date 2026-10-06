@@ -87,12 +87,33 @@ jobs:
         run: python scripts/collect_licenses.py --platform win-x64 --site-packages build/python-win/Lib/site-packages --python-root build/python-win
       - name: Build the installer (NSIS, per-user, no admin rights)
         run: npx electron-builder --win nsis --publish never
-      - name: Smoke-test the packaged app
+      # The smoke test runs with the network blocked by the operating system: a Windows Firewall rule blocks
+      # outbound connections for every program in the app (Electron, Python, LibreOffice, Ghostscript, Tesseract,
+      # Java, Pandoc, resvg), and Windows Filtering Platform auditing logs every connection it blocks (event 5157).
+      # The test fails if the app needed the network or if any blocked attempt to leave the computer was logged.
+      # (Loopback is not filtered: Playwright drives the app over it.)
+      - name: Smoke-test the packaged app (network blocked by Windows Firewall)
         shell: pwsh
         run: |
-          $env:OTK_PACKAGED_EXE = Join-Path $pwd 'dist\win-unpacked\Offline Toolkit.exe'
-          $env:OTK_TEST_PYTHON = Join-Path $pwd 'dist\win-unpacked\resources\engines\python\python.exe'
+          $app = Join-Path $pwd 'dist\win-unpacked'
+          auditpol /set /subcategory:"Filtering Platform Connection" /failure:enable | Out-Null
+          $exes = Get-ChildItem $app -Recurse -Filter *.exe
+          foreach ($e in $exes) {
+            New-NetFirewallRule -DisplayName "otk-offline-$($e.BaseName)-$([guid]::NewGuid().ToString('N').Substring(0, 8))" -Direction Outbound -Program $e.FullName -Action Block | Out-Null
+          }
+          "Outbound blocked for $($exes.Count) programs: $(($exes | ForEach-Object Name | Sort-Object -Unique) -join ', ')"
+          $start = Get-Date
+          $env:OTK_PACKAGED_EXE = Join-Path $app 'Offline Toolkit.exe'
+          $env:OTK_TEST_PYTHON = Join-Path $app 'resources\engines\python\python.exe'
           npx playwright test tests/e2e/packaged.spec.ts
+          $code = $LASTEXITCODE
+          $leaks = @(Get-WinEvent -FilterHashtable @{ LogName = 'Security'; Id = 5157; StartTime = $start } -ErrorAction SilentlyContinue |
+            Where-Object { $_.Message -match 'win-unpacked' -and $_.Message -notmatch 'Destination Address:\s+(127\.|::1|0:0:0:0:0:0:0:1)' })
+          "Blocked connection attempts from the app to other computers: $($leaks.Count)"
+          "::notice title=Offline smoke test (Windows Firewall)::outbound blocked for $($exes.Count) programs in the app; test exit $code; blocked attempts to reach other computers: $($leaks.Count)"
+          $leaks | Select-Object -First 20 | ForEach-Object { $_.Message -replace '\s+', ' ' }
+          if ($code -ne 0) { exit $code }
+          if ($leaks.Count -gt 0) { Write-Error 'The app tried to reach the network'; exit 1 }
       - name: Make the portable ZIP
         shell: pwsh
         run: |
@@ -116,7 +137,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/') || contains(github.event.head_commit.message, '[release]')
         uses: softprops/action-gh-release@v2
         with:
-          prerelease: true
+          prerelease: ${{ startsWith(steps.ver.outputs.version, '0.') }}
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', steps.ver.outputs.version) }}
           target_commitish: ${{ github.sha }}
           name: Offline Toolkit ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', steps.ver.outputs.version) }}
@@ -127,10 +148,19 @@ jobs:
           body: |
             Windows 10/11, 64-bit. Personal use.
 
-            **Contains:** Module 1 (Image Resizer & Compressor), Module 2 (Document Converter, with LibreOffice, Pandoc, Ghostscript, Tesseract OCR, veraPDF and resvg bundled), Module 3 (Image to Editable Design, with 73 open-source font families and offline super-resolution and cut-out models bundled) and Module 4 (Passport Photo Maker: crop, face-guided sizing for UK, Schengen, India, Australia, US, China visa and Canada rules and your own, background replacement, adjustments, exact-size photos and print sheets; offline face detection and landmark models bundled). The shared home screen arrives in the next phase.
+            **Offline Toolkit 1.0**: one app with a shared home screen and four modules, all running on this computer.
+
+            - **Image Resizer & Compressor**: exact pixels or physical size at any DPI, crop/pad/stretch, a target file size such as 20–50 KB, the DPI written into the file, presets, batches and ZIP.
+            - **Document Converter**: PDF, PDF/A (validated by veraPDF), Word, Excel, PowerPoint, HTML, text, EPUB and images in every direction, OCR in 16 languages, and a verification report for every file.
+            - **Image to Editable Design**: a poster, screenshot or scan becomes editable text, shapes, graphics, photos and tables; export to PowerPoint, Word, SVG, HTML.
+            - **Passport Photo Maker**: face-guided sizing for UK, Schengen, India, Australia, US, China visa and Canada rules (or your own), background replacement, adjustments, exact-size photos and print sheets.
+            - **Home screen**: open any file and it goes to the right module, *Try a sample*, recent work across the modules, and Settings → *Check every module* (a full offline self-test).
+
+            Everything is bundled (Python, LibreOffice, Pandoc, Ghostscript, Tesseract, a Java runtime for veraPDF, resvg, 73 font families, AI models), with every download pinned by SHA-256. Settings → *About & licences* and `THIRD-PARTY-NOTICES.txt` list every component and its licence. This build was smoke-tested on Windows with the network blocked by Windows Firewall.
 
             - `Offline-Toolkit-Setup-*.exe`: installer. Installs for your user only, no admin rights needed.
             - `*-portable-win-x64.zip`: portable. Unzip anywhere and run `Offline Toolkit.exe`. Settings stay in the `data` folder next to it.
+            - `THIRD-PARTY-NOTICES.txt`: every bundled component, its licence and the licence texts.
 
             The app is not code-signed. On first start Windows SmartScreen may say "Windows protected your PC": choose **More info → Run anyway**.
-            Everything works offline; the app makes no network connections (Settings → Run offline self-test).
+            Everything works offline; the app makes no network connections (Settings → Run offline self-test). Personal use: see the README's *Licences* section before giving the app to anyone.

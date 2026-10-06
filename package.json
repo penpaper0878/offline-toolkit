@@ -11,6 +11,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "licenses": "node scripts/run-python.mjs scripts/collect_licenses.py",
+    "licenses:win": "node scripts/run-python.mjs scripts/collect_licenses.py --platform win-x64 --site-packages build/python-win/Lib/site-packages --python-root build/python-win",
     "samples": "node scripts/run-python.mjs scripts/make_samples.py",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.preload.json && tsc --noEmit -p tsconfig.web.json",
@@ -19,7 +20,7 @@
     "test:e2e": "npm run build && playwright test",
     "test:all": "npm run typecheck && npm test && npm run test:py && npm run test:e2e",
     "test:offline": "bash scripts/test-offline.sh",
-    "dist:win": "node scripts/bundle-python-win.mjs && electron-vite build && electron-builder --win nsis --publish never"
+    "dist:win": "node scripts/bundle-python-win.mjs && electron-vite build && npm run licenses:win && electron-builder --win nsis --publish never"
   },
   "dependencies": {
     "ajv": "8.20.0"

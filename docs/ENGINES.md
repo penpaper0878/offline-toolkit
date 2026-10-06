@@ -1,6 +1,8 @@
 # Bundled components and licenses
 
-Status: Phase 4 (§0, §0b and §0c list what is actually bundled now; §1–§7 are the Phase 0 plan for the whole app), **Lite bundle, personal use** (decisions D1–D2, confirmed 2026-09-30). Python package versions are the latest on PyPI as of 2026-09-30. CLI engine versions get pinned (URL + SHA-256) in `scripts/engines.lock.json` at Phase 5, using the latest stable release at build time. The minimum versions listed here are the ones whose features the toolkit relies on.
+Status: Phase 5, v1.0.0 (§0–§0d list what is actually bundled; §1–§7 are the Phase 0 plan for the whole app, kept for the reasoning), **Lite bundle, personal use** (decisions D1–D2, confirmed 2026-09-30). Python package versions are the latest on PyPI as of 2026-09-30, pinned in `worker/requirements*.txt`. Every engine download is pinned (URL + SHA-256) in `scripts/engines.lock.json` (§0d). The minimum versions listed here are the ones whose features the toolkit relies on.
+
+**The complete, generated list** of every bundled component with its licence text is in the app (Settings → *About & licences*) and in `THIRD-PARTY-NOTICES.txt` next to the app and with each release (`scripts/collect_licenses.py`, §0d). This document explains the choices.
 
 Sizes are rough figures for Windows x64, unpacked. **Total ≈ 1.5–1.9 GB installed, ≈ 0.6–0.8 GB download.** The Lite bundle leaves out LaMa (≈ 200 MB), IS-Net (≈ 170 MB), the CJK fonts (≈ 130 MB) and switches Tesseract from `tessdata_best` to `tessdata_fast` (≈ 210 MB less).
 
@@ -8,18 +10,18 @@ Sizes are rough figures for Windows x64, unpacked. **Total ≈ 1.5–1.9 GB inst
 
 ## 0. What Phase 2 actually bundles (Module 2)
 
-`scripts/fetch_engines.py` puts these into `engines/win-x64/` at build time; electron-builder copies that folder to `resources/engines/` in the installer and the portable ZIP. The app never downloads anything. The exact versions of each build are written to `engines/win-x64/manifest.json` (printed in the release log, and shown in Settings → *Conversion engines*).
+`scripts/fetch_engines.py` puts these into `engines/win-x64/` at build time; electron-builder copies that folder to `resources/engines/` in the installer and the portable ZIP. The app never downloads anything. The exact versions of each build are written to `engines/win-x64/manifest.json` (printed in the release log, and shown in Settings → *Conversion engines*). Sources and versions as of v1.0.0 (Phase 5 replaced Chocolatey with pinned official downloads, §0d):
 
 | Engine | Version | Source (build time) | Size on Windows (unpacked) |
 |---|---|---|---|
-| LibreOffice | current "fresh" release at build time (26.2.6.3 in v0.2.0) | Chocolatey `libreoffice-fresh`, program folder copied; help and spelling dictionaries removed | ≈ 600 MB |
+| LibreOffice | 26.2.6.3 (the mature 26.2 series) | The official MSI from The Document Foundation's archive, installed silently and its program folder copied; help and spelling dictionaries removed | ≈ 600 MB |
 | Pandoc | 3.8.2.1 (official build) | PyPI wheel `pypandoc_binary==1.16.2` (hash-checked by PyPI). Distribution builds such as Debian's lack the embedded data files and fail under `--sandbox` | ≈ 200 MB |
-| Ghostscript | current release at build time (10.08.0 in v0.2.0) | Chocolatey `ghostscript`; `doc/` and `examples/` removed | ≈ 70 MB |
-| Tesseract | 5.x, UB Mannheim build (5.5.3 in v0.2.0) | Chocolatey `tesseract` | ≈ 50 MB |
-| tessdata_fast | `main` branch at build time | eng, osd, hin, mar, san, nep, ben, guj, pan, tam, tel, kan, mal, ori, urd, ara, heb | ≈ 40 MB |
-| Java runtime | Temurin 21 JRE (21.0.9 in v0.2.0) | Chocolatey `temurin21jre` (not jlink-trimmed yet: Phase 5) | ≈ 130 MB |
-| veraPDF | 1.28.2 greenfield (CLI + its jars) | Maven Central, each jar SHA-1-checked | ≈ 20 MB |
-| resvg | 0.45.1 | GitHub release `resvg-win64.zip` | ≈ 4 MB |
+| Ghostscript | 10.08.0 | The official installer (`ArtifexSoftware/ghostpdl-downloads`), run silently; `doc/` and `examples/` removed | ≈ 70 MB |
+| Tesseract | 5.5.3 | The Windows installer from the `tesseract-ocr/tesseract` 5.5.3 release (the UB Mannheim build), run silently | ≈ 50 MB |
+| tessdata_fast | commit `874164186573` | eng, osd, hin, mar, san, nep, ben, guj, pan, tam, tel, kan, mal, ori, urd, ara, heb, each file SHA-256 pinned | ≈ 54 MB |
+| Java runtime | Temurin 21.0.12.1 | The Temurin JDK zip (Adoptium API), cut with `jlink` to the 12 modules veraPDF needs | ≈ 56 MB (was ≈ 130 MB as a full JRE) |
+| veraPDF | 1.28.2 greenfield (CLI + its jars) | Maven Central, each jar checked against Maven's SHA-1 and the lock's SHA-256 | ≈ 20 MB |
+| resvg | 0.45.1 | GitHub release `resvg-win64.zip`, SHA-256 pinned | ≈ 4 MB |
 
 Python packages added in Phase 2 (all pinned in `worker/requirements.txt`): PyMuPDF 1.28.2, pikepdf[pdfa] 10.16.0, pypdfium2 5.13.0, pdf2docx 0.5.13, img2pdf 0.6.3, ocrmypdf 17.13.0, python-docx 1.2.0, python-pptx 1.0.2, openpyxl 3.1.5, xlrd 2.0.2 (reads .xls for verification, BSD-3), lxml 6.1.3, rapidfuzz 3.14.6, msoffcrypto-tool 6.0.0, docxcompose 2.2.0, charset-normalizer 3.5.2, opencv-python-headless 5.0.0.93 (Apache-2.0; replaced by the `contrib` build in Phase 3, see §0b), fontTools 4.66.1.
 
@@ -78,6 +80,30 @@ Two small models, fetched by `scripts/fetch_models.py` at build time like the Mo
 **Differences from the plan below:** MODNet (planned for portrait matting, ≈ 25 MB) is not bundled: its weights could not be fetched from a pinned source when building, and the selfie segmenter with the refinements above passed the background tests on the test portraits. MediaPipe's face *detector* is replaced by YuNet (the landmark model needs a face box; YuNet is smaller and runs through OpenCV, which is already bundled). MediaPipe's multiclass segmenter (hair, skin, clothes) was tried for the hair line and dropped: it needs a layer (TRANSPOSE_CONV) that OpenCV DNN cannot run, and the `mediapipe` package is not bundled.
 
 **Test photos** (not shipped; `worker/tests/fixtures/faces/ATTRIBUTION.md`): the official 2012 portrait of President Obama by Pete Souza (work of the US federal government, public domain) and NASA's portrait of astronaut Eileen Collins (public domain, as distributed with scikit-image).
+
+## 0d. What Phase 5 changes (v1.0.0: one app, installer, licences)
+
+**Pinned engine downloads.** Until v0.4.0 LibreOffice, Ghostscript, Tesseract and Java came from Chocolatey at whatever version was current when the build cache was filled. Now `scripts/engines.lock.json` lists every file the build downloads (URL, SHA-256 and size) for Windows and Linux, and `fetch_engines.py` refuses a file whose SHA-256 differs. `bundle-python-win.mjs` takes the CPython 3.11.9 embeddable package from the same lock. `fetch_engines.py --relock` (or a `[relock]` commit, which runs `.github/workflows/engines-lock.yml`) resolves the current releases: LibreOffice's newest release in the `LIBREOFFICE_SERIES` (26.2) from TDF's permanent archive (the mirrors drop a release when the next one comes out), the highest-numbered Ghostscript and Tesseract installers among the projects' GitHub releases, tessdata_fast at the current commit, and Temurin 21 from the Adoptium API; it checks the publishers' own checksums (GitHub's asset digests, Adoptium's and PyPI's SHA-256, Maven's SHA-1) before writing the lock. The first relock picked LibreOffice 26.8.0.3 (a new feature series' first release) and Tesseract 5.4.0 (UB Mannheim's own repository stopped at it); the series pin and searching the upstream repository too brought back 26.2.6.3 and 5.5.3, the versions the converter's tests were tuned on.
+
+| Lock entry (win-x64) | Version | Download |
+|---|---|---|
+| python | CPython 3.11.9 embeddable | 11 MB |
+| libreoffice | LibreOffice 26.2.6.3 | 374 MB |
+| ghostscript | Ghostscript 10.08.0 | 65 MB |
+| tesseract | Tesseract 5.5.3.20260724 | 50 MB |
+| tessdata | tessdata_fast @ 874164186573 (17 files) | 54 MB |
+| jre | Temurin jdk-21.0.12.1+1 (the JDK, for jlink) | 205 MB |
+| pandoc | pypandoc_binary 1.16.2 (pandoc 3.8.2.1) | 40 MB |
+| verapdf | veraPDF 1.28.2 (19 jars) | 19 MB |
+| resvg | resvg 0.45.1 | 1 MB |
+
+**A trimmed Java runtime.** `jlink` builds the runtime from the JDK with `java.base, java.compiler, java.datatransfer, java.desktop, java.logging, java.management, java.naming, java.scripting, java.sql, java.xml, jdk.charsets, jdk.unsupported` (what `jdeps` finds in veraPDF's jars, plus the modules its parsers load by reflection), `--strip-debug --no-man-pages --no-header-files --compress=zip-6`. Checked here with OpenJDK 21: the same veraPDF verdicts and failed-rule counts as the full JDK on a compliant and a non-compliant PDF, and every PDF/A test passes; the packaged smoke test checks the runtime's module list and the full self-test validates a PDF/A with it. 56 MB instead of about 130 MB.
+
+**The licence list.** `scripts/collect_licenses.py` (run by `npm run licenses`, and by the release on the bundled Python) lists what the build actually contains: the Electron runtime (Chromium's own notices ship as `LICENSES.chromium.html`), the JavaScript Vite bundled (a build plugin records it), CPython and every Python distribution in the bundled `site-packages`, the copyleft native libraries found inside wheels and engines by file name (GEOS in shapely, libheif and libde265 in pi-heif, FFmpeg in OpenCV, the GCC runtime), the engines with the licence files they ship, veraPDF's 19 jars (licences checked against their POMs on Maven Central), tessdata, the 73 font families and the models. Each gets an SPDX expression, a copyleft level (AGPL, GPL, weak, none; for a dual licence the most permissive open option, commercial options don't count) and its licence text (the component's own files, or the SPDX text from `scripts/licenses/spdx/`). The build fails if any licence is unknown. On this Linux build: 192 components, 1 AGPL (PyMuPDF), 1 GPL (Pandoc), 25 weak copyleft; the Windows build adds Ghostscript (AGPL), LibreOffice, Tesseract and the Java runtime.
+
+**Found while doing it:** google/fonts has no licence file for **Tinos** at the pinned commit, so v0.3.0–v0.4.0 shipped Tinos without its OFL text. `fetch_fonts.py` now writes the standard OFL text with the font's own copyright notice when upstream has none, and a test checks every font family has its licence.
+
+**Sample files** (`samples/`, `resources/samples/`) are drawn by the test generators or are the two public-domain test portraits: nothing third-party is added.
 
 ## 1. Runtimes and CLI engines
 
@@ -147,9 +173,10 @@ Two small models, fetched by `scripts/fetch_models.py` at build time like the Mo
 | **Pandoc** | GPL-2.0+ | Separate executable (aggregation) | Ship its license and corresponding source (or a written offer) | Low |
 | veraPDF | GPL-3.0+ / MPL-2.0 | Separate process | Choose MPL-2.0: ship the license, plus source for any files we modify (none) | Low |
 | Temurin JRE | GPL-2.0 + Classpath Exception | Separate runtime | Ship the license | Low |
-| libheif / libde265 (pi-heif), FFmpeg (OpenCV, Electron), FriBiDi (Pillow, Windows build) | LGPL | Dynamic libraries | Ship licenses, keep them replaceable (they are separate DLLs), offer source | Low |
-| img2pdf | LGPL-3.0 | Python module (replaceable file) | Ship the license | Low |
-| LibreOffice, pikepdf, OCRmyPDF | MPL-2.0 | Separate process / library | Ship licenses, plus source of any MPL files we modify (none planned) | Low |
+| libheif / libde265 (pi-heif), FFmpeg (OpenCV, Electron), GEOS (shapely), FriBiDi (Pillow, Windows build), the GLib/Pango/cairo family if an engine build carries them | LGPL | Dynamic libraries | Ship licenses, keep them replaceable (they are separate DLLs), offer source | Low |
+| img2pdf, fpdf2 (OCRmyPDF's text layer) | LGPL-3.0 | Python modules (replaceable files) | Ship the license | Low |
+| LibreOffice, pikepdf, OCRmyPDF, certifi, tqdm (MPL-2.0 AND MIT), Rhino (in veraPDF) | MPL-2.0 | Separate process / library | Ship licenses, plus source of any MPL files we modify (none) | Low |
+| JAXB and JavaBeans Activation (in veraPDF) | CDDL-1.1 or GPL-2.0 with the Classpath exception | Jars run by the separate Java process | Ship the licences | Low |
 
 If you ever do share it, the simplest path is to license the toolkit's own code AGPL-3.0-or-later and publish the source. The alternatives are Artifex commercial licences, or replacing PyMuPDF/pdf2docx with pypdfium2 + pikepdf, which makes PDF → editable DOCX clearly worse.
 
@@ -196,4 +223,4 @@ If you ever do share it, the simplest path is to license the toolkit's own code 
 
 ## 7. Build-time only (not shipped)
 
-electron-builder (MIT), NSIS (zlib), lessmsi (MIT: unpacks the LibreOffice MSI), 7-Zip (LGPL-2.1: unpacks the Ghostscript installer), jlink (part of the JDK: trims the JRE).
+electron-builder (MIT), NSIS (zlib), the Temurin JDK (GPL-2.0 with the Classpath exception: only its `jlink` and module files are used, to cut the runtime), Windows Installer (`msiexec`) and the engines' own NSIS installers, run silently into `build/engine-install` and copied. The plan's lessmsi and 7-Zip were not needed.
