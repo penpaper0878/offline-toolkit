@@ -5,6 +5,7 @@ import type {
 } from '@shared/types'
 import { basename, dirname, isCancelled, newJobId, otk, toUiError } from '../../lib/api'
 import { canRedo, canUndo, createHistory, type History, record, redo, undo } from '../../lib/history'
+import { rememberFiles } from '../../lib/recent'
 import { updateAppSettings, useUi } from '../../lib/ui-store'
 
 export type DocStatus = 'checking' | 'ready' | 'needs_password' | 'blocked' | 'error' | 'running' | 'done' | 'failed' | 'cancelled'
@@ -114,6 +115,7 @@ export const useConverter = create<ConverterStore>((set, get) => ({
       id: `doc-${ids++}`, path: p, name: basename(p), status: 'checking', preflight: null, progress: 0, message: ''
     }))
     if (!fresh.length) return
+    rememberFiles('converter', fresh.map((f) => f.path), 'documents')
     set((s) => ({ files: [...s.files, ...fresh] }))
     if (!get().outputDir) get().setOutputDir(dirname(fresh[0].path))
     await get().inspect()

@@ -37,6 +37,13 @@ export function SettingsPage() {
           <Segmented<Theme> label="Theme" testId="theme" value={s.theme} onChange={(theme) => void save({ theme })}
             options={[{ value: 'system', label: 'System' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }]} />
         </Section>
+        <Section title="Home screen">
+          <Segmented label="When the app starts, show" testId="start-page" value={s.home.startPage} onChange={(startPage) => void save({ home: { startPage } })}
+            options={[{ value: 'home', label: 'The home screen' }, { value: 'last', label: 'Where I left off' }]} />
+          <Toggle label="Keep a list of recent files and designs" checked={s.home.rememberRecent} testId="remember-recent"
+            onChange={(v) => void save({ home: { rememberRecent: v } }).then(() => v ? undefined : otk().recent.clear())}
+            hint="Kept in recent.json in the data folder. Turning this off clears the list." />
+        </Section>
         <Section title="File sizes">
           <Segmented label="1 KB equals" value={String(s.sizeUnitBase) as '1024' | '1000'}
             onChange={(v) => void save({ sizeUnitBase: Number(v) as 1000 | 1024 })}

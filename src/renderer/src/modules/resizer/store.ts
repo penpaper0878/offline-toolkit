@@ -5,6 +5,7 @@ import type { AppSettings, BatchResult, Crop, ItemResult, JobProgress, Preset, P
 import { resolveSize } from '@shared/units'
 import { basename, dirname, isCancelled, newJobId, otk, toUiError } from '../../lib/api'
 import { canRedo, canUndo, createHistory, type History, record, redo, undo } from '../../lib/history'
+import { rememberFiles } from '../../lib/recent'
 import { updateAppSettings, useUi } from '../../lib/ui-store'
 
 export interface FileEntry {
@@ -157,6 +158,7 @@ export const useResizer = create<ResizerStore>((set, get) => ({
     const have = new Set(get().files.map((f) => f.path))
     const fresh = [...new Set(paths)].filter((p) => !have.has(p))
     if (!fresh.length) return
+    rememberFiles('resizer', fresh, 'images')
     const entries: FileEntry[] = fresh.map((p) => ({ id: `f${fileSeq++}`, path: p, name: basename(p), status: 'loading' }))
     set((s) => ({ files: [...s.files, ...entries], selectedId: s.selectedId ?? entries[0].id }))
     await probeAll(entries)

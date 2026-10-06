@@ -1,6 +1,7 @@
 /** The API the preload script exposes as `window.otk`. */
 
 import type { DesignScene, FontFamilyInfo, FontMetrics } from './design'
+import type { RecentEntry, RecentItem } from './home'
 import type { AnalyzeResult, PaperSize, PassportSpec, PhotoInfo, Place, RenderResult } from './passport'
 import type {
   AppInfo, AppSettings, BatchRequest, BatchResult, BatchItem, ConvertRequest, ConvertResult, ConverterCatalog,
@@ -20,6 +21,8 @@ export interface OtkApi {
     openDocuments(): Promise<string[]>
     openFolder(): Promise<string | null>
     chooseDir(current?: string | null): Promise<string | null>
+    /** Any file the app can open: pictures, documents, design projects. */
+    openAny(): Promise<string[]>
   }
   files: {
     listImages(folder: string, recursive?: boolean): Promise<string[]>
@@ -101,6 +104,12 @@ export interface OtkApi {
   selftest: {
     offline(): Promise<SelfTestReport>
   }
+  recent: {
+    list(): Promise<RecentEntry[]>
+    add(item: Omit<RecentItem, 'at'>): Promise<void>
+    remove(item: Pick<RecentItem, 'module' | 'paths' | 'ref'>): Promise<void>
+    clear(): Promise<void>
+  }
 }
 
 export interface ListState<T> {
@@ -166,6 +175,11 @@ export const IPC = {
   logAdd: 'log:add',
   logEntry: 'log:entry',
   selftestOffline: 'selftest:offline',
+  recentList: 'recent:list',
+  recentAdd: 'recent:add',
+  recentRemove: 'recent:remove',
+  recentClear: 'recent:clear',
+  openAny: 'dialog:openAny',
   designList: 'design:list',
   designDelete: 'design:delete',
   designPickImage: 'design:pickImage',

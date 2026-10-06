@@ -19,7 +19,27 @@ from .rpc import Context, Server
 _ROTATED = {5, 6, 7, 8}
 
 
+def _bundled_assets() -> tuple[int | None, dict[str, bool]]:
+    """Font families and AI models found (the model list is models/manifest.json; every file listed must exist)."""
+    import json
+
+    from .design import assets
+
+    try:
+        fonts: int | None = len(assets.catalogue())
+    except Exception:  # noqa: BLE001 - reported as missing
+        fonts = None
+    models: dict[str, bool] = {}
+    try:
+        manifest = json.loads((assets.models_dir() / "manifest.json").read_text(encoding="utf-8"))
+        models = {key: assets.model_path(entry["file"]) is not None for key, entry in manifest.items()}
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    return fonts, models
+
+
 def ping(params: dict, ctx: Context) -> dict:
+    fonts, models = _bundled_assets()
     return {
         "pong": True,
         "pid": os.getpid(),
@@ -29,6 +49,8 @@ def ping(params: dict, ctx: Context) -> dict:
         "pillow": PIL.__version__,
         "heif": imageio.HEIF_AVAILABLE,
         "netguard": netguard._installed,
+        "fonts": fonts,
+        "models": models,
     }
 
 

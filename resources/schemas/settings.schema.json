@@ -96,6 +96,41 @@
     },
     "passport": {
       "$ref": "otk://schemas/passport-settings.schema.json"
+    },
+    "home": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "startPage",
+        "lastPage",
+        "rememberRecent"
+      ],
+      "description": "The home screen and what the app opens at start.",
+      "properties": {
+        "startPage": {
+          "enum": [
+            "home",
+            "last"
+          ],
+          "description": "Open on the home screen, or on the page used last."
+        },
+        "lastPage": {
+          "enum": [
+            "home",
+            "resizer",
+            "converter",
+            "design",
+            "passport",
+            "log",
+            "settings"
+          ],
+          "description": "The page used last (kept by the app)."
+        },
+        "rememberRecent": {
+          "type": "boolean",
+          "description": "Keep a list of recent files and designs on the home screen (recent.json in the data folder)."
+        }
+      }
     }
   }
 }

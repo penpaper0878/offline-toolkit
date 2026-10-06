@@ -4,16 +4,17 @@ import { modLabel, useShortcuts } from './lib/shortcuts'
 import { type Page, useUi } from './lib/ui-store'
 import { Icon } from './components/Icon'
 import { Toasts } from './components/Toasts'
+import { routeAndOpen } from './lib/route'
 import { ConverterPage, useConverterBoot } from './modules/converter/ConverterPage'
-import { DesignPage, dropToDesign, useDesignBoot } from './modules/design/DesignPage'
-import { useConverter } from './modules/converter/store'
-import { dropToPassport, PassportPage, usePassportBoot } from './modules/passport/PassportPage'
+import { DesignPage, useDesignBoot } from './modules/design/DesignPage'
+import { PassportPage, usePassportBoot } from './modules/passport/PassportPage'
 import { ResizerPage, useResizerBoot } from './modules/resizer/ResizerPage'
-import { useResizer } from './modules/resizer/store'
+import { HomePage, ImageChooser } from './pages/HomePage'
 import { LogPage } from './pages/LogPage'
 import { SettingsPage } from './pages/SettingsPage'
 
 const NAV: { page: Page; label: string; icon: string; phase?: number }[] = [
+  { page: 'home', label: 'Home', icon: 'home' },
   { page: 'resizer', label: 'Image Resizer', icon: 'resize' },
   { page: 'converter', label: 'Document Converter', icon: 'convert' },
   { page: 'design', label: 'Image to Design', icon: 'design' },
@@ -36,14 +37,11 @@ function useTheme(): void {
   }, [theme])
 }
 
-const IMAGE_RE = /\.(jpe?g|jpe|jfif|png|webp|bmp|dib|tiff?|heic|heif|hif)$/i
-
 async function handleDrop(e: React.DragEvent): Promise<void> {
   e.preventDefault()
   const paths: string[] = []
   const folders: string[] = []
-  const items = Array.from(e.dataTransfer.items)
-  for (const item of items) {
+  for (const item of Array.from(e.dataTransfer.items)) {
     if (item.kind !== 'file') continue
     const file = item.getAsFile()
     if (!file) continue
@@ -52,33 +50,14 @@ async function handleDrop(e: React.DragEvent): Promise<void> {
     if (item.webkitGetAsEntry()?.isDirectory) folders.push(path)
     else paths.push(path)
   }
-  // On the design page a picture is analysed and a .otkd design opens; on the passport page it opens in the wizard.
-  if (useUi.getState().page === 'design' && await dropToDesign(paths)) return
-  if (useUi.getState().page === 'passport' && await dropToPassport(paths)) return
-  if (paths.some((p) => p.toLowerCase().endsWith('.otkd'))) {
-    useUi.getState().setPage('design')
-    await dropToDesign(paths)
-    return
-  }
-  // Documents go to the converter; images go to the resizer unless the converter is open.
-  const toConverter = useUi.getState().page === 'converter' || paths.some((p) => !IMAGE_RE.test(p))
-  if (toConverter) {
-    for (const f of folders) paths.push(...(await otk().files.listDocuments(f, false)))
-    if (!paths.length) {
-      useUi.getState().toast('warn', 'Nothing to add', 'Drop documents (PDF, Word, Excel, PowerPoint, HTML, TXT, EPUB, images, SVG) or a folder.')
-      return
-    }
-    useUi.getState().setPage('converter')
-    await useConverter.getState().addPaths(paths)
-    return
-  }
-  for (const f of folders) paths.push(...(await otk().files.listImages(f, false)))
-  if (!paths.length) {
-    useUi.getState().toast('warn', 'Nothing to add', 'Drop image files (JPG, PNG, WEBP, BMP, TIFF, HEIC) or a folder that contains them.')
-    return
-  }
-  useUi.getState().setPage('resizer')
-  await useResizer.getState().addPaths(paths)
+  await routeAndOpen(paths, folders, useUi.getState().page)
+}
+
+const DROP_HINT: Partial<Record<Page, string>> = {
+  home: 'Drop files: documents go to the converter; for pictures you choose what to do',
+  converter: 'Drop documents or a folder to convert them',
+  design: 'Drop a picture to turn it into an editable design',
+  passport: 'Drop a photo to make a passport photo'
 }
 
 export function App() {
@@ -97,6 +76,7 @@ export function App() {
   }, [])
 
   useShortcuts([
+    { keys: 'mod+shift+h', run: () => setPage('home'), inInputs: true },
     { keys: 'mod+l', run: () => setPage('log'), inInputs: true },
     { keys: 'mod+,', run: () => setPage('settings'), inInputs: true },
     { keys: 'mod+1', run: () => setPage('resizer'), inInputs: true },
@@ -112,7 +92,7 @@ export function App() {
       onDragLeave={(e) => { if (e.currentTarget === e.target || !e.relatedTarget) setDragging(false) }}
       onDrop={(e) => { setDragging(false); void handleDrop(e).catch((err) => useUi.getState().reportError('Could not add the files', err)) }}>
       <nav className="sidebar" aria-label="Modules">
-        <div className="brand"><Icon name="shield" size={20} /> <span className="brand-name">Offline Toolkit</span></div>
+        <button className="brand" onClick={() => setPage('home')} title="Home" data-testid="brand"><Icon name="shield" size={20} /> <span className="brand-name">Offline Toolkit</span></button>
         {NAV.map((n) => (
           <button key={n.page} className={`nav-item ${page === n.page ? 'active' : ''}`} data-testid={`nav-${n.page}`}
             aria-label={n.label} title={n.label}
@@ -123,12 +103,13 @@ export function App() {
         ))}
         <div className="sidebar-foot muted small">
           <Icon name="shield" size={14} /> Works offline. Files never leave this computer.
-          <div>{modLabel}+L log · {modLabel}+, settings</div>
+          <div>{modLabel}+Shift+H home · {modLabel}+L log · {modLabel}+, settings</div>
         </div>
       </nav>
       <div className="page">
         {!loaded ? <div className="empty-view"><span className="spinner" /> Starting…</div> : (
           <>
+            {page === 'home' && <HomePage />}
             {page === 'resizer' && <ResizerPage />}
             {page === 'converter' && <ConverterPage />}
             {page === 'design' && <DesignPage />}
@@ -138,7 +119,8 @@ export function App() {
           </>
         )}
       </div>
-      {dragging && <div className="drop-overlay" aria-hidden><div>{page === 'converter' ? 'Drop documents or a folder to convert them' : page === 'design' ? 'Drop a picture to turn it into an editable design' : 'Drop images or a folder to add them'}</div></div>}
+      {dragging && page !== 'home' && <div className="drop-overlay" aria-hidden><div>{DROP_HINT[page] ?? 'Drop images or a folder to add them'}</div></div>}
+      <ImageChooser />
       <Toasts />
     </div>
   )

@@ -12,6 +12,7 @@ import {
 } from '@shared/passport'
 import { otk, toUiError } from '../../lib/api'
 import { canRedo, canUndo, createHistory, type History, record, redo, replace, undo } from '../../lib/history'
+import { remember as rememberRecent } from '../../lib/recent'
 import { updateAppSettings, useUi } from '../../lib/ui-store'
 
 export const STEPS = ['Browse', 'Crop', 'Size & enhance', 'Finalise'] as const
@@ -143,6 +144,7 @@ export const usePassport = create<State>((set, get) => ({
         history: createHistory({ ...blankDoc(prev.specId, prev.background), customSpec: prev.customSpec }), busy: 'Finding the face…'
       })
       for (const w of photo.warnings) useUi.getState().toast('warn', 'About this photo', w)
+      rememberRecent({ module: 'passport', paths: [photo.path], label: /[\\/]pasted-[0-9a-f]+\.\w+$/.test(photo.path) ? 'Pasted photo' : photo.path.split(/[\\/]/).pop() ?? photo.path })
       void otk().log.add('info', `Passport: opened ${photo.path.split(/[\\/]/).pop()} (${photo.width}×${photo.height})`)
       await get().frameFace()
       set({ step: 1 })

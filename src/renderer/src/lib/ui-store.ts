@@ -3,7 +3,7 @@ import type { AppSettings, SettingsState } from '@shared/types'
 import { applySettingsPatch } from '@shared/settings-merge'
 import { otk, toUiError } from './api'
 
-export type Page = 'resizer' | 'converter' | 'design' | 'passport' | 'log' | 'settings'
+export type Page = 'home' | 'resizer' | 'converter' | 'design' | 'passport' | 'log' | 'settings'
 
 export interface Toast {
   id: number
@@ -12,12 +12,21 @@ export interface Toast {
   body?: string
 }
 
+/** Pictures dropped or opened on the home screen, waiting for the person to choose a module. */
+export interface Chooser {
+  images: string[]
+  folders: string[]
+}
+
 interface UiState {
   page: Page
+  chooser: Chooser | null
   settings: AppSettings | null
   settingsState: SettingsState | null
   toasts: Toast[]
   setPage(p: Page): void
+  choose(images: string[], folders: string[]): void
+  closeChooser(): void
   loadSettings(): Promise<void>
   toast(kind: Toast['kind'], title: string, body?: string, ms?: number): void
   dismiss(id: number): void
@@ -25,16 +34,31 @@ interface UiState {
 }
 
 let toastId = 1
+let lastPageTimer: ReturnType<typeof setTimeout> | null = null
 
 export const useUi = create<UiState>((set, get) => ({
-  page: 'resizer',
+  page: 'home',
+  chooser: null,
   settings: null,
   settingsState: null,
   toasts: [],
-  setPage: (page) => set({ page }),
+  setPage(page) {
+    if (page === get().page) return
+    set({ page })
+    // Remembered for "open where I left off" (written a moment later, once).
+    if (lastPageTimer) clearTimeout(lastPageTimer)
+    lastPageTimer = setTimeout(() => {
+      if (get().settings?.home?.lastPage !== get().page) void updateAppSettings({ home: { lastPage: get().page } }).catch(() => undefined)
+    }, 1000)
+  },
+  choose: (images, folders) => set({ chooser: { images, folders } }),
+  closeChooser: () => set({ chooser: null }),
   async loadSettings() {
+    const first = get().settings === null
     const state = await otk().settings.get()
     set({ settings: state.settings, settingsState: state })
+    const home = state.settings.home
+    if (first && home?.startPage === 'last' && home.lastPage) set({ page: home.lastPage })
     if (state.error) get().toast('error', 'Settings file problem', state.error, 0)
   },
   toast(kind, title, body, ms = kind === 'error' ? 9000 : 4500) {

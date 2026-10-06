@@ -8,13 +8,16 @@
  */
 
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import Ajv2020, { type ErrorObject, type ValidateFunction } from 'ajv/dist/2020'
 import type { DeepPartial } from '@shared/api'
 import { applySettingsPatch } from '@shared/settings-merge'
+import { ValidationError, writeJsonAtomic } from './ipc-util'
 import type { AppSettings, Preset, PresetState, SettingsState } from '@shared/types'
 import type { EventLog } from './log'
+
+export { ValidationError }
 
 const SCHEMAS = ['resizer-settings.schema.json', 'converter-settings.schema.json', 'design-settings.schema.json', 'passport-settings.schema.json',
   'settings.schema.json', 'resizer-presets.schema.json', 'passport-specs.schema.json', 'paper-sizes.schema.json']
@@ -26,25 +29,12 @@ interface PresetFile {
   presets: Preset[]
 }
 
-export class ValidationError extends Error {
-  constructor(message: string, public details: string[]) {
-    super(message)
-  }
-}
-
 function describeErrors(errors: ErrorObject[] | null | undefined): string[] {
   return (errors ?? []).map((e) => `${e.instancePath || '(root)'} ${e.message ?? ''}`.trim())
 }
 
 async function readJson<T>(path: string): Promise<T> {
   return JSON.parse(await readFile(path, 'utf-8')) as T
-}
-
-async function writeJsonAtomic(path: string, data: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true })
-  const tmp = `${path}.${process.pid}.tmp`
-  await writeFile(tmp, JSON.stringify(data, null, 2) + '\n', 'utf-8')
-  await rename(tmp, path)
 }
 
 export class Store {

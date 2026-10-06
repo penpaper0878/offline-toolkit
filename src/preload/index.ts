@@ -33,7 +33,8 @@ const api: OtkApi = {
     openImages: () => call(IPC.openImages),
     openDocuments: () => call(IPC.openDocuments),
     openFolder: () => call(IPC.openFolder),
-    chooseDir: (current) => call(IPC.chooseDir, current ?? null)
+    chooseDir: (current) => call(IPC.chooseDir, current ?? null),
+    openAny: () => call(IPC.openAny)
   },
   files: {
     listImages: (folder, recursive) => call(IPC.listImages, folder, recursive ?? false),
@@ -110,7 +111,13 @@ const api: OtkApi = {
     add: (level, message, data) => call(IPC.logAdd, level, message, data),
     onEntry: (cb) => subscribe<LogEntry>(IPC.logEntry, cb)
   },
-  selftest: { offline: () => call(IPC.selftestOffline) }
+  selftest: { offline: () => call(IPC.selftestOffline) },
+  recent: {
+    list: () => call(IPC.recentList),
+    add: (item) => call(IPC.recentAdd, item),
+    remove: (item) => call(IPC.recentRemove, item),
+    clear: () => call(IPC.recentClear)
+  }
 }
 
 contextBridge.exposeInMainWorld('otk', api)

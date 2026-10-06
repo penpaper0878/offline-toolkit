@@ -65,4 +65,5 @@ export function modelsDir(): string {
 export const logsDir = (): string => join(dataDir(), 'logs')
 export const cacheDir = (): string => join(dataDir(), 'cache')
 export const previewDir = (): string => join(cacheDir(), 'previews')
+export const designsDir = (): string => join(dataDir(), 'designs')
 export const jobsDir = (): string => join(cacheDir(), 'jobs')

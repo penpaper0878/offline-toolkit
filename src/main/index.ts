@@ -4,6 +4,7 @@ import { app, BrowserWindow, Menu, nativeTheme, session } from 'electron'
 import { registerDesignIpc } from './design'
 import { registerPassportIpc } from './passport'
 import { registerIpc } from './ipc'
+import { registerRecentIpc } from './recent'
 import { EventLog } from './log'
 import { applyOfflineSwitches, guardNode, guardSession } from './offline-guard'
 import { cacheDir, dataDir, enginesDir, fontsDir, logsDir, modelsDir, previewDir, pythonExecutable, rendererDir, resourcesDir, workerDir } from './paths'
@@ -93,6 +94,7 @@ app.whenReady().then(async () => {
     }
   })
   registerIpc({ store, pool, log, getWindow: () => mainWindow })
+  registerRecentIpc({ store, log })
   registerDesignIpc({ store, pool, log, getWindow: () => mainWindow })
   await registerPassportIpc({ store, pool, log, resourcesDir: resourcesDir(), dataDir: dataDir(), getWindow: () => mainWindow })
   log.info('app', `Offline Toolkit ${app.getVersion()} started`, { data: dataDir(), python: pythonExecutable() })

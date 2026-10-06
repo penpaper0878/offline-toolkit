@@ -6,9 +6,10 @@
  */
 
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { ValidateFunction } from 'ajv/dist/2020'
+import { writeJsonAtomic } from './ipc-util'
 import type { EventLog } from './log'
 
 export interface ListState<T> {
@@ -19,13 +20,6 @@ export interface ListState<T> {
 }
 
 type Doc<T> = { $schema?: string; version: 1; deletedDefaults?: string[] } & Record<string, unknown> & { [k: string]: T[] | unknown }
-
-async function writeJsonAtomic(path: string, data: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true })
-  const tmp = `${path}.${process.pid}.tmp`
-  await writeFile(tmp, JSON.stringify(data, null, 2) + '\n', 'utf-8')
-  await rename(tmp, path)
-}
 
 export class ListFile<T extends { id: string }> {
   private doc!: Doc<T>

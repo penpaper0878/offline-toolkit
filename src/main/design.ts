@@ -9,12 +9,13 @@ import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { basename, extname, join, relative, resolve } from 'node:path'
-import { app, type BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, type BrowserWindow, dialog } from 'electron'
 import { IPC } from '@shared/api'
 import type { DesignScene, FontFamilyInfo, FontMetrics } from '@shared/design'
 import type { DesignAnalyzeRequest, DesignExportRequest, DesignSummary } from '@shared/types'
+import { handle } from './ipc-util'
 import type { EventLog } from './log'
-import { dataDir } from './paths'
+import { designsDir } from './paths'
 import { fileUrl } from './protocol'
 import type { Store } from './store'
 import { WorkerError, type WorkerPool } from './worker'
@@ -25,8 +26,6 @@ const EXPORTS: Record<string, { name: string; ext: string }> = {
   html: { name: 'Editable HTML', ext: 'html' }, otkd: { name: 'Offline Toolkit design', ext: 'otkd' }
 }
 
-type Result<T> = { ok: true; value: T } | { ok: false; error: { message: string; code: string } }
-
 interface Deps {
   store: Store
   pool: WorkerPool
@@ -34,7 +33,6 @@ interface Deps {
   getWindow: () => BrowserWindow | null
 }
 
-export const designsDir = (): string => join(dataDir(), 'designs')
 
 function designDir(id: string): string {
   if (!/^[a-f0-9-]{8,64}$/i.test(id)) throw new WorkerError('Unknown design.', 'input')
@@ -47,18 +45,6 @@ function insideDesign(id: string, rel: string): string {
   const r = relative(dir, full)
   if (r.startsWith('..') || resolve(full) === resolve(dir)) throw new WorkerError('That file is not part of the design.', 'input')
   return full
-}
-
-function handle<A extends unknown[], T>(channel: string, fn: (...args: A) => Promise<T> | T, log: EventLog): void {
-  ipcMain.handle(channel, async (_e, ...args: unknown[]): Promise<Result<T>> => {
-    try {
-      return { ok: true, value: await fn(...(args as A)) }
-    } catch (e) {
-      const error = e instanceof WorkerError ? { message: e.message, code: e.code } : { message: (e as Error)?.message ?? String(e), code: 'internal' }
-      if (error.code !== 'cancelled') log.warn('design', `${channel}: ${error.message}`, { code: error.code })
-      return { ok: false, error }
-    }
-  })
 }
 
 async function summary(id: string): Promise<DesignSummary | null> {

@@ -7,43 +7,23 @@ import type {
   AppInfo, AppSettings, BatchRequest, BatchResult, BatchItem, ConvertRequest, ConvertResult, ConverterCatalog, LogLevel,
   Preset, PreflightResult, PreviewResult, ProbeResult, ResizerSettings
 } from '@shared/types'
+import { handle } from './ipc-util'
 import type { EventLog } from './log'
 import { recordViolation } from './offline-guard'
 import { dataDir, isPortable, jobsDir, previewDir, pythonExecutable } from './paths'
 import { fileUrl, forgetFile } from './protocol'
 import { runOfflineSelfTest } from './selftest'
-import { type Store, ValidationError } from './store'
-import { WorkerError, type WorkerPool } from './worker'
+import type { Store } from './store'
+import type { WorkerPool } from './worker'
 
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.jpe', '.jfif', '.png', '.webp', '.bmp', '.dib', '.tif', '.tiff', '.heic', '.heif', '.hif'])
 const IMAGE_FILTER = { name: 'Images', extensions: [...IMAGE_EXTS].map((e) => e.slice(1)) }
-
-type Result<T> = { ok: true; value: T } | { ok: false; error: { message: string; code: string } }
 
 interface Deps {
   store: Store
   pool: WorkerPool
   log: EventLog
   getWindow: () => BrowserWindow | null
-}
-
-function toError(e: unknown): { message: string; code: string } {
-  if (e instanceof WorkerError) return { message: e.message, code: e.code }
-  if (e instanceof ValidationError) return { message: e.message, code: 'validation' }
-  return { message: (e as Error)?.message ?? String(e), code: 'internal' }
-}
-
-/** Every handler returns {ok, value} | {ok: false, error} so messages reach the UI intact. */
-function handle<A extends unknown[], T>(channel: string, fn: (...args: A) => Promise<T> | T, log: EventLog): void {
-  ipcMain.handle(channel, async (_event, ...args: unknown[]): Promise<Result<T>> => {
-    try {
-      return { ok: true, value: await fn(...(args as A)) }
-    } catch (e) {
-      const error = toError(e)
-      if (error.code !== 'cancelled') log.warn('ipc', `${channel}: ${error.message}`, { code: error.code })
-      return { ok: false, error }
-    }
-  })
 }
 
 const DOC_EXTS = new Set(['.pdf', '.docx', '.docm', '.dotx', '.doc', '.dot', '.xlsx', '.xlsm', '.xltx', '.xls', '.xlt',
@@ -90,6 +70,14 @@ export function registerIpc({ store, pool, log, getWindow }: Deps): void {
 
   handle(IPC.openImages, async () => {
     const r = await dialog.showOpenDialog(getWindow()!, { properties: ['openFile', 'multiSelections'], filters: [IMAGE_FILTER] })
+    return r.canceled ? [] : r.filePaths
+  }, log)
+  handle(IPC.openAny, async () => {
+    const r = await dialog.showOpenDialog(getWindow()!, {
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'Pictures, documents and designs', extensions: [...new Set([...IMAGE_FILTER.extensions, ...DOC_FILTER.extensions, 'otkd'])] },
+        IMAGE_FILTER, DOC_FILTER, { name: 'Design projects', extensions: ['otkd'] }]
+    })
     return r.canceled ? [] : r.filePaths
   }, log)
   handle(IPC.openFolder, async () => {

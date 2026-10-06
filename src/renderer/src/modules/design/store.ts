@@ -6,6 +6,7 @@ import {
 import type { AppSettings, DesignAccuracy, DesignExportFormat, DesignSettings, DesignSummary, JobProgress } from '@shared/types'
 import { basename, isCancelled, newJobId, otk, toUiError } from '../../lib/api'
 import { createHistory, type History, record, redo, replace, undo } from '../../lib/history'
+import { remember } from '../../lib/recent'
 import { updateAppSettings, useUi } from '../../lib/ui-store'
 import { ensureFace, measure, metricsFor } from './fonts'
 
@@ -511,6 +512,7 @@ export const useDesign = create<DesignStore>((set, get) => ({
   },
 
   async openLoaded(id: string, scene: DesignScene) {
+    remember({ module: 'design', ref: id, label: scene.source.name || 'Design', paths: [] })
     set({
       id, history: replace(createHistory(scene), scene), selection: [], accuracy: null, accuracyFor: null, accuracyState: 'idle', saveState: 'saved',
       editingText: null, assetUrls: {}, overlay: 'off'

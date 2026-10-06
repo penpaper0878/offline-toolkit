@@ -65,7 +65,14 @@ export interface AppSettings {
   converter: ConverterSettings
   design: DesignSettings
   passport: PassportSettings
+  home: HomeSettings
   logging: { hashPaths: boolean }
+}
+
+export interface HomeSettings {
+  startPage: 'home' | 'last'
+  lastPage: 'home' | 'resizer' | 'converter' | 'design' | 'passport' | 'log' | 'settings'
+  rememberRecent: boolean
 }
 
 export interface PassportSettings {

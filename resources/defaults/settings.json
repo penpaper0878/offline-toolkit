@@ -35,5 +35,6 @@
     },
     "guides": true
   },
+  "home": { "startPage": "home", "lastPage": "home", "rememberRecent": true },
   "logging": { "hashPaths": false }
 }

@@ -24,6 +24,8 @@ test('resize a photo to 240×240 px @200 DPI within 20–50 KB, then batch to di
   page.on('pageerror', (e) => errors.push(e.message))
   try {
     await stubDialogs(app, [a, b], out)
+    await expect(page.getByTestId('home-page')).toBeVisible()          // the app opens on the home screen
+    await page.getByTestId('nav-resizer').click()
     await page.getByTestId('add-images').click()
     await expect(page.getByTestId('thumbs').locator('.thumb')).toHaveCount(2)
 

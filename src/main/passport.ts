@@ -10,10 +10,11 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
-import { BrowserWindow, clipboard, dialog, ipcMain } from 'electron'
+import { BrowserWindow, clipboard, dialog } from 'electron'
 import { IPC } from '@shared/api'
 import type { PaperSize, PassportSpec } from '@shared/passport'
 import { ListFile } from './listfile'
+import { handle } from './ipc-util'
 import type { EventLog } from './log'
 import { previewDir } from './paths'
 import { fileUrl } from './protocol'
@@ -25,8 +26,6 @@ const PHOTO_FORMATS: Record<string, { name: string; ext: string }> = {
   jpeg: { name: 'JPEG image', ext: 'jpg' }, png: { name: 'PNG image', ext: 'png' }, pdf: { name: 'PDF', ext: 'pdf' }
 }
 
-type Result<T> = { ok: true; value: T } | { ok: false; error: { message: string; code: string } }
-
 interface Deps {
   store: Store
   pool: WorkerPool
@@ -37,18 +36,6 @@ interface Deps {
 }
 
 const folder = (): string => join(previewDir(), 'passport')
-
-function handle<A extends unknown[], T>(channel: string, fn: (...args: A) => Promise<T> | T, log: EventLog): void {
-  ipcMain.handle(channel, async (_e, ...args: unknown[]): Promise<Result<T>> => {
-    try {
-      return { ok: true, value: await fn(...(args as A)) }
-    } catch (e) {
-      const error = e instanceof WorkerError ? { message: e.message, code: e.code } : { message: (e as Error)?.message ?? String(e), code: 'internal' }
-      if (error.code !== 'cancelled') log.warn('passport', `${channel}: ${error.message}`, { code: error.code })
-      return { ok: false, error }
-    }
-  })
-}
 
 /** Worker results carry file paths; preview files also get an otk:// URL for the renderer. The path stays:
  * a pasted photo lives in the same folder and is still a file the wizard works with. */
