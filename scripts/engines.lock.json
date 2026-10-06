@@ -322,13 +322,13 @@
    ]
   },
   "tesseract": {
-   "version": "Tesseract 5.4.0.20240606 (UB Mannheim)",
+   "version": "Tesseract 5.5.3.20260724 (Windows installer)",
    "files": [
     {
-     "name": "tesseract-ocr-w64-setup-5.4.0.20240606.exe",
-     "url": "https://github.com/UB-Mannheim/tesseract/releases/download/v5.4.0.20240606/tesseract-ocr-w64-setup-5.4.0.20240606.exe",
-     "sha256": "c885fff6998e0608ba4bb8ab51436e1c6775c2bafc2559a19b423e18678b60c9",
-     "size": 50175248
+     "name": "tesseract-ocr-w64-setup-5.5.3.20260724.exe",
+     "url": "https://github.com/tesseract-ocr/tesseract/releases/download/5.5.3/tesseract-ocr-w64-setup-5.5.3.20260724.exe",
+     "sha256": "bee9e3434bd94fd65387d9be28cd467a41f61b1275383b55b0f59a1331270ae4",
+     "size": 26573224
     }
    ]
   },
