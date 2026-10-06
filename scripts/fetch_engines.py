@@ -158,17 +158,21 @@ def _vkey(name: str) -> tuple[int, ...]:
     return tuple(int(n) for n in re.findall(r"\d+", name))
 
 
-def _github_latest(repo: str, pattern: str) -> tuple[dict, dict]:
-    """The highest-numbered file matching `pattern` among the repository's published (non-draft, non-pre-) releases."""
-    found = []
-    for rel in json.loads(text(f"https://api.github.com/repos/{repo}/releases?per_page=100")):
-        hits = [a for a in rel.get("assets", []) if re.fullmatch(pattern, a["name"])]
-        log(f"  {repo} {rel.get('tag_name')}: {'draft ' if rel.get('draft') else ''}"
-            f"{'pre-release ' if rel.get('prerelease') else ''}{', '.join(a['name'] for a in hits) or '-'}")
-        if not (rel.get("draft") or rel.get("prerelease")):
-            found += [(rel, a) for a in hits]
+def _github_latest(repos: str | list[str], pattern: str) -> tuple[dict, dict]:
+    """The highest-numbered file matching `pattern` among the repositories' published (non-draft, non-pre-) releases."""
+    found, seen = [], []
+    for repo in [repos] if isinstance(repos, str) else repos:
+        for rel in json.loads(text(f"https://api.github.com/repos/{repo}/releases?per_page=100")):
+            hits = [a for a in rel.get("assets", []) if re.fullmatch(pattern, a["name"])]
+            kind = "draft" if rel.get("draft") else "pre-release" if rel.get("prerelease") else "release"
+            if hits:
+                seen.append(f"{repo}@{rel.get('tag_name')} ({kind})")
+            if kind == "release":
+                found += [(rel, a) for a in hits]
+    if os.environ.get("GITHUB_ACTIONS"):
+        print(f"::notice title=candidates for {pattern}::" + ", ".join(seen[:30]), flush=True)
     if not found:
-        raise SystemExit(f"no release of {repo} has a file matching {pattern}")
+        raise SystemExit(f"no release of {repos} has a file matching {pattern}")
     return max(found, key=lambda ra: _vkey(ra[1]["name"]))
 
 
@@ -239,9 +243,9 @@ def resolve_ghostscript(plat: str) -> Resolved:
 
 
 def resolve_tesseract(plat: str) -> Resolved:
-    _, asset = _github_latest("UB-Mannheim/tesseract", r"tesseract-ocr-w64-setup-[\w.\-]+\.exe")
+    _, asset = _github_latest(["UB-Mannheim/tesseract", "tesseract-ocr/tesseract"], r"tesseract-ocr-w64-setup-[\w.\-]+\.exe")
     ver = re.search(r"setup-([\w.\-]+)\.exe", asset["name"]).group(1)
-    return f"Tesseract {ver} (UB Mannheim)", [_asset(asset)]
+    return f"Tesseract {ver} (Windows installer)", [_asset(asset)]
 
 
 def resolve_tessdata(plat: str) -> Resolved:
