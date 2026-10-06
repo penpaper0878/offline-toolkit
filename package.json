@@ -6,10 +6,12 @@
   "description": "Offline desktop toolkit: image resizer, document converter, image to editable design, passport photos. Personal use.",
   "main": "out/main/index.js",
   "scripts": {
+    "setup": "node scripts/setup.mjs",
     "setup:py": "node scripts/setup-python.mjs",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "licenses": "node scripts/run-python.mjs scripts/collect_licenses.py",
+    "samples": "node scripts/run-python.mjs scripts/make_samples.py",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.preload.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",

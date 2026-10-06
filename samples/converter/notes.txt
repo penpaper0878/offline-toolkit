@@ -1,0 +1,10 @@
+Quarterly Report
+
+Sales rose *sharply* in Q3 # while costs_fell by 4.5 percent.
+# not a heading
+_not italic_ and **not bold**
+Tab	separated	values
+नमस्ते दुनिया यह हिंदी पाठ है
+مرحبا بالعالم هذا نص عربي
+
+Line after a blank line.

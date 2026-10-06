@@ -124,3 +124,38 @@ test('home screen: modules, open a file, the picture chooser and recent work', a
   }
   expect(existsSync(join(data, 'recent.json'))).toBe(true)
 })
+
+test('Try a sample: each module opens its bundled sample, copied into the data folder', async () => {
+  const data = tempDir('data-samples')
+  const { app, page } = await launch(data)
+  try {
+    await expect(page.getByTestId('home-page')).toBeVisible()
+
+    // The resizer's photo is stored sideways with an EXIF rotation: its thumbnail is upright (portrait).
+    await page.getByTestId('home-sample-resizer').click()
+    const thumb = page.getByTestId('thumbs').locator('.thumb.ready')
+    await expect(thumb).toHaveCount(1, { timeout: 60_000 })
+    const [w, h] = await thumb.locator('img').first().evaluate((img: HTMLImageElement) => [img.naturalWidth, img.naturalHeight])
+    expect(h).toBeGreaterThan(w)
+
+    await page.getByTestId('brand').click()
+    await page.getByTestId('home-sample-converter').click()
+    await expect(page.locator('[data-testid="conv-row"][data-status="ready"]')).toHaveCount(1, { timeout: 120_000 })
+
+    await page.getByTestId('brand').click()
+    await page.getByTestId('home-sample-passport').click()
+    await expect(page.getByTestId('passport-crop-stage')).toBeVisible({ timeout: 120_000 })
+
+    await page.getByTestId('brand').click()
+    await page.getByTestId('home-sample-design').click()
+    await expect(page.getByTestId('design-editor')).toBeVisible({ timeout: 300_000 })
+
+    for (const f of ['resizer/camera-photo-rotated.jpg', 'converter/report.docx', 'passport/portrait.jpg', 'design/poster.png']) {
+      expect(existsSync(join(data, 'samples', f)), f).toBe(true)
+    }
+    await page.getByTestId('brand').click()
+    await expect(page.getByTestId('recent-item')).toHaveCount(4)
+  } finally {
+    await app.close()
+  }
+})

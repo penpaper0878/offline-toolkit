@@ -172,6 +172,13 @@ export function HomePage() {
     const paths = await otk().dialogs.openAny()
     if (paths.length) await routeAndOpen(paths, [], 'home')
   }
+  const trySample = async (module: ModuleId) => {
+    try {
+      await openIn(module, await otk().samples.prepare(module))
+    } catch (e) {
+      ui.reportError('Could not open the sample', e)
+    }
+  }
   useShortcuts([{ keys: 'mod+o', run: () => void openAny() }])
   return (
     <div className="simple-page home-page" data-testid="home-page">
@@ -204,7 +211,10 @@ export function HomePage() {
                 <kbd>{modLabel}+{m.key}</kbd>
               </button>
               <ul className="home-points">{m.points.map((p) => <li key={p}>{p}</li>)}</ul>
-              <div className="home-card-foot muted small">{over === m.id ? 'Release to open here' : m.drop}</div>
+              <div className="home-card-foot muted small">
+                <span>{over === m.id ? 'Release to open here' : m.drop}</span>
+                <button className="link-btn" data-testid={`home-sample-${m.id}`} onClick={() => void trySample(m.id)}>Try a sample</button>
+              </div>
             </article>
           ))}
         </div>

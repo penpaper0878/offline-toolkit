@@ -1,7 +1,7 @@
 /** The API the preload script exposes as `window.otk`. */
 
 import type { DesignScene, FontFamilyInfo, FontMetrics } from './design'
-import type { RecentEntry, RecentItem } from './home'
+import type { ModuleId, RecentEntry, RecentItem } from './home'
 import type { AnalyzeResult, PaperSize, PassportSpec, PhotoInfo, Place, RenderResult } from './passport'
 import type {
   AppInfo, AppSettings, BatchRequest, BatchResult, BatchItem, ConvertRequest, ConvertResult, ConverterCatalog,
@@ -106,6 +106,10 @@ export interface OtkApi {
     /** Progress arrives through jobs.onProgress with this jobId; jobs.cancel stops it. */
     full(jobId: string): Promise<FullSelfTestReport>
   }
+  samples: {
+    /** Copies the module's bundled sample into the data folder and returns the copies' paths. */
+    prepare(module: ModuleId): Promise<string[]>
+  }
   about: {
     /** The third-party components and their licences (build/licenses, resources/licenses when packaged). */
     licences(): Promise<LicenceInfo>
@@ -184,6 +188,7 @@ export const IPC = {
   logEntry: 'log:entry',
   selftestOffline: 'selftest:offline',
   selftestFull: 'selftest:full',
+  samplesPrepare: 'samples:prepare',
   aboutLicences: 'about:licences',
   aboutText: 'about:text',
   recentList: 'recent:list',
