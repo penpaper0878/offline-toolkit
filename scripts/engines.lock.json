@@ -171,13 +171,13 @@
    ]
   },
   "libreoffice": {
-   "version": "LibreOffice 26.8.0.3",
+   "version": "LibreOffice 26.2.6.3",
    "files": [
     {
-     "name": "LibreOffice_26.8.0.3_Win_x86-64.msi",
-     "url": "https://downloadarchive.documentfoundation.org/libreoffice/old/26.8.0.3/win/x86_64/LibreOffice_26.8.0.3_Win_x86-64.msi",
-     "sha256": "4aa6c6e1895f4055104effcb556bd3362d20c6ad707c149543304f395ef9db95",
-     "size": 374906880
+     "name": "LibreOffice_26.2.6.3_Win_x86-64.msi",
+     "url": "https://downloadarchive.documentfoundation.org/libreoffice/old/26.2.6.3/win/x86_64/LibreOffice_26.2.6.3_Win_x86-64.msi",
+     "sha256": "f9877032fd908beb9c0ddf06df4af5c2e85f419c42e14876c4cce5aae5fb2660",
+     "size": 373252096
     }
    ]
   },
