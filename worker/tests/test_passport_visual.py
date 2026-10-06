@@ -1,8 +1,11 @@
 """Visual regression tests for Module 4: the crop, the sized passport photo and the print sheet, compared
 with reviewed reference pictures (tests/golden/passport), plus their exact pixel sizes and DPI.
 
-A change that moves, scales, recolours or re-cuts the result fails here. After an intended change, look
-at the new pictures and replace the references:  OTK_UPDATE_GOLDEN=1 npm run test:py -- -k visual
+Auto fit is compared by its measurements (with tolerances for how the face and segmentation models vary
+between machines), the pictures at the reference placement by SSIM. A change that moves, scales, recolours or
+re-cuts the result fails here. After an intended change, look at the new pictures and replace the references
+(the photo references first: the sheet uses the UK photo's placement):
+    OTK_UPDATE_GOLDEN=1 npm run test:py -- -k visual
 """
 
 from __future__ import annotations
@@ -85,28 +88,62 @@ def test_crop_matches_the_reference():
     _compare("crop-3deg-mirrored", Image.fromarray(out), 0.995)
 
 
+def _reference(name: str) -> dict | None:
+    meta = GOLD / f"{name}.json"
+    return None if UPDATE or not meta.is_file() else json.loads(meta.read_text())
+
+
+def _fits_like_the_reference(now: dict, ref: dict, spec: dict) -> None:
+    """Auto fit lands where it did for the reference, within what the face and segmentation models vary
+    between machines (their floating-point results differ slightly between CPUs and operating systems)."""
+    bad = []
+    p, q = now["place"], ref["place"]
+    if abs(p["angle"] - q["angle"]) > 0.5:
+        bad.append(f"angle {p['angle']:.3f} vs {q['angle']:.3f}°")
+    for k in ("x", "y"):
+        if abs(p[k] - q[k]) > 0.006:
+            bad.append(f"{k} {p[k]:.4f} vs {q[k]:.4f}")
+    if abs(p["scale"] / q["scale"] - 1) > 0.005:
+        bad.append(f"scale {p['scale']:.6g} vs {q['scale']:.6g}")
+    for k in ("crown", "chin"):
+        if float(np.hypot(*np.subtract(now[k], ref[k]))) > 2.0:
+            bad.append(f"{k} {now[k]} vs {ref[k]} px")
+    for k in ("eyeLine", "topMargin", "bottomMargin", "head"):
+        if k in ref and abs(now[k] - ref[k]) > 0.005 * spec["height"]:
+            bad.append(f"{k} {now[k]} vs {ref[k]} {spec['unit']}")
+    if now["crownFrom"] != ref["crownFrom"]:
+        bad.append(f"crown from {now['crownFrom']} vs {ref['crownFrom']}")
+    assert not bad, "Auto fit moved: " + "; ".join(bad)
+
+
 @needs_models
 @pytest.mark.parametrize("spec_id,px", [("uk-passport", (413, 531)), ("us-passport", (600, 600))])
 def test_passport_photo_matches_the_reference(spec_id, px, tmp_path):
     from otk_worker.passport import api
     from otk_worker.common.metadata import readback
 
+    name = f"photo-{spec_id}"
     o = api.open_photo({"path": str(FACES / "portrait-souza.jpg"), "previewDir": str(tmp_path)}, CTX)
     spec = SPECS[spec_id]
     crop = PORTRAIT_CROP if spec_id == "uk-passport" else G.Crop(403.7, 294.4, 588.7, 588.7, 0.0, False, False)
+    # 1. Auto fit: the head in the middle of the spec's range, and where it was for the reference.
+    rr = R.render(S.get(o["id"]), crop, None, R.Spec.parse(spec), background=WHITE)
+    h = {x["id"]: x for x in rr.hints}
+    assert h["head"]["level"] == "ok" and h["centre"]["level"] == "ok" and h["frame"]["level"] == "ok"
+    now, ref = _measures(rr.measures), _reference(name)
+    if ref is not None:
+        _fits_like_the_reference(now, ref, spec)
+    # 2. The picture, drawn at the reference's placement: exact pixels and DPI, and the same look.
+    place = (ref or now)["place"]
     out = tmp_path / "photo.png"
-    res = api.export_photo({"id": o["id"], "crop": crop.to_dict(), "spec": spec, "background": WHITE, "format": "png",
-                            "path": str(out), "previewDir": str(tmp_path)}, CTX)
+    res = api.export_photo({"id": o["id"], "crop": crop.to_dict(), "place": place, "spec": spec, "background": WHITE,
+                            "format": "png", "path": str(out), "previewDir": str(tmp_path)}, CTX)
     assert tuple(res["px"]) == px and res["dpi"] == 300
     rb = readback(out.read_bytes())
     assert (rb["width"], rb["height"]) == px
     im = Image.open(out)
     assert tuple(round(v) for v in im.info["dpi"]) == (300, 300)
-    # The head sits inside the spec's range, and the picture matches the reference.
-    rr = R.render(S.get(o["id"]), crop, None, R.Spec.parse(spec), background=WHITE)
-    _compare(f"photo-{spec_id}", im.convert("RGB"), 0.97, info=_measures(rr.measures))
-    h = {x["id"]: x for x in rr.hints}
-    assert h["head"]["level"] == "ok" and h["centre"]["level"] == "ok" and h["frame"]["level"] == "ok"
+    _compare(name, im.convert("RGB"), 0.97, info=now)
 
 
 @needs_models
@@ -115,8 +152,9 @@ def test_print_sheet_matches_the_reference(tmp_path):
 
     o = api.open_photo({"path": str(FACES / "portrait-souza.jpg"), "previewDir": str(tmp_path)}, CTX)
     out = tmp_path / "sheet.png"
-    res = api.sheet({"photos": [{"kind": "current", "id": o["id"], "crop": PORTRAIT_CROP.to_dict(), "spec": SPECS["uk-passport"],
-                                 "background": WHITE, "previewDir": str(tmp_path), "copies": None}],
+    ref = json.loads((GOLD / "photo-uk-passport.json").read_text())        # the reference photo's placement
+    res = api.sheet({"photos": [{"kind": "current", "id": o["id"], "crop": PORTRAIT_CROP.to_dict(), "place": ref["place"],
+                                 "spec": SPECS["uk-passport"], "background": WHITE, "previewDir": str(tmp_path), "copies": None}],
                      "layout": {"paper": PAPERS["4x6"], "orientation": "portrait", "auto": True, "margins": 4, "gutter": 2, "center": True},
                      "format": "png", "dpi": 300, "path": str(out), "previewDir": str(tmp_path), "cutMarks": True}, CTX)
     assert res["layout"]["rows"] * res["layout"]["cols"] == res["layout"]["count"] == 6

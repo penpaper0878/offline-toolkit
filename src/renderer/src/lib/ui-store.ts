@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { AppSettings, SettingsState } from '@shared/types'
+import { applySettingsPatch } from '@shared/settings-merge'
 import { otk, toUiError } from './api'
 
 export type Page = 'resizer' | 'converter' | 'design' | 'passport' | 'log' | 'settings'
@@ -50,7 +51,20 @@ export const useUi = create<UiState>((set, get) => ({
   }
 }))
 
+let settingsSeq = 0
+
+/** Change settings: shown at once (so a click right after a change sees it), then saved by the main process,
+ * whose answer replaces the local copy when it is the answer to the newest change (or when saving failed). */
 export async function updateAppSettings(patch: Parameters<ReturnType<typeof otk>['settings']['update']>[0]): Promise<void> {
-  const state = await otk().settings.update(patch)
-  useUi.setState({ settings: state.settings, settingsState: state })
+  const seq = ++settingsSeq
+  const cur = useUi.getState().settings
+  if (cur) useUi.setState({ settings: applySettingsPatch(cur, patch) })
+  try {
+    const state = await otk().settings.update(patch)
+    if (seq === settingsSeq) useUi.setState({ settings: state.settings, settingsState: state })
+  } catch (e) {
+    const state = await otk().settings.get().catch(() => null)
+    if (state) useUi.setState({ settings: state.settings, settingsState: state })
+    throw e
+  }
 }

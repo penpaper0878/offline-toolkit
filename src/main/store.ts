@@ -12,6 +12,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import Ajv2020, { type ErrorObject, type ValidateFunction } from 'ajv/dist/2020'
 import type { DeepPartial } from '@shared/api'
+import { applySettingsPatch } from '@shared/settings-merge'
 import type { AppSettings, Preset, PresetState, SettingsState } from '@shared/types'
 import type { EventLog } from './log'
 
@@ -44,18 +45,6 @@ async function writeJsonAtomic(path: string, data: unknown): Promise<void> {
   const tmp = `${path}.${process.pid}.tmp`
   await writeFile(tmp, JSON.stringify(data, null, 2) + '\n', 'utf-8')
   await rename(tmp, path)
-}
-
-function deepMerge<T>(base: T, patch: DeepPartial<T>): T {
-  if (patch === null || typeof patch !== 'object' || Array.isArray(patch)) return patch as T
-  const out: Record<string, unknown> = { ...(base as Record<string, unknown>) }
-  for (const [k, v] of Object.entries(patch as Record<string, unknown>)) {
-    const cur = out[k]
-    out[k] = v !== null && typeof v === 'object' && !Array.isArray(v) && cur && typeof cur === 'object' && !Array.isArray(cur)
-      ? deepMerge(cur, v as DeepPartial<unknown>)
-      : v
-  }
-  return out as T
 }
 
 export class Store {
@@ -133,8 +122,7 @@ export class Store {
   }
 
   async updateSettings(patch: DeepPartial<AppSettings>): Promise<SettingsState> {
-    const next = deepMerge(this.settings, patch)
-    if (patch.resizer?.settings) next.resizer.settings = patch.resizer.settings as AppSettings['resizer']['settings']
+    const next = applySettingsPatch(this.settings, patch)
     if (!this.validateSettings(next)) {
       const details = describeErrors(this.validateSettings.errors)
       throw new ValidationError(`These settings are not valid: ${details.join('; ')}`, details)

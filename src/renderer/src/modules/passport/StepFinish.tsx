@@ -27,6 +27,7 @@ function SinglePhoto() {
   const set = (patch: Partial<typeof ex>) => void updateAppSettings({ passport: { export: patch } })
   const save = async () => {
     setSaving(true)
+    const ex = useUi.getState().settings!.passport.export      // the latest, even if a field was changed just now
     try {
       const res = await otk().passport.exportPhoto(st.request({ format: ex.format, name: 'passport-photo',
         sizeLimit: ex.format === 'jpeg' && ex.limit ? ex.sizeLimit : null }))
