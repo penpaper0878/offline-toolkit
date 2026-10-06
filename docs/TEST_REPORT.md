@@ -75,7 +75,16 @@ Far below the 8 GB target. Every step after the analysis works on the region the
 
 ### Windows packaging (Phase 4)
 
-*Filled in from the CI and release runs of this version.*
+**Release v0.4.0 (`release.yml`, run 37495774451): every step passed.**
+
+- The smoke test ran against the packaged `Offline Toolkit.exe` (not skipped, 1.1 min). Besides the Phase 2 and 3 checks (bundled Python and engines, offline self-test, HEIC, resize, Word and HTML to PDF/A-2b with veraPDF, text shaping, a poster analysed, cut out, checked and exported to Word), it made a passport photo with the bundled face and segmentation models: face found, head within the UK range, background replaced, a JPG of exactly 413 × 531 px at 300 DPI, and a 4 × 6 in sheet PDF of exactly 101.6 × 152.4 mm.
+- Files (published as pre-release [v0.4.0](https://github.com/penpaper0878/offline-toolkit/releases/tag/v0.4.0)):
+  - `Offline-Toolkit-Setup-0.4.0.exe`: **652 MB** installer
+  - `Offline-Toolkit-0.4.0-portable-win-x64.zip`: **893 MB** portable ZIP
+
+  2.5 MB more than v0.3.1 (649 / 890 MB): the two face models. Module 4 adds no other packages.
+- CI for the same commit (run 37495774684) passed again on Ubuntu (with the no-network run) and Windows.
+- The builds are not code-signed.
 
 ### Found and fixed in this phase
 
