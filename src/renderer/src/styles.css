@@ -459,3 +459,9 @@ input[type="range"] { accent-color: var(--accent); }
 .chooser-option:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-2); }
 .chooser-option:disabled { opacity: .5; cursor: not-allowed; }
 .chooser-option svg { color: var(--accent); }
+
+/* Full self-test */
+.full-selftest { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.full-selftest .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.progress-row { display: flex; flex-direction: column; gap: 4px; }
+.selftest-groups h4 { margin: 10px 0 4px; font-size: 13px; }

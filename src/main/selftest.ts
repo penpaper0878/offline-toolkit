@@ -8,9 +8,11 @@
  */
 
 import https from 'node:https'
+import { join } from 'node:path'
 import { type BrowserWindow, net } from 'electron'
-import type { SelfTestCheck, SelfTestReport } from '@shared/types'
+import type { FullSelfTestReport, ModuleCheck, SelfTestCheck, SelfTestReport } from '@shared/types'
 import { listViolations, violationCount } from './offline-guard'
+import { cacheDir, resourcesDir } from './paths'
 import type { WorkerPool } from './worker'
 
 const CANARY = 'https://example.com/'
@@ -73,4 +75,30 @@ export async function runOfflineSelfTest(pool: WorkerPool, win: BrowserWindow | 
     detail: earlier.length === 0 ? 'None.' : `${earlier.length} earlier attempt(s): ${earlier.slice(0, 5).map((v) => `${v.layer} ${v.target}`).join(', ')}`
   })
   return { passed: checks.every((c) => c.passed), checks, violationsBefore: before, violationsAfter: after }
+}
+
+/**
+ * The offline self-test, then a small real job in every module (resize to a target size, convert to a
+ * validated PDF/A, OCR, EPUB, PDF through the app's Chromium, SVG, analyse a poster into layers,
+ * super-resolution, person segmentation, a passport photo), all from inputs made on the spot, then a check
+ * that no network attempt was made while they ran: the modules work with no internet at all.
+ */
+export async function runFullSelfTest(pool: WorkerPool, win: BrowserWindow | null, jobId: string): Promise<FullSelfTestReport> {
+  const started = Date.now()
+  const network = await runOfflineSelfTest(pool, win)
+  const before = violationCount()
+  const res = await pool.runJob<{ checks: ModuleCheck[]; passed: boolean }>(jobId, 'selftest.modules', {
+    workDir: join(cacheDir(), 'selftest'), resourcesDir: resourcesDir()
+  })
+  await new Promise((r) => setTimeout(r, 300))
+  const attempts = violationCount() - before
+  const quiet: SelfTestCheck = {
+    name: 'No network attempts while the modules worked',
+    passed: attempts === 0,
+    detail: attempts === 0 ? 'None.' : `${attempts} attempt(s): ${listViolations().slice(-5).map((v) => `${v.layer} ${v.target}`).join(', ')}`
+  }
+  return {
+    passed: network.passed && res.passed && quiet.passed, network, modules: res.checks, quiet,
+    seconds: Math.round((Date.now() - started) / 100) / 10, at: new Date().toISOString()
+  }
 }

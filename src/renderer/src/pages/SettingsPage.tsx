@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { AppInfo, ConverterCatalog, SelfTestReport, Theme } from '@shared/types'
-import { otk } from '../lib/api'
+import type { AppInfo, ConverterCatalog, FullSelfTestReport, SelfTestReport, Theme } from '@shared/types'
+import { newJobId, otk } from '../lib/api'
 import { updateAppSettings, useUi } from '../lib/ui-store'
 import { Section, Segmented, Toggle } from '../components/controls'
 import { Icon } from '../components/Icon'
@@ -8,6 +8,73 @@ import { Icon } from '../components/Icon'
 const ENGINE_LABEL: Record<string, string> = {
   soffice: 'LibreOffice', pandoc: 'Pandoc', gs: 'Ghostscript', tesseract: 'Tesseract OCR', java: 'Java (for veraPDF)',
   resvg: 'resvg', verapdf: 'veraPDF'
+}
+
+const MODULE_LABEL = { resizer: 'Image Resizer', converter: 'Document Converter', design: 'Image to Design', passport: 'Passport Photo' }
+
+/** Every module does a small real job with the network blocked (about 10–30 s). */
+function FullSelfTest() {
+  const [report, setReport] = useState<FullSelfTestReport | null>(null)
+  const [job, setJob] = useState<{ id: string; fraction: number; message: string } | null>(null)
+  const ui = useUi.getState()
+  useEffect(() => otk().jobs.onProgress((p) => setJob((j) => (j && p.jobId === j.id ? { ...j, fraction: p.fraction, message: p.message } : j))), [])
+  const run = async () => {
+    const id = newJobId('selftest')
+    setJob({ id, fraction: 0, message: 'Network checks' })
+    setReport(null)
+    try {
+      setReport(await otk().selftest.full(id))
+    } catch (e) {
+      ui.reportError('The full self-test could not run', e)
+    } finally {
+      setJob(null)
+    }
+  }
+  const groups = report ? (['resizer', 'converter', 'design', 'passport'] as const).map((m) => [m, report.modules.filter((c) => c.module === m)] as const) : []
+  return (
+    <div className="full-selftest">
+      <div className="row">
+        <button className="btn" disabled={job !== null} onClick={() => void run()} data-testid="run-full-selftest">
+          <Icon name="check" size={16} /> {job ? 'Checking…' : 'Check every module'}
+        </button>
+        {job && <button className="btn small ghost" onClick={() => void otk().jobs.cancel(job.id)}>Cancel</button>}
+        {report && (
+          <span className={`status-chip ${report.passed ? 'good' : 'bad'}`} data-testid="full-selftest-result">
+            <Icon name={report.passed ? 'check' : 'x'} size={14} /> {report.passed ? `All passed in ${report.seconds} s` : 'Something failed'}
+          </span>
+        )}
+      </div>
+      <p className="muted small">Makes a small file in every module with the network blocked: resizes a photo to a size limit, converts Word to a validated PDF/A, reads text from a picture, makes an EPUB, a PDF and a PNG, reads a poster into layers, enlarges a picture, finds a person and makes a passport photo.</p>
+      {job && (
+        <div className="progress-row" data-testid="full-selftest-progress">
+          <div className="progress"><div className="progress-fill" style={{ width: `${Math.round(job.fraction * 100)}%` }} /></div>
+          <span className="muted small">{job.message}</span>
+        </div>
+      )}
+      {report && (
+        <div className="selftest-groups" data-testid="full-selftest-checks">
+          <h4>No network</h4>
+          <ul className="checks">
+            {[...report.network.checks, report.quiet].map((c) => (
+              <li key={c.name} className={c.passed ? 'good' : 'bad'}><Icon name={c.passed ? 'check' : 'x'} size={14} /> <strong>{c.name}</strong>: <span dir="auto">{c.detail}</span></li>
+            ))}
+          </ul>
+          {groups.map(([m, checks]) => (
+            <div key={m}>
+              <h4>{MODULE_LABEL[m]}</h4>
+              <ul className="checks">
+                {checks.map((c) => (
+                  <li key={c.name} className={c.passed ? 'good' : 'bad'} data-testid="module-check" data-passed={c.passed ? '1' : '0'}>
+                    <Icon name={c.passed ? 'check' : 'x'} size={14} /> <strong>{c.name}</strong>: <span dir="auto">{c.detail}</span> <span className="muted small">({c.seconds} s)</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function SettingsPage() {
@@ -79,6 +146,7 @@ export function SettingsPage() {
               ))}
             </ul>
           )}
+          <FullSelfTest />
         </Section>
         <Section title="Your data">
           <p className="muted small">Settings and presets are plain JSON files you can edit. Invalid files are reported and never overwritten.</p>

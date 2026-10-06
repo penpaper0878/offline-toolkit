@@ -12,7 +12,7 @@ import type { EventLog } from './log'
 import { recordViolation } from './offline-guard'
 import { dataDir, isPortable, jobsDir, previewDir, pythonExecutable } from './paths'
 import { fileUrl, forgetFile } from './protocol'
-import { runOfflineSelfTest } from './selftest'
+import { runFullSelfTest, runOfflineSelfTest } from './selftest'
 import type { Store } from './store'
 import type { WorkerPool } from './worker'
 
@@ -206,6 +206,16 @@ export function registerIpc({ store, pool, log, getWindow }: Deps): void {
   ipcMain.on(IPC.cspViolation, (_e, v: { directive?: string; uri?: string }) => {
     recordViolation('chromium', `CSP ${String(v?.directive ?? '?')} blocked ${String(v?.uri ?? '?')}`)
   })
+
+  handle(IPC.selftestFull, async (jobId: string) => {
+    if (typeof jobId !== 'string' || !/^[\w-]{1,80}$/.test(jobId)) throw new Error('Invalid job id.')
+    log.info('selftest', 'Full self-test started')
+    const report = await runFullSelfTest(pool, getWindow(), jobId)
+    const failed = [...report.network.checks, ...report.modules, report.quiet].filter((c) => !c.passed).map((c) => c.name)
+    log.add(report.passed ? 'info' : 'error', 'selftest',
+      report.passed ? `Full self-test passed in ${report.seconds} s` : `Full self-test FAILED: ${failed.join('; ')}`, report)
+    return report
+  }, log)
 
   handle(IPC.selftestOffline, async () => {
     const report = await runOfflineSelfTest(pool, getWindow())

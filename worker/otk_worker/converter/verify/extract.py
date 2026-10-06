@@ -708,6 +708,16 @@ def txt(path: Path) -> Extract:
     return Extract("txt", text=text.replace("\r\n", "\n"))
 
 
+def _on_white(im: PILImage.Image) -> PILImage.Image:
+    """RGB as the picture is seen: transparent areas over white (the page every other renderer uses), not black."""
+    if "A" in im.getbands() or (im.mode == "P" and "transparency" in im.info):
+        rgba = im.convert("RGBA")
+        flat = PILImage.new("RGB", rgba.size, (255, 255, 255))
+        flat.paste(rgba, mask=rgba.getchannel("A"))
+        return flat
+    return im.convert("RGB")
+
+
 def raster(paths: list[Path], fmt: str) -> Extract:
     ex = Extract(fmt, images=[])
     dpis = []
@@ -720,7 +730,7 @@ def raster(paths: list[Path], fmt: str) -> Extract:
     def render(dpi: int) -> list[PILImage.Image]:
         out = []
         for p, d in zip(paths, dpis):
-            im = PILImage.open(p).convert("RGB")
+            im = _on_white(PILImage.open(p))
             src_dpi = float(d[0]) if d else 300.0
             s = dpi / src_dpi
             out.append(im.resize((max(1, round(im.width * s)), max(1, round(im.height * s))), PILImage.Resampling.BOX))

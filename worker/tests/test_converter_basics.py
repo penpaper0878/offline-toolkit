@@ -320,3 +320,35 @@ def test_deskew_levels_tilted_text_instead_of_doubling_the_tilt():
     assert abs(abs(skew) - 2.0) <= 0.2, skew
     straight, _ = tocr._rotate_for_ocr(tilted, skew)
     assert abs(tocr.estimate_skew(np.asarray(straight.convert("L")))) <= 0.2
+
+
+def test_transparent_areas_are_compared_over_white(tmp_path):
+    """A transparent PNG (an SVG's empty margin, a logo) is seen over white like every other page, not over
+    black: before, SVG to PNG with a transparent margin was "Needs review" with SSIM 0.70."""
+    from PIL import Image
+
+    from conftest_converter import HAVE_RESVG
+
+    from otk_worker.converter import runner
+    from otk_worker.converter.verify import extract
+
+    rgba = Image.new("RGBA", (200, 120), (0, 0, 0, 0))
+    rgba.paste((47, 111, 222, 255), (10, 10, 190, 110))
+    flat = extract._on_white(rgba)
+    assert flat.mode == "RGB" and flat.getpixel((2, 2)) == (255, 255, 255) and flat.getpixel((100, 60)) == (47, 111, 222)
+    pal = rgba.convert("P")
+    pal.info["transparency"] = pal.getpixel((0, 0))
+    assert extract._on_white(pal).getpixel((2, 2)) == (255, 255, 255)
+
+    if not HAVE_RESVG:
+        pytest.skip("resvg not installed")
+    src = tmp_path / "badge.svg"
+    src.write_text("<svg xmlns='http://www.w3.org/2000/svg' width='200' height='120' viewBox='0 0 200 120'>"
+                   "<rect x='10' y='10' width='180' height='100' rx='16' fill='#2f6fde'/>"
+                   "<circle cx='60' cy='60' r='30' fill='#ffd60a'/></svg>", encoding="utf-8")
+    out = tmp_path / "out"
+    out.mkdir()
+    res = runner.convert_file(src, "png", Options.from_dict({"mode": "exact", "dpi": 96}), tmp_path / "job", out).to_dict()
+    assert res["status"] == "done" and res["verdict"] == "perfect", res["message"]
+    with Image.open(res["output"]) as im:
+        assert im.mode == "RGBA" and im.getpixel((2, 2))[3] == 0           # the transparency is kept in the file

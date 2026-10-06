@@ -58,6 +58,12 @@ def selftest_canary(params: dict, ctx: Context) -> dict:
     return netguard.canary()
 
 
+def selftest_modules(params: dict, ctx: Context) -> dict:
+    from . import selftest
+
+    return selftest.run(params, ctx.progress, ctx.cancel_event, host=_host(ctx))
+
+
 def probe(params: dict, ctx: Context) -> dict:
     """Image info (full size after orientation) plus a downscaled preview for the UI."""
     path = params["path"]
@@ -272,6 +278,7 @@ def design_install_fonts(params: dict, ctx: Context) -> dict:
 def register(server: Server) -> None:
     server.register("ping", ping, inline=True)
     server.register("selftest.canary", selftest_canary)
+    server.register("selftest.modules", selftest_modules)
     server.register("image.probe", probe)
     server.register("resizer.validate", validate_settings)
     server.register("units.resolve", resolve_units)

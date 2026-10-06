@@ -280,6 +280,21 @@ export interface SelfTestReport {
   violationsAfter: number
 }
 
+export interface ModuleCheck extends SelfTestCheck {
+  module: 'resizer' | 'converter' | 'design' | 'passport'
+  seconds: number
+}
+
+/** The offline self-test plus a small real job in every module, with no network attempt meanwhile. */
+export interface FullSelfTestReport {
+  passed: boolean
+  network: SelfTestReport
+  modules: ModuleCheck[]
+  quiet: SelfTestCheck
+  seconds: number
+  at: string
+}
+
 export interface AppInfo {
   version: string
   electron: string

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addRecent, filesLabel, RECENT_LIMIT, removeRecent, routeFiles, validRecent } from './home'
+import { addRecent, filesLabel, RECENT_LIMIT, type RecentItem, removeRecent, routeFiles, validRecent } from './home'
 
 describe('routing dropped or opened files', () => {
   it('sends documents to the converter and design projects to the design module, from any page', () => {
@@ -35,10 +35,10 @@ describe('routing dropped or opened files', () => {
 })
 
 describe('the recent list', () => {
-  const item = (n: number, module: 'resizer' | 'converter' = 'resizer') => ({ module, label: `f${n}`, paths: [`/f${n}`], at: `2026-10-0${n % 9 + 1}T00:00:00Z` })
+  const item = (n: number, module: 'resizer' | 'converter' = 'resizer'): RecentItem => ({ module, label: `f${n}`, paths: [`/f${n}`], at: `2026-10-0${n % 9 + 1}T00:00:00Z` })
 
   it('puts the newest first, moves a repeat to the top and stays within the limit', () => {
-    let list = [item(1), item(2)].reduce((l, i) => addRecent(l, i), [] as ReturnType<typeof item>[])
+    let list = [item(1), item(2)].reduce<RecentItem[]>((l, i) => addRecent(l, i), [])
     expect(list.map((r) => r.label)).toEqual(['f2', 'f1'])
     list = addRecent(list, { ...item(1), label: 'again' })
     expect(list.map((r) => r.label)).toEqual(['again', 'f2'])
@@ -48,7 +48,7 @@ describe('the recent list', () => {
   })
 
   it('tells the same files in different modules apart, and the same files in any order alike', () => {
-    let list = addRecent([], { module: 'resizer', label: 'a', paths: ['/x', '/y'], at: 't' })
+    let list: RecentItem[] = addRecent([], { module: 'resizer', label: 'a', paths: ['/x', '/y'], at: 't' })
     list = addRecent(list, { module: 'converter', label: 'b', paths: ['/x', '/y'], at: 't' })
     list = addRecent(list, { module: 'resizer', label: 'c', paths: ['/y', '/x'], at: 't' })
     expect(list.map((r) => r.label)).toEqual(['c', 'b'])

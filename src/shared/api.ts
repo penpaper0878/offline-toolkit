@@ -7,7 +7,7 @@ import type {
   AppInfo, AppSettings, BatchRequest, BatchResult, BatchItem, ConvertRequest, ConvertResult, ConverterCatalog,
   ConverterOptions, ConverterProgress, DesignAccuracy, DesignAnalyzeRequest, DesignExportRequest, DesignExportResult,
   DesignSummary, JobProgress, LogEntry, LogLevel, Preset, PresetState, PreflightResult, PreviewResult, ProbeResult,
-  ResizerSettings, SelfTestReport, SettingsState
+  FullSelfTestReport, ResizerSettings, SelfTestReport, SettingsState
 } from './types'
 
 export type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] }
@@ -103,6 +103,8 @@ export interface OtkApi {
   }
   selftest: {
     offline(): Promise<SelfTestReport>
+    /** Progress arrives through jobs.onProgress with this jobId; jobs.cancel stops it. */
+    full(jobId: string): Promise<FullSelfTestReport>
   }
   recent: {
     list(): Promise<RecentEntry[]>
@@ -175,6 +177,7 @@ export const IPC = {
   logAdd: 'log:add',
   logEntry: 'log:entry',
   selftestOffline: 'selftest:offline',
+  selftestFull: 'selftest:full',
   recentList: 'recent:list',
   recentAdd: 'recent:add',
   recentRemove: 'recent:remove',

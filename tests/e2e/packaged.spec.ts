@@ -37,6 +37,10 @@ test('packaged app: bundled Python and engines, offline self-test, HEIC, resize,
   const page = await app.firstWindow()
   try {
     await page.waitForSelector('[data-testid="nav-resizer"]')
+    await expect(page.getByTestId('home-page')).toBeVisible()
+    await expect(page.getByTestId('status-models')).toContainText('4 of 4', { timeout: 60_000 })
+    await expect(page.getByTestId('status-fonts')).toContainText('73 families')
+    await page.screenshot({ path: 'test-results/screens/packaged-home.png' })
 
     await page.getByTestId('nav-settings').click()
     await expect(page.getByTestId('diagnostics')).toContainText('Python 3.11', { timeout: 60_000 })
@@ -51,7 +55,13 @@ test('packaged app: bundled Python and engines, offline self-test, HEIC, resize,
     }
     await page.getByTestId('run-selftest').click()
     await expect(page.getByTestId('selftest-result')).toContainText('Passed', { timeout: 60_000 })
-    await page.screenshot({ path: 'test-results/screens/packaged-settings.png' })
+    // Every module does a small real job with the bundled engines, models and fonts, and no network.
+    await page.getByTestId('run-full-selftest').click()
+    await expect(page.getByTestId('full-selftest-result')).toBeVisible({ timeout: 300_000 })
+    expect(await page.locator('[data-testid="module-check"][data-passed="0"]').allTextContents()).toEqual([])
+    await expect(page.getByTestId('module-check')).toHaveCount(10)
+    await expect(page.getByTestId('full-selftest-result')).toContainText('All passed')
+    await page.screenshot({ path: 'test-results/screens/packaged-settings.png', fullPage: true })
 
     await page.getByTestId('nav-resizer').click()
     await stubDialogs(app, [photo, heic], out)
