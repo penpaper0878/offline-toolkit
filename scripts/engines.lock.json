@@ -1,0 +1,293 @@
+{
+ "about": "Pinned build-time downloads of the bundled engines and the Windows Python: scripts/fetch_engines.py and scripts/bundle-python-win.mjs check every file against its SHA-256. Rewrite with `python scripts/fetch_engines.py --platform <p> --relock`.",
+ "linux-x64": {
+  "pandoc": {
+   "version": "pypandoc_binary 1.16.2",
+   "files": [
+    {
+     "name": "pypandoc_binary-1.16.2-py3-none-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+     "url": "https://files.pythonhosted.org/packages/55/97/4c7e2543013ed6b8c1c7d7344ae5e3f0fa8df67c6712b90a7d2dc87669c0/pypandoc_binary-1.16.2-py3-none-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+     "sha256": "f6108d0661298f97def07695527b73f8499e7c425c8386ae0de2e8bf95d5799c",
+     "size": 34049538
+    }
+   ]
+  },
+  "resvg": {
+   "version": "resvg 0.45.1",
+   "files": [
+    {
+     "name": "resvg-linux-x86_64.tar.gz",
+     "url": "https://github.com/linebender/resvg/releases/download/v0.45.1/resvg-linux-x86_64.tar.gz",
+     "sha256": "3c1d52850a78bc4ed0e9d05605b53ad21bb5313184f14bf72515d29cb98cda10",
+     "size": 1525958
+    }
+   ]
+  },
+  "verapdf": {
+   "version": "veraPDF 1.28.2",
+   "files": [
+    {
+     "name": "greenfield-apps-1.28.2.jar",
+     "url": "https://repo1.maven.org/maven2/org/verapdf/apps/greenfield-apps/1.28.2/greenfield-apps-1.28.2.jar",
+     "sha256": "687d4d8bcfec48c9f7e931cf78ed061f1eeccfba55d4cdc000ba9b4d8aa46ce6",
+     "size": 9485057
+    },
+    {
+     "name": "gui-1.28.2.jar",
+     "url": "https://repo1.maven.org/maven2/org/verapdf/apps/gui/1.28.2/gui-1.28.2.jar",
+     "sha256": "b3382c806dfc11f780cdc51d398bdacc7cc23c0ba1899d687ad26dbef533c114",
+     "size": 321929
+    },
+    {
+     "name": "core-1.28.2.jar",
+     "url": "https://repo1.maven.org/maven2/org/verapdf/core/1.28.2/core-1.28.2.jar",
+     "sha256": "847b0d5ac9effa76d310db92dfb8e11a67c94f70271f54971fcbc75a358abf01",
+     "size": 915745
+    },
+    {
+     "name": "feature-reporting-1.28.2.jar",
+     "url": "https://repo1.maven.org/maven2/org/verapdf/feature-reporting/1.28.2/feature-reporting-1.28.2.jar",
+     "sha256": "b11601c1644fc06ac09190632b7fc172946a707b55e976acbe804a25ab8500be",
+     "size": 71216
+    },
+    {
+     "name": "metadata-fixer-1.28.2.jar",
+     "url": "https://repo1.maven.org/maven2/org/verapdf/metadata-fixer/1.28.2/metadata-fixer-1.28.2.jar",
+     "sha256": "7a005db32a5781ea34502c0c4d99aeb0f97a742c7d6fd80756fd10e8a987862f",
+     "size": 31710
+    },
+    {
+     "name": "parser-1.28.2.jar",
+     "url": "https://repo1.maven.org/maven2/org/verapdf/parser/1.28.2/parser-1.28.2.jar",
+     "sha256": "b51d39394b2d24f1e0303a0cffbaffc238604d4bb6010ea90a85150b4a2659f6",
+     "size": 2370793
+    },
+    {
+     "name": "pdf-model-1.28.2.jar",
+     "url": "https://repo1.maven.org/maven2/org/verapdf/pdf-model/1.28.2/pdf-model-1.28.2.jar",
+     "sha256": "7f4695701faefaa9efd3a39265f0020dc622edbc66d528e96118c392c03ec4d2",
+     "size": 170981
+    },
+    {
+     "name": "validation-model-1.28.2.jar",
+     "url": "https://repo1.maven.org/maven2/org/verapdf/validation-model/1.28.2/validation-model-1.28.2.jar",
+     "sha256": "8d5891939a8302a9b5b1b4791fb63328ad5edb51728866e935bf89b3c6f469df",
+     "size": 437524
+    },
+    {
+     "name": "verapdf-xmp-core-1.28.2.jar",
+     "url": "https://repo1.maven.org/maven2/org/verapdf/verapdf-xmp-core/1.28.2/verapdf-xmp-core-1.28.2.jar",
+     "sha256": "e7b827185f0480cc1a4347522eaea51a826e0177689d623b39646a02edfab421",
+     "size": 141964
+    },
+    {
+     "name": "jackson-annotations-2.15.0.jar",
+     "url": "https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-annotations/2.15.0/jackson-annotations-2.15.0.jar",
+     "sha256": "91adcd3dcf5fd9a16499934e7536a23d456692a0093e3d4fd52f138c3936348c",
+     "size": 75564
+    },
+    {
+     "name": "jackson-core-2.15.0.jar",
+     "url": "https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-core/2.15.0/jackson-core-2.15.0.jar",
+     "sha256": "5b483f68fa9dd6aa37da37d1f79dd5c4b9464238f4f0660a242cb6b5c724950c",
+     "size": 542635
+    },
+    {
+     "name": "jackson-databind-2.15.0.jar",
+     "url": "https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-databind/2.15.0/jackson-databind-2.15.0.jar",
+     "sha256": "00c5a5d5ae71ac8e8d5b8da606841e2251c806355939cb5d51c4cdc6b644a0dc",
+     "size": 1619579
+    },
+    {
+     "name": "javax.activation-api-1.2.0.jar",
+     "url": "https://repo1.maven.org/maven2/javax/activation/javax.activation-api/1.2.0/javax.activation-api-1.2.0.jar",
+     "sha256": "43fdef0b5b6ceb31b0424b208b930c74ab58fac2ceeb7b3f6fd3aeb8b5ca4393",
+     "size": 56674
+    },
+    {
+     "name": "jaxb-api-2.3.1.jar",
+     "url": "https://repo1.maven.org/maven2/javax/xml/bind/jaxb-api/2.3.1/jaxb-api-2.3.1.jar",
+     "sha256": "88b955a0df57880a26a74708bc34f74dcaf8ebf4e78843a28b50eae945732b06",
+     "size": 128076
+    },
+    {
+     "name": "jaxb-core-2.3.0.1.jar",
+     "url": "https://repo1.maven.org/maven2/com/sun/xml/bind/jaxb-core/2.3.0.1/jaxb-core-2.3.0.1.jar",
+     "sha256": "d2ecba63615f317a11fb55c6468f6a9480f6411c10951d9881bafd9a9a8d0467",
+     "size": 254858
+    },
+    {
+     "name": "jaxb-impl-2.3.2.jar",
+     "url": "https://repo1.maven.org/maven2/com/sun/xml/bind/jaxb-impl/2.3.2/jaxb-impl-2.3.2.jar",
+     "sha256": "b3a3d3aeaa5503cadc24dca9539b87efcd7bc3bd8c48018887a1489f2a77bdc0",
+     "size": 1017695
+    },
+    {
+     "name": "jcommander-1.81.jar",
+     "url": "https://repo1.maven.org/maven2/com/beust/jcommander/1.81/jcommander-1.81.jar",
+     "sha256": "9d8b42979c99f3daa99102fe9ba1fb25f52226cb48cf58bc18acb93132e41a05",
+     "size": 85816
+    },
+    {
+     "name": "rhino-1.7.13.jar",
+     "url": "https://repo1.maven.org/maven2/org/mozilla/rhino/1.7.13/rhino-1.7.13.jar",
+     "sha256": "931dda33789d8e004ff5b5478ee3d6d224305de330c48266df7c3e49d52fc606",
+     "size": 1315838
+    },
+    {
+     "name": "stax-utils-20070216.jar",
+     "url": "https://repo1.maven.org/maven2/net/java/dev/stax-utils/stax-utils/20070216/stax-utils-20070216.jar",
+     "sha256": "7c7fd0892cb3362ed2e43ce2f76c8f18f2d7ff1d371ed7490775b7368f3fee9a",
+     "size": 128561
+    }
+   ]
+  }
+ },
+ "resolved": {
+  "linux-x64": "2026-10-06",
+  "win-x64": "2026-10-06"
+ },
+ "win-x64": {
+  "pandoc": {
+   "version": "pypandoc_binary 1.16.2",
+   "files": [
+    {
+     "name": "pypandoc_binary-1.16.2-py3-none-win_amd64.whl",
+     "url": "https://files.pythonhosted.org/packages/73/a5/8065640aa3acefafe784ed9dc8338ea4516d40c60e151d727369f609eaa1/pypandoc_binary-1.16.2-py3-none-win_amd64.whl",
+     "sha256": "9005c32c9d62152cbdd00e5e38579e17c0e708789ef554852367e24fb0cc6cf3",
+     "size": 40229130
+    }
+   ]
+  },
+  "resvg": {
+   "version": "resvg 0.45.1",
+   "files": [
+    {
+     "name": "resvg-win64.zip",
+     "url": "https://github.com/linebender/resvg/releases/download/v0.45.1/resvg-win64.zip",
+     "sha256": "a15172d72d72e219b896ef5942a48c1a57b7280d63ef8380d95dee8005549922",
+     "size": 1378552
+    }
+   ]
+  },
+  "verapdf": {
+   "version": "veraPDF 1.28.2",
+   "files": [
+    {
+     "name": "greenfield-apps-1.28.2.jar",
+     "url": "https://repo1.maven.org/maven2/org/verapdf/apps/greenfield-apps/1.28.2/greenfield-apps-1.28.2.jar",
+     "sha256": "687d4d8bcfec48c9f7e931cf78ed061f1eeccfba55d4cdc000ba9b4d8aa46ce6",
+     "size": 9485057
+    },
+    {
+     "name": "gui-1.28.2.jar",
+     "url": "https://repo1.maven.org/maven2/org/verapdf/apps/gui/1.28.2/gui-1.28.2.jar",
+     "sha256": "b3382c806dfc11f780cdc51d398bdacc7cc23c0ba1899d687ad26dbef533c114",
+     "size": 321929
+    },
+    {
+     "name": "core-1.28.2.jar",
+     "url": "https://repo1.maven.org/maven2/org/verapdf/core/1.28.2/core-1.28.2.jar",
+     "sha256": "847b0d5ac9effa76d310db92dfb8e11a67c94f70271f54971fcbc75a358abf01",
+     "size": 915745
+    },
+    {
+     "name": "feature-reporting-1.28.2.jar",
+     "url": "https://repo1.maven.org/maven2/org/verapdf/feature-reporting/1.28.2/feature-reporting-1.28.2.jar",
+     "sha256": "b11601c1644fc06ac09190632b7fc172946a707b55e976acbe804a25ab8500be",
+     "size": 71216
+    },
+    {
+     "name": "metadata-fixer-1.28.2.jar",
+     "url": "https://repo1.maven.org/maven2/org/verapdf/metadata-fixer/1.28.2/metadata-fixer-1.28.2.jar",
+     "sha256": "7a005db32a5781ea34502c0c4d99aeb0f97a742c7d6fd80756fd10e8a987862f",
+     "size": 31710
+    },
+    {
+     "name": "parser-1.28.2.jar",
+     "url": "https://repo1.maven.org/maven2/org/verapdf/parser/1.28.2/parser-1.28.2.jar",
+     "sha256": "b51d39394b2d24f1e0303a0cffbaffc238604d4bb6010ea90a85150b4a2659f6",
+     "size": 2370793
+    },
+    {
+     "name": "pdf-model-1.28.2.jar",
+     "url": "https://repo1.maven.org/maven2/org/verapdf/pdf-model/1.28.2/pdf-model-1.28.2.jar",
+     "sha256": "7f4695701faefaa9efd3a39265f0020dc622edbc66d528e96118c392c03ec4d2",
+     "size": 170981
+    },
+    {
+     "name": "validation-model-1.28.2.jar",
+     "url": "https://repo1.maven.org/maven2/org/verapdf/validation-model/1.28.2/validation-model-1.28.2.jar",
+     "sha256": "8d5891939a8302a9b5b1b4791fb63328ad5edb51728866e935bf89b3c6f469df",
+     "size": 437524
+    },
+    {
+     "name": "verapdf-xmp-core-1.28.2.jar",
+     "url": "https://repo1.maven.org/maven2/org/verapdf/verapdf-xmp-core/1.28.2/verapdf-xmp-core-1.28.2.jar",
+     "sha256": "e7b827185f0480cc1a4347522eaea51a826e0177689d623b39646a02edfab421",
+     "size": 141964
+    },
+    {
+     "name": "jackson-annotations-2.15.0.jar",
+     "url": "https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-annotations/2.15.0/jackson-annotations-2.15.0.jar",
+     "sha256": "91adcd3dcf5fd9a16499934e7536a23d456692a0093e3d4fd52f138c3936348c",
+     "size": 75564
+    },
+    {
+     "name": "jackson-core-2.15.0.jar",
+     "url": "https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-core/2.15.0/jackson-core-2.15.0.jar",
+     "sha256": "5b483f68fa9dd6aa37da37d1f79dd5c4b9464238f4f0660a242cb6b5c724950c",
+     "size": 542635
+    },
+    {
+     "name": "jackson-databind-2.15.0.jar",
+     "url": "https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-databind/2.15.0/jackson-databind-2.15.0.jar",
+     "sha256": "00c5a5d5ae71ac8e8d5b8da606841e2251c806355939cb5d51c4cdc6b644a0dc",
+     "size": 1619579
+    },
+    {
+     "name": "javax.activation-api-1.2.0.jar",
+     "url": "https://repo1.maven.org/maven2/javax/activation/javax.activation-api/1.2.0/javax.activation-api-1.2.0.jar",
+     "sha256": "43fdef0b5b6ceb31b0424b208b930c74ab58fac2ceeb7b3f6fd3aeb8b5ca4393",
+     "size": 56674
+    },
+    {
+     "name": "jaxb-api-2.3.1.jar",
+     "url": "https://repo1.maven.org/maven2/javax/xml/bind/jaxb-api/2.3.1/jaxb-api-2.3.1.jar",
+     "sha256": "88b955a0df57880a26a74708bc34f74dcaf8ebf4e78843a28b50eae945732b06",
+     "size": 128076
+    },
+    {
+     "name": "jaxb-core-2.3.0.1.jar",
+     "url": "https://repo1.maven.org/maven2/com/sun/xml/bind/jaxb-core/2.3.0.1/jaxb-core-2.3.0.1.jar",
+     "sha256": "d2ecba63615f317a11fb55c6468f6a9480f6411c10951d9881bafd9a9a8d0467",
+     "size": 254858
+    },
+    {
+     "name": "jaxb-impl-2.3.2.jar",
+     "url": "https://repo1.maven.org/maven2/com/sun/xml/bind/jaxb-impl/2.3.2/jaxb-impl-2.3.2.jar",
+     "sha256": "b3a3d3aeaa5503cadc24dca9539b87efcd7bc3bd8c48018887a1489f2a77bdc0",
+     "size": 1017695
+    },
+    {
+     "name": "jcommander-1.81.jar",
+     "url": "https://repo1.maven.org/maven2/com/beust/jcommander/1.81/jcommander-1.81.jar",
+     "sha256": "9d8b42979c99f3daa99102fe9ba1fb25f52226cb48cf58bc18acb93132e41a05",
+     "size": 85816
+    },
+    {
+     "name": "rhino-1.7.13.jar",
+     "url": "https://repo1.maven.org/maven2/org/mozilla/rhino/1.7.13/rhino-1.7.13.jar",
+     "sha256": "931dda33789d8e004ff5b5478ee3d6d224305de330c48266df7c3e49d52fc606",
+     "size": 1315838
+    },
+    {
+     "name": "stax-utils-20070216.jar",
+     "url": "https://repo1.maven.org/maven2/net/java/dev/stax-utils/stax-utils/20070216/stax-utils-20070216.jar",
+     "sha256": "7c7fd0892cb3362ed2e43ce2f76c8f18f2d7ff1d371ed7490775b7368f3fee9a",
+     "size": 128561
+    }
+   ]
+  }
+ }
+}

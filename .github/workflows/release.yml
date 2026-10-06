@@ -41,8 +41,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: engines/win-x64
-          key: engines-win-x64-${{ hashFiles('scripts/fetch_engines.py') }}
-      - name: Conversion engines (LibreOffice, Pandoc, Ghostscript, Tesseract + tessdata_fast, Java + veraPDF, resvg)
+          key: engines-win-x64-${{ hashFiles('scripts/fetch_engines.py', 'scripts/engines.lock.json') }}
+      - name: Conversion engines (LibreOffice, Pandoc, Ghostscript, Tesseract + tessdata_fast, Java + veraPDF, resvg; pinned in scripts/engines.lock.json)
         if: steps.engines-cache.outputs.cache-hit != 'true'
         run: python scripts/fetch_engines.py --platform win-x64
       - name: Save the conversion engines
@@ -50,7 +50,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: engines/win-x64
-          key: engines-win-x64-${{ hashFiles('scripts/fetch_engines.py') }}
+          key: engines-win-x64-${{ hashFiles('scripts/fetch_engines.py', 'scripts/engines.lock.json') }}
       - name: Engine versions
         shell: pwsh
         run: Get-Content engines/win-x64/manifest.json

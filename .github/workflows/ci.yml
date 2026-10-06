@@ -7,6 +7,8 @@ on:
 
 jobs:
   test:
+    # A [relock] commit only rewrites scripts/engines.lock.json (engines-lock.yml); CI runs on the commit after it.
+    if: "!contains(github.event.head_commit.message, '[relock]')"
     strategy:
       fail-fast: false
       matrix:
@@ -64,8 +66,8 @@ jobs:
             models
           key: design-assets-${{ runner.os }}-${{ hashFiles('scripts/fetch_fonts.py', 'scripts/fonts.lock.json', 'scripts/fetch_models.py') }}
 
-      # Conversion engines (Module 2). Linux: distribution packages + pinned downloads.
-      # Windows: the same script the release uses (Chocolatey + pinned downloads), cached.
+      # Conversion engines (Module 2). Linux: distribution packages + downloads pinned in scripts/engines.lock.json.
+      # Windows: the same script and lock the release uses (official installers, jlink-trimmed Java), cached.
       - name: Engines (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -81,7 +83,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: engines/win-x64
-          key: engines-win-x64-${{ hashFiles('scripts/fetch_engines.py') }}
+          key: engines-win-x64-${{ hashFiles('scripts/fetch_engines.py', 'scripts/engines.lock.json') }}
       - name: Engines (Windows)
         if: runner.os == 'Windows' && steps.engines-cache.outputs.cache-hit != 'true'
         run: python scripts/fetch_engines.py --platform win-x64
@@ -91,7 +93,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: engines/win-x64
-          key: engines-win-x64-${{ hashFiles('scripts/fetch_engines.py') }}
+          key: engines-win-x64-${{ hashFiles('scripts/fetch_engines.py', 'scripts/engines.lock.json') }}
 
       - name: Pillow shapes text (raqm with FriBiDi)
         run: |

@@ -21,13 +21,16 @@ import { pipeline } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
 import { fetchFribidi } from './fetch-fribidi-win.mjs'
 
-const PY_VERSION = '3.11.9' // last 3.11 release with Windows binaries
-const URL = `https://www.python.org/ftp/python/${PY_VERSION}/python-${PY_VERSION}-embed-amd64.zip`
+const PY_VERSION = '3.11.9' // last 3.11 release with Windows binaries (scripts/fetch_engines.py PYTHON_EMBED)
 const SOURCE_ONLY = ['antlr4-python3-runtime==4.9.3'] // needed by omegaconf (rapidocr's configuration)
-// Pinned after the first verified download; the build fails if the file changes.
-const SHA256 = process.env.OTK_PY_EMBED_SHA256 ?? null
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+// URL and SHA-256 pinned in scripts/engines.lock.json (written by `fetch_engines.py --relock`); the build fails
+// if the file differs.
+const pinned = JSON.parse(readFileSync(join(root, 'scripts', 'engines.lock.json'), 'utf-8'))['win-x64']?.python?.files?.[0]
+if (!pinned?.sha256 || !pinned.name.includes(PY_VERSION)) throw new Error(`Python ${PY_VERSION} is not pinned in scripts/engines.lock.json`)
+const URL = pinned.url
+const SHA256 = pinned.sha256
 const cache = join(root, 'build', 'cache')
 const target = join(root, 'build', 'python-win')
 const zip = join(cache, `python-${PY_VERSION}-embed-amd64.zip`)
@@ -56,8 +59,11 @@ async function main() {
     await pipeline(Readable.fromWeb(res.body), createWriteStream(zip))
   }
   const digest = createHash('sha256').update(readFileSync(zip)).digest('hex')
-  if (SHA256 && digest !== SHA256) throw new Error(`SHA-256 mismatch for ${zip}: ${digest}`)
-  console.log(`python-${PY_VERSION}-embed-amd64.zip sha256=${digest}${SHA256 ? ' (verified)' : ' (not pinned yet)'}`)
+  if (digest !== SHA256) {
+    rmSync(zip, { force: true })
+    throw new Error(`SHA-256 mismatch for ${URL}: ${digest}, the lock says ${SHA256}`)
+  }
+  console.log(`python-${PY_VERSION}-embed-amd64.zip sha256=${digest} (verified)`)
 
   rmSync(target, { recursive: true, force: true })
   mkdirSync(target, { recursive: true })

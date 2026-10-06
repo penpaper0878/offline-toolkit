@@ -1,0 +1,39 @@
+name: Engine lock
+
+# Re-resolves the build-time downloads in scripts/engines.lock.json: the current releases of LibreOffice,
+# Ghostscript, Tesseract, Temurin 21 and tessdata_fast, and the fixed versions of Python, Pandoc, veraPDF and
+# resvg. Every file is downloaded, checked against the publisher's checksum where there is one, and its SHA-256
+# written to the lock, which is committed to the same branch. Runs when a pushed commit message contains
+# [relock], or manually. Installs nothing: the next CI run builds from the new lock.
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  relock:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[relock]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Resolve, download and hash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/fetch_engines.py --platform win-x64 --relock
+          python scripts/fetch_engines.py --platform linux-x64 --relock
+          python -c "import json; l = json.load(open('scripts/engines.lock.json')); [print(f'::notice title=engines.lock {p}::' + '; '.join(f'{n}: {e[\"version\"]}' for n, e in l[p].items())) for p in ('win-x64', 'linux-x64')]"
+      - name: Commit the lock
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/engines.lock.json
+          if git diff --cached --quiet; then echo "The lock is unchanged."; exit 0; fi
+          git commit -m "Engine lock: pinned URLs and SHA-256 of the engine downloads"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
