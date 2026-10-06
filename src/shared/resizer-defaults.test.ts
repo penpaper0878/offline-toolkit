@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest'
 import { clientIssues, RESIZER_DEFAULTS, toStoredSettings, withDefaults } from './resizer-defaults'
 
 const res = (p: string) => JSON.parse(readFileSync(resolve(__dirname, '../../resources', p), 'utf-8'))
-const schemas = ['resizer-settings.schema.json', 'converter-settings.schema.json', 'design-settings.schema.json', 'settings.schema.json', 'resizer-presets.schema.json'].map((n) => res(`schemas/${n}`))
+const schemas = ['resizer-settings.schema.json', 'converter-settings.schema.json', 'design-settings.schema.json', 'passport-settings.schema.json',
+  'settings.schema.json', 'resizer-presets.schema.json', 'passport-specs.schema.json', 'paper-sizes.schema.json'].map((n) => res(`schemas/${n}`))
 
 function ajv() {
   const a = new Ajv2020({ allErrors: true, strict: false })
@@ -36,6 +37,28 @@ describe('resizer defaults', () => {
     const names = presets.presets.map((p: { name: string }) => p.name)
     expect(names).toContain('Photo 240×240 px @200 DPI (about 3×3 cm)')
     expect(names).toContain('Signature 140×60 px')
+  })
+
+  it('passport specs, paper sizes and settings validate; every spec names its source or says it is unverified', () => {
+    const a = ajv()
+    const vs = a.getSchema('otk://schemas/passport-specs.schema.json')!
+    const specs = res('defaults/presets/passport-specs.json')
+    expect(vs(specs), JSON.stringify(vs.errors)).toBe(true)
+    for (const s of specs.specs) {
+      expect(s.head.min, s.id).toBeLessThan(s.head.max)
+      expect(s.head.max, s.id).toBeLessThan(s.height)
+      if (s.source.status === 'official-excerpt') expect(s.source.url && s.source.quote && s.source.checked, s.id).toBeTruthy()
+      else expect(s.source.status, s.id).toBe('unverified')
+    }
+    expect(specs.specs.map((s: { width: number; height: number; unit: string }) => `${s.width}x${s.height}${s.unit}`))
+      .toEqual(expect.arrayContaining(['35x45mm', '2x2in', '33x48mm', '50x70mm', '25x35mm', '30x40mm']))
+    const vpp = a.getSchema('otk://schemas/paper-sizes.schema.json')!
+    expect(vpp(res('defaults/presets/paper-sizes.json')), JSON.stringify(vpp.errors)).toBe(true)
+    const vset = a.getSchema('otk://schemas/passport-settings.schema.json')!
+    const pass = res('defaults/settings.json').passport
+    expect(vset(pass), JSON.stringify(vset.errors)).toBe(true)
+    expect(vset({ ...pass, sheet: { ...pass.sheet, dpi: 150 } })).toBe(false)
+    expect(vs({ version: 1, specs: [{ ...specs.specs[0], head: { min: 1, max: 2, crown: 'ears' } }] })).toBe(false)
   })
 
   it('converter settings: shipped defaults validate, bad values are rejected', () => {

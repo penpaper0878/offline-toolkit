@@ -15,7 +15,8 @@ import type { DeepPartial } from '@shared/api'
 import type { AppSettings, Preset, PresetState, SettingsState } from '@shared/types'
 import type { EventLog } from './log'
 
-const SCHEMAS = ['resizer-settings.schema.json', 'converter-settings.schema.json', 'design-settings.schema.json', 'settings.schema.json', 'resizer-presets.schema.json']
+const SCHEMAS = ['resizer-settings.schema.json', 'converter-settings.schema.json', 'design-settings.schema.json', 'passport-settings.schema.json',
+  'settings.schema.json', 'resizer-presets.schema.json', 'passport-specs.schema.json', 'paper-sizes.schema.json']
 
 interface PresetFile {
   $schema?: string
@@ -62,6 +63,11 @@ export class Store {
   private validateSettings!: ValidateFunction
   private validatePresets!: ValidateFunction
   validateResizer!: ValidateFunction
+
+  /** A compiled schema by id (used by the editable list files). */
+  schema(id: string): ValidateFunction {
+    return this.ajv.getSchema(`otk://schemas/${id}`)!
+  }
   private settings!: AppSettings
   private settingsError: string | null = null
   private defaults!: AppSettings

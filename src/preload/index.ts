@@ -79,6 +79,24 @@ const api: OtkApi = {
     openFile: (path) => call(IPC.designOpenFile, path ?? null),
     installFonts: (scene) => call(IPC.designInstallFonts, scene)
   },
+  passport: {
+    specs: () => call(IPC.passportSpecs),
+    saveSpec: (spec) => call(IPC.passportSaveSpec, spec),
+    removeSpec: (id) => call(IPC.passportRemoveSpec, id),
+    papers: () => call(IPC.passportPapers),
+    savePaper: (paper) => call(IPC.passportSavePaper, paper),
+    removePaper: (id) => call(IPC.passportRemovePaper, id),
+    pick: (multi) => call(IPC.passportPick, multi ?? false),
+    paste: () => call(IPC.passportPaste),
+    open: (path) => call(IPC.passportOpen, path),
+    analyze: (req) => call(IPC.passportAnalyze, req),
+    autofit: (req) => call(IPC.passportAutofit, req),
+    render: (req) => call(IPC.passportRender, req),
+    auto: (req) => call(IPC.passportAuto, req),
+    exportPhoto: (req) => call(IPC.passportExport, req),
+    sheet: (req) => call(IPC.passportSheet, req),
+    print: (req) => call(IPC.passportPrint, req)
+  },
   jobs: {
     cancel: (jobId) => call(IPC.jobsCancel, jobId),
     onProgress: (cb) => subscribe<JobProgress>(IPC.jobsProgress, cb)

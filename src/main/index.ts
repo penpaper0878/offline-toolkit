@@ -2,6 +2,7 @@ import { mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app, BrowserWindow, Menu, nativeTheme, session } from 'electron'
 import { registerDesignIpc } from './design'
+import { registerPassportIpc } from './passport'
 import { registerIpc } from './ipc'
 import { EventLog } from './log'
 import { applyOfflineSwitches, guardNode, guardSession } from './offline-guard'
@@ -93,6 +94,7 @@ app.whenReady().then(async () => {
   })
   registerIpc({ store, pool, log, getWindow: () => mainWindow })
   registerDesignIpc({ store, pool, log, getWindow: () => mainWindow })
+  await registerPassportIpc({ store, pool, log, resourcesDir: resourcesDir(), dataDir: dataDir(), getWindow: () => mainWindow })
   log.info('app', `Offline Toolkit ${app.getVersion()} started`, { data: dataDir(), python: pythonExecutable() })
 
   buildMenu()

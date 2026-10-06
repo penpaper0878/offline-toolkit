@@ -1,6 +1,7 @@
 /** The API the preload script exposes as `window.otk`. */
 
 import type { DesignScene, FontFamilyInfo, FontMetrics } from './design'
+import type { AnalyzeResult, PaperSize, PassportSpec, PhotoInfo, Place, RenderResult } from './passport'
 import type {
   AppInfo, AppSettings, BatchRequest, BatchResult, BatchItem, ConvertRequest, ConvertResult, ConverterCatalog,
   ConverterOptions, ConverterProgress, DesignAccuracy, DesignAnalyzeRequest, DesignExportRequest, DesignExportResult,
@@ -66,6 +67,24 @@ export interface OtkApi {
     openFile(path?: string | null): Promise<{ id: string; scene: DesignScene } | null>
     installFonts(scene: DesignScene): Promise<{ installed: string[]; where: string }>
   }
+  passport: {
+    specs(): Promise<ListState<PassportSpec>>
+    saveSpec(spec: PassportSpec): Promise<ListState<PassportSpec>>
+    removeSpec(id: string): Promise<ListState<PassportSpec>>
+    papers(): Promise<ListState<PaperSize>>
+    savePaper(paper: PaperSize): Promise<ListState<PaperSize>>
+    removePaper(id: string): Promise<ListState<PaperSize>>
+    pick(multi?: boolean): Promise<string[]>
+    paste(): Promise<string | null>
+    open(path: string): Promise<PhotoInfo>
+    analyze(req: Record<string, unknown>): Promise<AnalyzeResult>
+    autofit(req: Record<string, unknown>): Promise<{ place: Place }>
+    render(req: Record<string, unknown>): Promise<RenderResult>
+    auto(req: Record<string, unknown>): Promise<{ adjust: Record<string, number> }>
+    exportPhoto(req: Record<string, unknown>): Promise<PassportSaved | null>
+    sheet(req: Record<string, unknown>): Promise<PassportSheetResult | null>
+    print(req: Record<string, unknown>): Promise<{ printed: boolean; reason?: string }>
+  }
   jobs: {
     cancel(jobId: string): Promise<void>
     onProgress(cb: (p: JobProgress) => void): () => void
@@ -82,6 +101,33 @@ export interface OtkApi {
   selftest: {
     offline(): Promise<SelfTestReport>
   }
+}
+
+export interface ListState<T> {
+  items: T[]
+  defaultIds: string[]
+  error: string | null
+  file: string
+}
+
+export interface PassportSaved {
+  path: string
+  bytes: number
+  px: [number, number]
+  dpi: number
+  mm: [number, number]
+  notes: string[]
+  compression?: { status: string; quality: number; message: string }
+}
+
+export interface PassportSheetResult {
+  layout: { paper: [number, number]; cell: [number, number]; rows: number; cols: number; count: number; fits: boolean
+    maxRows: number; maxCols: number; problems: string[]; cells: [number, number][] }
+  counts: number[]
+  notes: string[]
+  image?: { url: string; width: number; height: number }
+  path?: string
+  bytes?: number
 }
 
 /** Error shape thrown across IPC: `message` is safe to show to the user. */
@@ -135,5 +181,21 @@ export const IPC = {
   designExport: 'design:export',
   designOpenFile: 'design:openFile',
   designInstallFonts: 'design:installFonts',
+  passportSpecs: 'passport:specs',
+  passportSaveSpec: 'passport:saveSpec',
+  passportRemoveSpec: 'passport:removeSpec',
+  passportPapers: 'passport:papers',
+  passportSavePaper: 'passport:savePaper',
+  passportRemovePaper: 'passport:removePaper',
+  passportPick: 'passport:pick',
+  passportPaste: 'passport:paste',
+  passportOpen: 'passport:open',
+  passportAnalyze: 'passport:analyze',
+  passportAutofit: 'passport:autofit',
+  passportRender: 'passport:render',
+  passportAuto: 'passport:auto',
+  passportExport: 'passport:export',
+  passportSheet: 'passport:sheet',
+  passportPrint: 'passport:print',
   cspViolation: 'guard:cspViolation'
 } as const

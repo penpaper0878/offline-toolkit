@@ -64,7 +64,29 @@ export interface AppSettings {
   }
   converter: ConverterSettings
   design: DesignSettings
+  passport: PassportSettings
   logging: { hashPaths: boolean }
+}
+
+export interface PassportSettings {
+  specId: string
+  background: { mode: 'keep' | 'replace'; color: string; feather: number }
+  export: { format: 'jpeg' | 'png' | 'pdf'; limit: boolean; sizeLimit: { min: number | null; max: number | null; unit: 'B' | 'KB' | 'MB' }; dir: string | null }
+  sheet: {
+    paperId: string
+    custom: { width: number; height: number; unit: 'mm' | 'cm' | 'in' }
+    orientation: 'portrait' | 'landscape'
+    auto: boolean
+    rows: number
+    cols: number
+    margins: number
+    gutter: number
+    borders: boolean
+    cutMarks: boolean
+    format: 'pdf' | 'jpeg' | 'png'
+    dpi: 300 | 600
+  }
+  guides: boolean
 }
 
 export type DesignExportFormat = 'pptx' | 'docx' | 'svg' | 'html' | 'otkd'

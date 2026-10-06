@@ -87,15 +87,25 @@ def warp(sess: Session, out_to_src: np.ndarray, size: tuple[int, int], *, qualit
                           borderMode=cv2.BORDER_CONSTANT, borderValue=border_value)
 
 
-def coverage(sess: Session, out_to_src: np.ndarray, size: tuple[int, int]) -> np.ndarray:
-    """1 where an output pixel's centre falls inside the photo, 0 outside (float32)."""
+def coverage(sess: Session, out_to_src: np.ndarray, size: tuple[int, int],
+             crop: tuple[np.ndarray, tuple[float, float]] | None = None) -> np.ndarray:
+    """How much of each output pixel shows the photo (float32, 0..1, anti-aliased edges): inside the photo and,
+    when `crop` = (output -> cropped map, cropped size) is given, inside the crop too. What the crop leaves out
+    stays out, even where the photo continues."""
     w, h = size
     ys, xs = np.mgrid[0:h, 0:w]
     pts = np.stack([xs.ravel() + 0.5, ys.ravel() + 0.5], 1)
-    s = G.apply(out_to_src, pts)
+
+    def inside(m: np.ndarray, bw: float, bh: float) -> np.ndarray:
+        s = G.apply(m, pts)
+        d = np.minimum(np.minimum(s[:, 0], bw - s[:, 0]), np.minimum(s[:, 1], bh - s[:, 1]))
+        return np.clip(d / max(G.source_per_output(m), 1e-9) + 0.5, 0, 1)   # distance in output px
+
     W, H = sess.size
-    inside = (s[:, 0] >= 0) & (s[:, 0] <= W) & (s[:, 1] >= 0) & (s[:, 1] <= H)
-    return inside.reshape(h, w).astype(np.float32)
+    cov = inside(out_to_src, W, H)
+    if crop is not None:
+        cov = np.minimum(cov, inside(crop[0], *crop[1]))
+    return cov.reshape(h, w).astype(np.float32)
 
 
 def open_photo(path: str) -> Session:

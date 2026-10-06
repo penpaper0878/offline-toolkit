@@ -25,5 +25,15 @@
     "languages": ["eng"], "upscale": "auto", "deskew": true, "denoise": true, "exportFormat": "pptx", "exportDir": null,
     "fontsFolder": false, "highlightLowConfidence": true, "snap": true
   },
+  "passport": {
+    "specId": "uk-passport",
+    "background": { "mode": "replace", "color": "#FFFFFF", "feather": 1 },
+    "export": { "format": "jpeg", "limit": false, "sizeLimit": { "min": 20, "max": 240, "unit": "KB" }, "dir": null },
+    "sheet": {
+      "paperId": "4x6", "custom": { "width": 100, "height": 150, "unit": "mm" }, "orientation": "portrait", "auto": true,
+      "rows": 3, "cols": 2, "margins": 4, "gutter": 2, "borders": false, "cutMarks": true, "format": "pdf", "dpi": 300
+    },
+    "guides": true
+  },
   "logging": { "hashPaths": false }
 }

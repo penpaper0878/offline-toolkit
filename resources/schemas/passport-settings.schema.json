@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "otk://schemas/passport-settings.schema.json",
+  "title": "Passport photo settings (Module 4)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["specId", "background", "export", "sheet", "guides"],
+  "properties": {
+    "specId": { "type": "string", "maxLength": 64, "description": "The photo specification last used." },
+    "background": {
+      "type": "object", "additionalProperties": false, "required": ["mode", "color", "feather"],
+      "properties": {
+        "mode": { "enum": ["keep", "replace"] },
+        "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "feather": { "type": "number", "minimum": 0, "maximum": 10, "description": "Edge softness in output pixels per 600 px." }
+      }
+    },
+    "export": {
+      "type": "object", "additionalProperties": false, "required": ["format", "limit", "sizeLimit", "dir"],
+      "properties": {
+        "format": { "enum": ["jpeg", "png", "pdf"] },
+        "limit": { "type": "boolean", "description": "Hold a JPG to the file-size range below." },
+        "sizeLimit": {
+          "type": "object", "additionalProperties": false, "required": ["min", "max", "unit"],
+          "properties": { "min": { "type": ["number", "null"], "minimum": 0 }, "max": { "type": ["number", "null"], "minimum": 0 }, "unit": { "enum": ["B", "KB", "MB"] } }
+        },
+        "dir": { "type": ["string", "null"] }
+      }
+    },
+    "sheet": {
+      "type": "object", "additionalProperties": false,
+      "required": ["paperId", "custom", "orientation", "auto", "rows", "cols", "margins", "gutter", "borders", "cutMarks", "format", "dpi"],
+      "properties": {
+        "paperId": { "type": "string", "maxLength": 64, "description": "A paper from presets/paper-sizes.json, or \"custom\"." },
+        "custom": {
+          "type": "object", "additionalProperties": false, "required": ["width", "height", "unit"],
+          "properties": { "width": { "type": "number", "exclusiveMinimum": 0, "maximum": 2000 }, "height": { "type": "number", "exclusiveMinimum": 0, "maximum": 2000 }, "unit": { "enum": ["mm", "cm", "in"] } }
+        },
+        "orientation": { "enum": ["portrait", "landscape"] },
+        "auto": { "type": "boolean", "description": "As many photos as fit." },
+        "rows": { "type": "integer", "minimum": 1, "maximum": 50 },
+        "cols": { "type": "integer", "minimum": 1, "maximum": 50 },
+        "margins": { "type": "number", "minimum": 0, "maximum": 100, "description": "mm" },
+        "gutter": { "type": "number", "minimum": 0, "maximum": 50, "description": "mm between photos" },
+        "borders": { "type": "boolean" },
+        "cutMarks": { "type": "boolean" },
+        "format": { "enum": ["pdf", "jpeg", "png"] },
+        "dpi": { "enum": [300, 600] }
+      }
+    },
+    "guides": { "type": "boolean", "description": "Show the head, eye and chin guides." }
+  }
+}

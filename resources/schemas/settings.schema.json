@@ -93,6 +93,9 @@
     },
     "design": {
       "$ref": "otk://schemas/design-settings.schema.json"
+    },
+    "passport": {
+      "$ref": "otk://schemas/passport-settings.schema.json"
     }
   }
 }

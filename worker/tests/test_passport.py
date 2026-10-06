@@ -83,6 +83,21 @@ def test_place_map_and_output_px():
     assert G.source_per_output(m) == pytest.approx(0.5)
 
 
+def test_maps_match_the_shared_vectors():
+    """tests/vectors/passport.json is also checked by src/shared/passport.test.ts (the editor's maths)."""
+    v = json.loads((ROOT / "tests/vectors/passport.json").read_text())
+    for c in v["cropMap"]:
+        assert np.allclose(G.apply(G.crop_map(G.Crop.parse(c["crop"], 1, 1)), c["points"]), c["expect"], atol=1e-6)
+    for f in v["fitInside"]:
+        got = G.fit_inside(G.Crop.parse(f["crop"], 1, 1), *f["size"]).to_dict()
+        assert all(abs(got[k] - f["expect"][k]) < 1e-6 for k in ("cx", "cy", "w", "h"))
+    for pm in v["placeMap"]:
+        m = G.place_map(G.Place.parse(pm["place"]), tuple(pm["crop"]), tuple(pm["out"]))
+        assert np.allclose(G.apply(m, pm["points"]), pm["expect"], atol=1e-6)
+    for sp in v["specPx"]:
+        assert list(R.Spec.parse({**sp["spec"], "head": {"min": 1, "max": 2, "crown": "hair"}}).px) == sp["expect"]
+
+
 # ------------------------------------------------------------------ faces (metamorphic)
 def _rotated(img: np.ndarray, deg: float) -> np.ndarray:
     return np.asarray(Image.fromarray(img).rotate(-deg, Image.Resampling.BICUBIC, expand=True, fillcolor=(235, 235, 235)))
@@ -182,6 +197,47 @@ def test_hints_flag_a_small_or_offset_photo():
     res2 = R.render(sess, G.Crop.full(*sess.size), G.Place(fit["x"] + 1.2, fit["y"], fit["scale"], fit["angle"]), spec)
     h2 = {h["id"]: h for h in res2.hints}
     assert h2["centre"]["level"] == "bad" and h2["frame"]["level"] == "bad"
+
+
+@needs_models
+def test_frame_hint_only_complains_when_the_person_is_cut():
+    bg = {"mode": "replace", "color": "#FFFFFF", "feather": 1}
+    spec = R.Spec.parse(SPECS["uk-passport"])
+    # The portrait's hair nearly touches the top of the photo: the fitted frame reaches above the photo,
+    # but only background is missing there, and the new background fills it.
+    sess = _open(FACES / "portrait-souza.jpg")
+    res = R.render(sess, G.Crop(403.7, 294.4, 457.8, 588.7, 0.0, False, False), None, spec, background=bg)
+    h = {x["id"]: x for x in res.hints}
+    assert res.measures["uncovered"] > 0.02 and res.measures["personCut"] == 0
+    assert h["frame"]["level"] == "ok"
+    # Kept background: the empty strip shows, so it is a fault.
+    res_keep = R.render(sess, G.Crop(403.7, 294.4, 457.8, 588.7, 0.0, False, False), None, spec)
+    assert {x["id"]: x for x in res_keep.hints}["frame"]["level"] == "bad"
+    # Zoomed out and moved up: the bottom edge of the photo runs through the shoulders inside the frame.
+    sess2 = _open(FACES / "astronaut-collins.jpg")
+    fit = R.render(sess2, G.Crop.full(*sess2.size), None, spec, background=bg).measures["place"]
+    cut = R.render(sess2, G.Crop.full(*sess2.size), G.Place(fit["x"], fit["y"] - 1.0, fit["scale"] * 0.6, fit["angle"]), spec, background=bg)
+    hc = {x["id"]: x for x in cut.hints}
+    assert cut.measures["personCut"] > 0.5
+    assert hc["frame"]["level"] == "bad" and "cut off" in hc["frame"]["label"]
+
+
+@needs_models
+def test_the_crop_limits_what_is_shown():
+    # A narrow (35 x 45) crop sized for a square US photo: the photo continues beside the crop, but what the
+    # crop leaves out is not shown; it gets the background colour, and the cut shoulders are reported.
+    sess = _open(FACES / "portrait-souza.jpg")
+    crop = G.Crop(403.7, 294.4, 457.8, 588.7, 0.0, False, False)
+    spec = R.Spec.parse(SPECS["us-passport"])
+    res = R.render(sess, crop, None, spec, background={"mode": "keep"})
+    out_to_crop, out_to_src = R.maps(None, G.Place(**res.measures["place"]), spec, crop)
+    cov = S.coverage(sess, out_to_src, spec.px, (out_to_crop, (crop.w, crop.h)))
+    assert (cov == 0).mean() > 0.03
+    assert (res.image[cov == 0] == 255).all()                    # white, not the photo
+    assert {h["id"]: h for h in res.hints}["frame"]["level"] == "bad"
+    rep = R.render(sess, crop, None, spec, background={"mode": "replace", "color": "#FFFFFF", "feather": 1})
+    assert rep.measures["personCut"] > 0.1
+    assert {h["id"]: h for h in rep.hints}["frame"]["level"] == "bad"
 
 
 @needs_models

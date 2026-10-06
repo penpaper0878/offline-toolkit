@@ -153,7 +153,7 @@ def _fmt(v: float, unit: str) -> str:
 
 def hints(an: S.Analysis, m: Measures | None, place: G.Place, spec: Spec, crop: G.Crop, *,
           src_per_out: float, uncovered: float, background: dict, upscaled: bool, out: np.ndarray | None,
-          person: np.ndarray | None) -> tuple[list[dict], dict]:
+          person: np.ndarray | None, person_cut: int = 0) -> tuple[list[dict], dict]:
     W, H = spec.px
     ppu = spec.ppu
     unit = spec.unit
@@ -234,10 +234,19 @@ def hints(an: S.Analysis, m: Measures | None, place: G.Place, spec: Spec, crop: 
                     "label": "Resolution: enough pixels" if enl <= 1.0 else f"Enlarged {enl:.1f}× (too few pixels)",
                     "detail": "Each output pixel comes from at least one photo pixel." if enl <= 1.0 else "The print may look soft. Use a larger original, or try AI upscaling."})
     measures["uncovered"] = round(uncovered, 4)
+    measures["personCut"] = round(person_cut / W, 4)
     if uncovered > 0.002:
-        res.append({"id": "frame", "level": "warn" if background.get("mode") == "replace" else "bad",
-                    "label": f"{uncovered * 100:.1f}% of the frame is outside the photo",
-                    "detail": "Zoom in or move the photo so it fills the frame (empty parts get the background colour)."})
+        if background.get("mode") == "replace" and person is not None and person_cut < 0.02 * W:
+            # Only background is missing there, and the new background fills it seamlessly.
+            res.append({"id": "frame", "level": "ok", "label": f"{uncovered * 100:.1f}% of the frame filled with the background colour",
+                        "detail": "The photo or the crop does not reach that edge of the frame, but only background is missing there."})
+        elif background.get("mode") == "replace" and person is not None:
+            res.append({"id": "frame", "level": "warn" if person_cut < 0.1 * W else "bad",
+                        "label": "The person is cut off by the edge of the photo or the crop",
+                        "detail": "Zoom in, move the photo, or crop more loosely (step 2), so the head and shoulders are not cut inside the frame."})
+        else:
+            res.append({"id": "frame", "level": "bad", "label": f"{uncovered * 100:.1f}% of the frame is outside the photo or the crop",
+                        "detail": "Zoom in, move the photo, or crop more loosely (step 2), so the photo fills the frame (empty parts get the background colour)."})
     if background.get("mode") == "replace":
         res.append({"id": "background", "level": "ok" if an.alpha is not None else "bad",
                     "label": f"Background replaced ({background.get('color', '#FFFFFF')})" if an.alpha is not None else "No person found to cut out",
@@ -328,7 +337,7 @@ def render(sess: S.Session, crop: G.Crop, place: G.Place | None, spec: Spec, *, 
     else:
         person_rgb = S.warp(sess, out_to_src, (W, H), quality=True)
     check()
-    cover = S.coverage(sess, out_to_src, (W, H))
+    cover = S.coverage(sess, out_to_src, (W, H), (out_to_crop, (crop.w, crop.h)))
     uncovered = float(1 - cover.mean())
     pts_out = None
     if m is not None:
@@ -338,6 +347,7 @@ def render(sess: S.Session, crop: G.Crop, place: G.Place | None, spec: Spec, *, 
     img = A.apply(img, adj, pts_out)
     # Matte in output px.
     alpha_out = None
+    person_cut = 0
     if an.alpha is not None:
         mat = _strokes_mask(an, strokes or [])
         mat = mat if mat is not None else an.alpha.astype(np.float32) / 255.0
@@ -347,7 +357,13 @@ def render(sess: S.Session, crop: G.Crop, place: G.Place | None, spec: Spec, *, 
         feather = float(background.get("feather", 1.0))
         if feather > 0:
             alpha_out = cv2.GaussianBlur(alpha_out, (0, 0), feather * W / 600)
-        alpha_out = np.clip(alpha_out, 0, 1) * cover
+        alpha_out = np.clip(alpha_out, 0, 1)
+        if uncovered > 0:
+            # Length (px) of the photo's edge inside the frame that runs through the person: a visible cut.
+            inside = (cover > 0.5).astype(np.uint8)
+            edge = (inside > 0) & (cv2.erode(inside, np.ones((3, 3), np.uint8)) == 0)
+            person_cut = int((edge & (alpha_out > 0.5)).sum())
+        alpha_out = alpha_out * cover
     if background.get("mode") == "replace" and alpha_out is not None:
         from .matte import decontaminate
 
@@ -359,7 +375,7 @@ def render(sess: S.Session, crop: G.Crop, place: G.Place | None, spec: Spec, *, 
         img = img * cover[..., None] + col * (1 - cover[..., None])
     out = (np.clip(img, 0, 1) * 255 + 0.5).astype(np.uint8)
     hs, ms = hints(an, m, place, spec, crop, src_per_out=src_per_out, uncovered=uncovered, background=background,
-                   upscaled=upscaled, out=out, person=alpha_out)
+                   upscaled=upscaled, out=out, person=alpha_out, person_cut=person_cut)
     ms["place"] = place.to_dict()
     ms["size"] = spec.size_info()
     bef = None
