@@ -148,6 +148,39 @@
   "win-x64": "2026-10-06"
  },
  "win-x64": {
+  "ghostscript": {
+   "version": "Ghostscript 10.08.0",
+   "files": [
+    {
+     "name": "gs10080w64.exe",
+     "url": "https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10080/gs10080w64.exe",
+     "sha256": "52a91b8bf09298788d7a57b9206127026c23eacd75405f0a131e26dc381dce50",
+     "size": 65093120
+    }
+   ]
+  },
+  "jre": {
+   "version": "Temurin jdk-21.0.12.1+1",
+   "files": [
+    {
+     "name": "OpenJDK21U-jdk_x64_windows_hotspot_21.0.12.1_1.zip",
+     "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_windows_hotspot_21.0.12.1_1.zip",
+     "sha256": "f9d6e191ab098c0d416e7d588a24420a8621cd2f4720dab2459b8b7b2d2d8b4e",
+     "size": 205073461
+    }
+   ]
+  },
+  "libreoffice": {
+   "version": "LibreOffice 26.8.0.3",
+   "files": [
+    {
+     "name": "LibreOffice_26.8.0.3_Win_x86-64.msi",
+     "url": "https://downloadarchive.documentfoundation.org/libreoffice/old/26.8.0.3/win/x86_64/LibreOffice_26.8.0.3_Win_x86-64.msi",
+     "sha256": "4aa6c6e1895f4055104effcb556bd3362d20c6ad707c149543304f395ef9db95",
+     "size": 374906880
+    }
+   ]
+  },
   "pandoc": {
    "version": "pypandoc_binary 1.16.2",
    "files": [
@@ -159,6 +192,17 @@
     }
    ]
   },
+  "python": {
+   "version": "CPython 3.11.9 embeddable",
+   "files": [
+    {
+     "name": "python-3.11.9-embed-amd64.zip",
+     "url": "https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip",
+     "sha256": "009d6bf7e3b2ddca3d784fa09f90fe54336d5b60f0e0f305c37f400bf83cfd3b",
+     "size": 11249023
+    }
+   ]
+  },
   "resvg": {
    "version": "resvg 0.45.1",
    "files": [
@@ -167,6 +211,124 @@
      "url": "https://github.com/linebender/resvg/releases/download/v0.45.1/resvg-win64.zip",
      "sha256": "a15172d72d72e219b896ef5942a48c1a57b7280d63ef8380d95dee8005549922",
      "size": 1378552
+    }
+   ]
+  },
+  "tessdata": {
+   "version": "tessdata_fast@874164186573",
+   "files": [
+    {
+     "name": "eng.traineddata",
+     "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata",
+     "sha256": "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2",
+     "size": 4113088
+    },
+    {
+     "name": "osd.traineddata",
+     "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/osd.traineddata",
+     "sha256": "9cf5d576fcc47564f11265841e5ca839001e7e6f38ff7f7aacf46d15a96b00ff",
+     "size": 10562727
+    },
+    {
+     "name": "hin.traineddata",
+     "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/hin.traineddata",
+     "sha256": "4c73ffc59d497c186b19d1e90f5d721d678ea6b2e277b719bee4e2af12271825",
+     "size": 1122751
+    },
+    {
+     "name": "mar.traineddata",
+     "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/mar.traineddata",
+     "sha256": "0ba3f2d116972e72fe9e176bc84c38e81dfb6670f4ed1f7f6c8e16a27da7cb61",
+     "size": 2118233
+    },
+    {
+     "name": "san.traineddata",
+     "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/san.traineddata",
+     "sha256": "a399958921c64e7d2319369ade1e74b4db2577744ac5bfeabd16663cf743b91c",
+     "size": 12404677
+    },
+    {
+     "name": "nep.traineddata",
+     "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/nep.traineddata",
+     "sha256": "280ba9450b4f21afbf5985e0de87857b75a972577c50ef0603c141ddde4f1cb8",
+     "size": 1002911
+    },
+    {
+     "name": "ben.traineddata",
+     "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/ben.traineddata",
+     "sha256": "31163084c279aaebd376216f0c3d5c17ad4b5fee8db49dae79c20000b5de5964",
+     "size": 855841
+    },
+    {
+     "name": "guj.traineddata",
+     "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/guj.traineddata",
+     "sha256": "fa69658614b4946a9afae8853d67e0689838803dfa3d12c2e35ec53ee6f8df34",
+     "size": 1418394
+    },
+    {
+     "name": "pan.traineddata",
+     "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/pan.traineddata",
+     "sha256": "1ec0907fc3534065ea9ae190c6bb7ec9e5c74fd9d2fa996aaec7407f11ad8131",
+     "size": 497721
+    },
+    {
+     "name": "tam.traineddata",
+     "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/tam.traineddata",
+     "sha256": "d02fbec24be4b07e32e80d0ccfc3b6b67a3c5d61c9d0a7c8532677990912c6ec",
+     "size": 3237963
+    },
+    {
+     "name": "tel.traineddata",
+     "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/tel.traineddata",
+     "sha256": "d10691fddd5b67802e1c12800ebb321d3b8bcd8d24a2ac3ff206f93188c04ab5",
+     "size": 2769654
+    },
+    {
+     "name": "kan.traineddata",
+     "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/kan.traineddata",
+     "sha256": "bd31e6b6ae93271e3bcf5383d306d8eefbb91542937cd6d735a5930c970e61d8",
+     "size": 3608331
+    },
+    {
+     "name": "mal.traineddata",
+     "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/mal.traineddata",
+     "sha256": "bd05cbf1b197e7810d2903419aedb06f9ef77bfedf50b358673c1d18d707cdb4",
+     "size": 5275996
+    },
+    {
+     "name": "ori.traineddata",
+     "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/ori.traineddata",
+     "sha256": "36f3135e61d501a3acfad41f5fe60b8e791274fff4c5375c969fdcca980cdbac",
+     "size": 1480066
+    },
+    {
+     "name": "urd.traineddata",
+     "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/urd.traineddata",
+     "sha256": "62e8250ce2a994106e313a82e26a516a39e2cf159d0ce3c5b5008387fd0d555f",
+     "size": 1398718
+    },
+    {
+     "name": "ara.traineddata",
+     "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/ara.traineddata",
+     "sha256": "e3206d3dc87fd50c24a0fb9f01838615911d25168f4e64415244b67d2bb3e729",
+     "size": 1432056
+    },
+    {
+     "name": "heb.traineddata",
+     "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/heb.traineddata",
+     "sha256": "11f9e43ab227f786352a50f75c94c2e9906f1baba86d93276da19da7ce0904db",
+     "size": 961404
+    }
+   ]
+  },
+  "tesseract": {
+   "version": "Tesseract 5.4.0.20240606 (UB Mannheim)",
+   "files": [
+    {
+     "name": "tesseract-ocr-w64-setup-5.4.0.20240606.exe",
+     "url": "https://github.com/UB-Mannheim/tesseract/releases/download/v5.4.0.20240606/tesseract-ocr-w64-setup-5.4.0.20240606.exe",
+     "sha256": "c885fff6998e0608ba4bb8ab51436e1c6775c2bafc2559a19b423e18678b60c9",
+     "size": 50175248
     }
    ]
   },
