@@ -446,3 +446,31 @@ def test_sheet_refuses_an_overflowing_grid(tmp_path):
         api.sheet({"photos": [{"kind": "file", "path": str(img), "widthMm": 35, "heightMm": 45}],
                    "layout": {"paper": PAPERS["4x6"], "rows": 4, "cols": 4, "margins": 5, "gutter": 2},
                    "format": "pdf", "path": str(tmp_path / "x.pdf"), "previewDir": str(tmp_path)}, CTX)
+
+
+def test_sheet_trims_another_photo_of_a_different_shape(tmp_path):
+    import pymupdf
+
+    from otk_worker.passport import api
+
+    # A square photo with a red square in the middle, stored sideways (EXIF orientation 6 = turn 90° clockwise).
+    img = Image.new("RGB", (600, 400), (40, 90, 200))
+    img.paste((220, 30, 30), (250, 150, 350, 250))
+    path = tmp_path / "other.jpg"
+    exif = Image.Exif()
+    exif[0x0112] = 6
+    img.save(path, quality=95, exif=exif)
+    out = tmp_path / "s.pdf"
+    res = api.sheet({"photos": [{"kind": "file", "path": str(path), "widthMm": 35, "heightMm": 45, "copies": None}],
+                     "layout": {"paper": PAPERS["4x6"], "auto": True, "margins": 4, "gutter": 2},
+                     "format": "pdf", "path": str(out), "previewDir": str(tmp_path)}, CTX)
+    assert any("top and bottom are trimmed" in n for n in res["notes"])
+    doc = pymupdf.open(out)
+    xref = doc.get_page_images(0)[0][0]
+    pix = pymupdf.Pixmap(doc, xref)
+    # Upright 400 × 600, trimmed to 35:45 (400 × 514) around the middle: not stretched.
+    assert (pix.width, pix.height) == (400, 514)
+    arr = np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width, pix.n)
+    ys, xs = np.nonzero((arr[..., 0] > 150) & (arr[..., 2] < 100))
+    assert abs((xs.max() - xs.min()) - (ys.max() - ys.min())) <= 3        # the red square is still square
+    assert abs((ys.min() + ys.max()) / 2 - 257) <= 3                      # and still in the middle

@@ -162,10 +162,10 @@ function PrintSheet() {
           <div className="row"><strong>Photos on the sheet</strong><span className="spacer" />
             <button className="btn small" onClick={() => void addPhotos()} data-testid="passport-add-person"><Icon name="add" size={14} /> Another person…</button></div>
           <ul>
-            <li>This photo {others.length > 0 && <NumberField label="copies" value={mine} allowEmpty min={0} integer width={70} hint="Empty: fill the places left" onChange={(v) => setCopies(-1, v)} />}</li>
+            <li>This photo {others.length > 0 && <NumberField label="copies" value={mine} allowEmpty min={0} integer width={70} hint="Empty: fill the places left" onChange={(v) => setCopies(-1, v)} testId="passport-copies-mine" />}</li>
             {others.map((p, i) => (
               <li key={p.path}>{p.name}
-                <NumberField label="copies" value={p.copies} allowEmpty min={0} integer width={70} hint="Empty: fill the places left" onChange={(v) => setCopies(i, v)} />
+                <NumberField label="copies" value={p.copies} allowEmpty min={0} integer width={70} hint="Empty: fill the places left" onChange={(v) => setCopies(i, v)} testId={`passport-copies-${i + 1}`} />
                 <button className="icon-btn" aria-label={`Remove ${p.name}`} onClick={() => { usePassport.setState({ sheetPhotos: others.filter((_, j) => j !== i) }); void st.refreshSheet() }}><Icon name="trash" size={14} /></button>
               </li>
             ))}

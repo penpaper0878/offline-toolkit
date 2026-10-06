@@ -7,7 +7,7 @@ A fully offline desktop app for **personal use (not for redistribution)**. Elect
 | 1. Image Resizer | Exact pixels or physical size at any DPI, crop/pad/stretch, target file size (e.g. 20–50 KB), DPI written into the file, presets, batch + ZIP | **Done (Phase 1)** |
 | 2. Document Converter | PDF, PDF/A-1b/2b/3b, DOCX/DOC, XLSX/XLS, PPTX/PPT, HTML, TXT, EPUB, PNG, JPEG, SVG in every direction, OCR for scans, veraPDF-validated PDF/A, each job verified with a report | **Done (Phase 2)** |
 | 3. Image to Editable Design | Any picture (poster, screenshot, scan, certificate, infographic, ID card) becomes separate editable layers: live text in the closest bundled font, native shapes, traced vector graphics, photos, real tables, on a cleaned background. Built-in editor; export to PowerPoint, Word, layered SVG, editable HTML and a project file | **Done (Phase 3)** |
-| 4. Passport Photo Maker | 4-step wizard: crop, face-guided sizing, background, print sheets | Phase 4 |
+| 4. Passport Photo Maker | 4-step wizard: browse, crop, passport sizing with offline face detection and compliance hints, background replacement, adjustments, then a photo at exact size and DPI or a print sheet (PDF at exact scale, JPG/PNG at 300/600 DPI, cut marks, several people) | **Done (Phase 4)** |
 | Installer, portable ZIP, merged home screen | | Phase 5 |
 
 Design documents: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/ENGINES.md](docs/ENGINES.md) · [docs/CONVERSION_MATRIX.md](docs/CONVERSION_MATRIX.md) · [docs/TEST_REPORT.md](docs/TEST_REPORT.md)
@@ -19,7 +19,7 @@ Get the latest build from the **[Releases page](https://github.com/penpaper0878/
 - **`Offline-Toolkit-Setup-<version>.exe`**: installer. It installs for your user only (`%LOCALAPPDATA%\Programs\Offline Toolkit`), needs no admin rights, and adds Start-menu and desktop shortcuts.
 - **`Offline-Toolkit-<version>-portable-win-x64.zip`**: portable. Unzip anywhere (e.g. a USB stick) and run `Offline Toolkit.exe`. Settings, presets and logs stay in a `data` folder next to it.
 
-The download is large because LibreOffice, Pandoc, Ghostscript, Tesseract and a Java runtime for veraPDF (Module 2), and 73 open-source font families plus two small AI models (Module 3) are bundled, so everything works without installing anything. The builds are made and smoke-tested on a Windows machine by `.github/workflows/release.yml`. Python and every library are bundled, so nothing else needs installing. The app is not code-signed, so on first start Windows SmartScreen may say *"Windows protected your PC"*: choose **More info → Run anyway**.
+The download is large because LibreOffice, Pandoc, Ghostscript, Tesseract and a Java runtime for veraPDF (Module 2), 73 open-source font families plus two small AI models (Module 3), and two face models (Module 4) are bundled, so everything works without installing anything. The builds are made and smoke-tested on a Windows machine by `.github/workflows/release.yml`. Python and every library are bundled, so nothing else needs installing. The app is not code-signed, so on first start Windows SmartScreen may say *"Windows protected your PC"*: choose **More info → Run anyway**.
 
 To build it yourself on Windows: `npm ci`, then `npm run dist:win` (needs Python 3.11 and the internet once). The output lands in `dist\`.
 
@@ -42,16 +42,34 @@ npm start              # runs the built app
 
 Settings → *Conversion engines* shows what was found and where.
 
-**Fonts and models (Module 3) in development.** Run once (needs the internet; the files are checked against pinned hashes):
+**Fonts and models (Modules 3 and 4) in development.** Run once (needs the internet; the files are checked against pinned hashes):
 
 ```bash
 node scripts/run-python.mjs --online scripts/fetch_fonts.py    # 73 families from google/fonts at a pinned commit -> fonts/ (71 MB)
-node scripts/run-python.mjs --online scripts/fetch_models.py   # Real-ESRGAN (converted to ONNX) and MediaPipe selfie segmenter -> models/ (5 MB)
+node scripts/run-python.mjs --online scripts/fetch_models.py   # Real-ESRGAN (ONNX), MediaPipe selfie segmenter and face landmarks, YuNet face detector -> models/ (8 MB)
 ```
 
 `npm run dev` starts the app with hot reload instead. It uses a local Vite dev server, which is the only address the offline guard allows, and only in development.
 
 Linux as root (containers only): Chromium refuses to start sandboxed as root, so pass `--no-sandbox`, e.g. `npx electron . --no-sandbox`. A normal user never needs this.
+
+## Using the Passport Photo Maker
+
+Open it from the side bar or with Ctrl+4. The stepper at the top shows the four steps; *Back* / *Next* (or Ctrl+Enter) move between them, and undo/redo (Ctrl+Z / Ctrl+Shift+Z) covers every change in every step.
+
+1. **Browse.** Open (Ctrl+O), drop or paste (Ctrl+V) a photo: JPG, PNG, WEBP or HEIC. Phone photos are turned upright from their EXIF orientation. The whole photo is shown with zoom (wheel) and pan (drag).
+2. **Crop (first stage).** The app finds the face and proposes a loose head-and-shoulders crop. Drag the photo, drag the frame's corners or scroll to zoom; the frame shows the rule-of-thirds grid and its size in pixels. *Shape*: the photo's own shape, 1:1, free, or a custom ratio. *Straighten* ±45° (the crop shrinks so no empty corner appears; `[` `]` turn by 0.1°), flip, *Frame the face*, *Whole photo*. What the crop leaves out is never shown later.
+3. **Size & enhance (second stage).**
+   - **Photo rules**: UK passport 35×45 mm, Schengen visa 35×45 mm, India passport 4.5×3.5 cm (35×45 mm), Australia passport 35×45 mm, US passport 2×2 in (51×51 mm), China visa 33×48 mm, Canada passport 50×70 mm, and two generic ID sizes (25×35 mm, 3×4 cm) for which no authority's rule was found (marked *unverified*: set the rules of the office you apply to), plus *Custom size*. Each preset shows its pixel size at its DPI, the head size it needs (chin to the top of the head or to the top of the hair, as that authority measures it), where its rules come from and when they were checked. *Edit…* changes a preset for this photo only, saves it as your own preset, or deletes it. Presets live in `presets/passport-specs.json`.
+   - **Placement**: the face and its landmarks are found offline and the photo is turned level and scaled so the head is in the middle of the allowed range, centred, with the eye line or the space above the head where the rules ask. Guides show the head-top, eye and chin lines, the centre line and the allowed head band. Drag the photo, scroll to zoom, arrow keys move it by one output pixel (Shift = 10), *Turn* sets the angle; if the top of the head or the chin is measured wrongly, drag the orange or green marker and press *Auto fit*.
+   - **Checks**: green, amber or red hints for face found, head size (in mm and as a share of the height), centring, level eyes, eye line and margins where the rules set them, eyes open, enough pixels, whether the photo or the crop fills the frame, background and exposure. They are hints from measuring the photo; an office decides whether it accepts it.
+   - **Background**: replace it (white, off-white, light grey, light blue, the colours the chosen authority lists, or any colour) or keep it; *Edge softness*; a *Restore* and an *Erase* brush (size and hardness) to touch up the cut-out.
+   - **Adjust**: exposure, brightness, contrast, highlights, shadows, saturation, vibrance, warmth, tint, sharpness, noise reduction, *Auto enhance*, *Auto white balance*, red-eye fix, skin smoothing (off by default, with a warning: many authorities refuse retouched photos), AI upscaling for small photos (Real-ESRGAN, offline; also warned about), a before/after slider and *Reset*.
+4. **Finalise.**
+   - **Single photo**: JPG, PNG or PDF at the exact size: the pixel size comes from the size and DPI, the DPI is written into the file, and the PDF page is exactly the photo's size in millimetres. For JPG, *Keep the file within a size range* (e.g. 20–240 KB) searches the quality with the Image Resizer's compression engine; the pixel size never changes.
+   - **Print sheet**: paper 4×6 in, 5×7 in, A4, A5, Letter or custom, portrait or landscape; *As many photos as fit* or your own rows × columns; margins, gap, cut marks (drawn only in the margins), thin borders. The preview updates live; a grid that does not fit is explained (how much room it needs and how many fit) and cannot be saved. Add other people's photos with *Another person…* and set the copies of each (empty = fill the places left); a photo of another shape is trimmed to fit, never stretched. Save as PDF (exact scale), JPG or PNG at 300 or 600 DPI, or *Print…* (the page is sent at 100% with no margins; still check that the print dialog says *Actual size*).
+
+Print at 100% / *Actual size*, never *Fit to page*, and measure one printed photo before cutting them all. The spec, background, export and sheet settings are remembered.
 
 ## Using Image to Design
 
@@ -137,7 +155,7 @@ Open it from the side bar or with Ctrl+2.
 
 | Keys | Action |
 |---|---|
-| Ctrl+1 / Ctrl+2 / Ctrl+3 | Image Resizer / Document Converter / Image to Design |
+| Ctrl+1 / Ctrl+2 / Ctrl+3 / Ctrl+4 | Image Resizer / Document Converter / Image to Design / Passport Photo |
 | Ctrl+O / Ctrl+Shift+O | Add files / add a folder |
 | Ctrl+Enter | Process all images / convert all documents |
 | Esc | Cancel the running conversion |
@@ -164,6 +182,17 @@ In the design editor:
 | Ctrl+S / Ctrl+E | Save now / export |
 | Esc | Clear the selection |
 
+In the passport wizard:
+
+| Keys | Action |
+|---|---|
+| Ctrl+O / Ctrl+V | Open / paste a photo |
+| Ctrl+Enter | Next step |
+| Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) | Undo / redo |
+| Arrow keys (Shift = 10) | Move the crop (step 2, source pixels) or the photo in the frame (step 3, output pixels) |
+| `[` / `]` | Straighten by −0.1° / +0.1° (step 2) |
+| Wheel | Zoom |
+
 ### Your data
 
 | | Windows | Portable ZIP |
@@ -171,6 +200,8 @@ In the design editor:
 | Settings, presets, logs | `%APPDATA%\Offline Toolkit\` | `data\` next to the exe |
 | Converter work folders (deleted when every file in the batch succeeded; kept for *Resume* otherwise) | `%APPDATA%\Offline Toolkit\cache\jobs\` | `data\cache\jobs\` |
 | Designs (one folder each: layers, pictures, analysis cache; delete them from the module's start page) | `%APPDATA%\Offline Toolkit\designs\` | `data\designs\` |
+| Passport presets: `presets\passport-specs.json`, `presets\paper-sizes.json` (with the other presets) | `%APPDATA%\Offline Toolkit\presets\` | `data\presets\` |
+| Passport previews and pasted photos (temporary) | `%APPDATA%\Offline Toolkit\cache\previews\passport\` | `data\cache\previews\passport\` |
 
 Settings → *Your data* shows the exact paths. The JSON files are validated when the app starts. An invalid file is reported and the built-in default is used, and your file is never overwritten.
 
@@ -179,7 +210,8 @@ Settings → *Your data* shows the exact paths. The JSON files are validated whe
 ```bash
 npm run typecheck      # TypeScript (main, preload, renderer)
 npm test               # vitest: units maths (shared vectors with Python), crop maths, undo/redo, schemas
-npm run test:py        # pytest: resizer, RPC, network guard, converter, design (ground-truth samples, exports drawn back and compared)
+npm run test:py        # pytest: resizer, RPC, network guard, converter, design (ground-truth samples, exports drawn back and compared),
+                       #         passport (face measurements, every preset fitted, exact px/DPI/mm, reference pictures)
 OTK_FULL_MATRIX=1 npm run test:py -- worker/tests/test_converter_matrix.py   # every conversion route (~270, about an hour)
 npm run test:e2e       # Playwright drives the real Electron app with the real Python worker
 npm run test:offline   # Linux: pytest + end-to-end inside a network namespace with no network interfaces
@@ -208,10 +240,10 @@ Results from the last run, including what could not be run here, are in [docs/TE
 ```
 src/main/        Electron main: offline guard, otk:// protocol, worker pool, settings/presets store, IPC, self-test
 src/preload/     the typed window.otk bridge (sandboxed)
-src/renderer/    React UI (modules/resizer, modules/converter, modules/design, pages, components)
+src/renderer/    React UI (modules/resizer, modules/converter, modules/design, modules/passport, pages, components)
 src/shared/      TypeScript shared by all three (units, crop geometry, the design scene and its geometry, types)
 worker/          Python worker: JSON-RPC over stdio, resizer engine, converter (planner, steps, PDF/A, OCR, verification),
-                 design (analysis pipeline, exporters, verification), tests
+                 design (analysis pipeline, exporters, verification), passport (face, matte, sizing, sheets), tests
 scripts/         Python setup, Windows Python bundling, engine, font and model fetching, the standalone PDF printer
 resources/       JSON schemas and shipped defaults (settings, presets, conversion routes)
 tests/           shared test vectors and Playwright end-to-end tests

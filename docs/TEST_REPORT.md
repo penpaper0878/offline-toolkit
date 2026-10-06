@@ -2,6 +2,104 @@
 
 Updated at the end of each phase. Every result below is from an actual run. Anything not run is listed as such.
 
+## Phase 4: Module 4 (Passport Photo Maker), 2026-10-06
+
+### Environment
+
+- **Machine:** the same Linux container (Ubuntu 24.04, x86-64, 4 cores, 15 GB RAM), run as root, Xvfb for the app tests.
+- **Models here:** as in Phase 3, plus YuNet and the MediaPipe face landmark model fetched by `scripts/fetch_models.py` (8 MB of models in all).
+- **Test photos:** two public-domain portraits (`worker/tests/fixtures/faces/`): an 820 × 1024 studio portrait in front of a red curtain, a window and flags (a hard background), and a 512 × 512 NASA portrait (too few pixels for most specs on purpose). Synthetic faces are not used: the face and landmark models need real faces.
+
+### Results
+
+| Suite | Command | Result |
+|---|---|---|
+| TypeScript typecheck | `npm run typecheck` | **pass** |
+| JavaScript unit tests (vitest), including the passport geometry and units shared with Python (`tests/vectors/passport.json`) and the preset schemas | `npm test` | **47 / 47 pass** |
+| Python tests (pytest): Phases 1–3 plus 56 passport tests: geometry and DPI/mm/px maths, face measurements on both photos (metamorphic: shifted, scaled, turned and mirrored copies give the same measurements), auto fit for every preset, hints, crown and chin corrections, background and brush, adjustments, white balance, red-eye, single exports (pixels, DPI, PDF mm, size limit), sheet layout and exports, and **visual regression** against reviewed reference pictures (crop, UK and US photos, a 4 × 6 in sheet) | `npm run test:py` | **268 / 268 pass**, none skipped |
+| End-to-end, real app + worker (Playwright): resizer ×2, converter, design ×2, **passport ×2** (open → crop with flip, straighten, undo/redo → size to UK and US rules with hints → background → adjust → save JPG / size-limited JPG / PDF → 4 × 6 in sheet as PDF and PNG → 5 × 5 overflow refused; paste a photo → own preset saved to the JSON file → erase brush with undo/redo → crown marker dragged and refitted → two people on one sheet → print path at 100%) | `npm run test:e2e` | **7 / 7 pass** (the packaged-app test runs on Windows only) |
+| The two passport app tests, repeated three times | `playwright test tests/e2e/passport.spec.ts --repeat-each=3` | **6 / 6 pass** |
+| **No network at all**: pytest and the app tests inside a Linux network namespace with no interfaces (network guard off, so only the OS blocks) | `npm run test:offline` | **268 / 268 pytest, 7 / 7 app tests pass** (the app tests re-run after the paste fix below) |
+| Packaged-app smoke test, dry run against the development build here (all four modules, the passport photo and sheet at exact size) | `OTK_PACKAGED_EXE=… playwright test tests/e2e/packaged.spec.ts` | **pass** (1.7 min) |
+| Ubuntu and Windows CI, packaged Windows app | `.github/workflows/ci.yml`, `release.yml` | see *Windows packaging (Phase 4)* below |
+
+### Exact sizes (checked by the tests on the saved files)
+
+| Output | Expected | Measured |
+|---|---|---|
+| UK passport JPG | 413 × 531 px, 300 DPI in the file | 413 × 531 px, JFIF 300 × 300 |
+| Same, *within 20–60 KB* | 413 × 531 px, 20–60 KB | 413 × 531 px, 59.0 KB |
+| UK passport PDF | one page, 35 × 45 mm | 35.000 × 45.000 mm |
+| US passport PNG | 600 × 600 px at 300 DPI (2 × 2 in) | 600 × 600 px, pHYs 300 DPI |
+| 4 × 6 in sheet PDF | 101.6 × 152.4 mm, 6 places, the photo stored once | 101.600 × 152.400 mm, 6 placements of 1 image object, each 35.00 × 45.00 mm |
+| 4 × 6 in sheet PNG | 1200 × 1800 px at 300 DPI | 1200 × 1800 px, 300 DPI, nothing printed in the outer 8 px |
+| A5 sheet PNG at 300 / JPG at 600 DPI | 1748 × 2480 / 3496 × 4961 px | as expected |
+| Print | page 101.6 × 152.4 mm, 100% scale, no margins | `webContents.print` called with 101 600 × 152 400 µm, scaleFactor 100, margins none; the page's CSS size 101.600mm 152.400mm, photos 30.000 × 40.000 mm (own preset) |
+
+### Every preset fitted automatically (first crop and Auto fit, background replaced, no hand corrections)
+
+| Preset | Head allowed | Head after Auto fit | Other checks set by the rules | Hints not green |
+|---|---|---|---|---|
+| UK passport 35 × 45 mm | 29–34 mm (to the top of the head) | 31.5 mm | | resolution (amber) |
+| Schengen visa 35 × 45 mm | 31.5–36 mm | 33.75 mm | | resolution (amber) |
+| India passport 4.5 × 3.5 cm | 36–38.25 mm (to the top of the hair) | 37.1 mm | | resolution (amber) |
+| Australia passport 35 × 45 mm | 32–36 mm | 34.0 mm | | resolution (amber) |
+| US passport 2 × 2 in | 1–1.375 in (hair) | 1.19 in | eye line 1.125–1.375 in: 1.25 in | resolution (amber) |
+| China visa 33 × 48 mm | 28–33 mm (hair) | 30.5 mm | space above 3–5 mm: 4.0; below the chin ≥ 7 mm: 13.5 | resolution (amber) |
+| Canada passport 50 × 70 mm | 31–36 mm | 33.5 mm | | resolution (amber) |
+| ID 25 × 35 mm (unverified) | 24.5–28 mm | 26.25 mm | | none |
+| ID 3 × 4 cm (unverified) | 28–32 mm | 30.0 mm | | resolution (amber) |
+
+That is for the 820 × 1024 portrait; the head always lands in the middle of the range, centred and level. The only amber hint is correct: at 300 DPI the photo is enlarged 1.1–1.4× (0.96× for 25 × 35 mm, which is green). On the 512 × 512 portrait the same sizes and positions are reached and the resolution hint is red for every preset (enlarged 1.9–2.7×), as it should be.
+
+The face measurements follow transformed copies of both photos (`test_passport.py`): the measured tilt follows turns of −8° and +6° within 0.8°; a copy at 60% gives 60% of the eye distance within 3% and the chin within 8% of the eye distance; a mirrored copy mirrors the eyes within 5% of the eye distance. The portrait turned 7° and padded, after Auto fit, puts the top of the head and the chin on the same output pixels within 1.5 px and the eye line within 0.15 mm of the original's.
+
+### Measured performance (Linux container, one photo at a time)
+
+| Step | 820 × 1024 | 4000 × 4995 (20 MP) | 6000 × 7493 (45 MP) |
+|---|---|---|---|
+| Open the photo | 0.04 s | 0.83 s | 1.46 s |
+| Find the face, landmarks and person (first crop) | 1.40 s | 1.93 s | 2.01 s |
+| Analyse the chosen crop | 0.58 s | 1.61 s | 1.57 s |
+| Draw the photo (the preview is the output itself) | 0.11 s | 0.12 s | 0.12 s |
+| … with exposure, contrast, sharpening, noise reduction, red-eye | 0.46 s | 0.47 s | 0.50 s |
+| Save a JPG within 20–240 KB / a PDF | 0.51 / 0.21 s | 0.49 / 0.20 s | 0.52 / 0.25 s |
+| Sheet preview / A4 sheet PDF | 0.02 / 0.17 s | 0.01 / 0.17 s | 0.02 / 0.26 s |
+| A4 sheet PNG at 600 DPI (4961 × 7016 px) | 5.5 s | 5.5 s | 5.0 s |
+| AI upscaling (Real-ESRGAN), when the photo is too small | 3.1 s | not needed | not needed |
+| **Peak memory (worker)** | **0.38 GB** | **0.53 GB** | **0.63 GB** |
+
+Far below the 8 GB target. Every step after the analysis works on the region the output needs, so a large photo costs little more than a small one.
+
+### Windows packaging (Phase 4)
+
+*Filled in from the CI and release runs of this version.*
+
+### Found and fixed in this phase
+
+- **MediaPipe's landmark model lost two of its three outputs** in OpenCV 5's new DNN engine: the classic engine is used.
+- **A bright window beside the head was kept as "person"** by the selfie segmenter: the head is segmented again from a close-up, and GrabCut works only in a band around the outline, keeping what touches confident person pixels.
+- **A red fringe around the hair** from the old red curtain: edge colours are decontaminated; a too-wide glow at the edge came from a loose guided filter, now tight.
+- **Auto white balance "neutralised" the red curtain** (and turned skin green): only near-neutral pixels are used, and the whole range only when the background is near-neutral; its solve is now exact and does not clip.
+- Found by running the wizard in the real app (the reason for the app tests):
+  - **Pasting a photo crashed the page.** The main process turned every file path under the previews folder into an `otk://` URL and dropped the path; a pasted photo is saved there, so the wizard got a photo without a path. Paths are kept now; the second app test pastes a real image through the system clipboard.
+  - **What the crop left out was shown anyway.** Pixels beyond the crop came from the full photo but had no cut-out, so a square US photo made from a 35 × 45 crop showed the shoulders cut off at the crop's sides with white beyond. The crop now limits what is shown (soft-edged), and the crop takes the new shape when the spec changes; the first crop is sized from the spec, so small-head specs (Canada 50 × 70 mm) get room.
+  - **The frame hint was amber for every tight portrait** with hair near the top edge, though the replaced background filled the gap seamlessly. It now measures whether the photo's or the crop's edge cuts through the person (green when only background is missing; amber or red, with a clear label, when the head or shoulders are cut).
+  - **Other people's photos on a sheet were stretched** to the cell's shape: they are now trimmed around the middle, and their EXIF orientation is applied.
+  - **The crop step briefly showed the whole photo** before the face was framed (a click then could be lost): the wizard now frames first.
+  - **A switch's hidden checkbox escaped its scrolling panel** and made the whole window scroll (shared control, so it also affected other long panels).
+  - **While colours were redrawn the canvas fell back to the unprocessed photo** (a flash of the old background): the last drawn photo stays until the new one arrives.
+
+### Known limits (Module 4)
+
+- **The hints are hints.** Measured: face found, head size, centring, level eyes, eye line and margins where the rules set them, head width (China), eyes open, resolution, frame, background, exposure. Not judged: expression, glasses and reflections, shadows on the face or background, head coverings, mouth closed, lighting evenness on the face. An office decides.
+- **Top of the head without the hair** (UK, Schengen, Australia, Canada) is an anthropometric estimate from the landmarks; *top of the hair* comes from the cut-out. Both can be corrected by dragging the markers; very full or very flat hair shifts the estimate.
+- **Rules from search excerpts.** The official pages could not be opened from this environment, so the seven national presets come from search excerpts of those pages (shown in the app with the source, quote and date); check the current rules before applying. The two generic ID sizes have no authority and are marked unverified.
+- **No MODNet.** The cut-out is the selfie segmenter with refinements; fine stray hairs against a busy background can be lost or keep a trace of the old background. The *Restore* and *Erase* brushes fix it by hand.
+- One person per photo is measured (the largest face; the hint says when there are more).
+- **Printing** sends the page at 100% with no margins, but the system print dialog and the printer driver can still scale it: measure one printed photo. The print path was tested here with the print call replaced (no printer in the container): the page size, scale and HTML were checked, not paper.
+- Drag-and-drop of a photo into the window was not automated (Playwright cannot drop real files); it uses the same routine as *Open*.
+
 ## Phase 3: Module 3 (Image to Editable Design), 2026-10-03
 
 ### Environment

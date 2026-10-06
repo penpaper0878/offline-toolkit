@@ -235,3 +235,126 @@ print(json.dumps(json.load(open(sys.argv[1], encoding='utf-8'))['passport']))`, 
     await app.close()
   }
 })
+
+test('paste a photo, edit the rules, touch up the cut-out, correct the crown, put two people on a sheet and print', async () => {
+  const data = tempDir('data')
+  const out = tempDir('passport-out2')
+  const astronaut = join(ROOT, 'worker', 'tests', 'fixtures', 'faces', 'astronaut-collins.jpg')
+  const { app, page } = await launch(data)
+  const errors: string[] = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  try {
+    await stubDialogs(app, [PORTRAIT], out)
+    await page.getByTestId('nav-passport').click()
+    // Paste the photo (Ctrl+V): put it on the system clipboard as PNG, as a browser's "Copy image" does.
+    const png = join(out, 'clip.png')
+    py(`import sys, json
+from PIL import Image
+Image.open(sys.argv[1]).save(sys.argv[2])
+print(json.dumps(True))`, PORTRAIT, png)
+    await app.evaluate(async ({ clipboard, ClipboardItem }, png) => {
+      const fs = process.getBuiltinModule('node:fs')
+      await clipboard.write([new ClipboardItem({ 'image/png': new Blob([fs.readFileSync(png)], { type: 'image/png' }) })])
+    }, png)
+    await page.keyboard.press('Control+v')
+    await expect(page.getByTestId('passport-next')).toBeEnabled({ timeout: 60_000 })
+    await expect(page.getByTestId('passport-step-2')).toHaveAttribute('aria-current', 'step')
+    await page.getByTestId('passport-step-1').click()
+    await expect(page.getByTestId('passport-photo-info')).toContainText(/pasted-\w+\.png/)
+    await expect(page.getByTestId('passport-photo-info')).toContainText('820 × 1024 px')
+    await page.keyboard.press('Control+Enter')                       // next step: crop
+    await expect(page.getByTestId('passport-crop-stage')).toBeVisible()
+    await page.keyboard.press('Control+Enter')                       // next step: size and enhance
+    const stage = page.getByTestId('passport-size-stage')
+    await expect(page.getByTestId('hint-face')).toHaveAttribute('data-level', 'ok', { timeout: 90_000 })
+    await expect(stage).toHaveAttribute('data-fresh', '1', { timeout: 60_000 })
+
+    // A preset of my own: 30 × 40 mm, saved to presets/passport-specs.json and selected.
+    await page.getByTestId('passport-edit-spec').click()
+    await expect(page.getByTestId('passport-spec-editor')).toBeVisible()
+    await page.getByTestId('passport-spec-name').fill('My ID 30x40')
+    await page.getByTestId('passport-spec-width').fill('30')
+    await page.getByTestId('passport-spec-height').fill('40')
+    await page.getByTestId('passport-spec-save').click()
+    await expect(page.getByTestId('passport-spec-editor')).toHaveCount(0)
+    await expect(page.getByTestId('passport-spec')).toHaveValue('my-id-30x40')
+    await expect(page.getByTestId('passport-spec-facts')).toContainText('354 × 472 px')
+    await expect(page.getByTestId('passport-spec-source')).toContainText('Your own rules')
+    const presets = py<{ specs: { id: string; width: number; height: number; source: { status: string } }[] }>(`import sys, json
+print(json.dumps(json.load(open(sys.argv[1], encoding='utf-8'))))`, join(data, 'presets', 'passport-specs.json'))
+    expect(presets.specs.find((x) => x.id === 'my-id-30x40')).toMatchObject({ width: 30, height: 40, source: { status: 'user' } })
+    expect(presets.specs.find((x) => x.id === 'uk-passport')).toBeTruthy()
+    await expect(page.getByTestId('hint-head')).toHaveAttribute('data-level', 'ok', { timeout: 60_000 })
+    await expect(stage).toHaveAttribute('data-fresh', '1', { timeout: 60_000 })
+
+    // Erase brush: one stroke down the background at the left edge of the frame; undo and redo it.
+    await page.getByTestId('passport-tab-background').click()
+    await page.getByTestId('passport-tool').locator('[data-value="erase"]').click()
+    const box = (await stage.boundingBox())!
+    const ox = Number(await stage.getAttribute('data-ox'))
+    const [, cy] = (await stage.getAttribute('data-crown'))!.split(',').map(Number)
+    await page.mouse.move(box.x + ox + 14, box.y + cy + 40)
+    await page.mouse.down()
+    for (let i = 1; i <= 8; i++) await page.mouse.move(box.x + ox + 14, box.y + cy + 40 + i * 8)
+    await page.mouse.up()
+    await expect(page.getByRole('button', { name: 'Clear 1 brush stroke' })).toBeVisible()
+    await expect(stage).toHaveAttribute('data-fresh', '1', { timeout: 60_000 })
+    await page.getByTestId('passport-undo').click()
+    await expect(page.getByRole('button', { name: /Clear \d brush stroke/ })).toHaveCount(0)
+    await page.getByTestId('passport-redo').click()
+    await expect(page.getByRole('button', { name: 'Clear 1 brush stroke' })).toBeVisible()
+    await page.getByTestId('passport-tool').locator('[data-value="move"]').click()
+
+    // Correct the crown by hand: dragging its marker up makes the head taller; Auto fit fits it again.
+    const head0 = (await page.getByTestId('hint-head').textContent()) ?? ''
+    const [mx, my] = (await stage.getAttribute('data-crown'))!.split(',').map(Number)
+    await page.mouse.move(box.x + mx, box.y + my)
+    await page.mouse.down()
+    for (let i = 1; i <= 6; i++) await page.mouse.move(box.x + mx, box.y + my - i * 6)
+    await page.mouse.up()
+    await expect(page.getByTestId('hint-head')).not.toHaveText(head0, { timeout: 30_000 })
+    const mm = (t: string | null) => Number(/Head ([\d.]+) mm/.exec(t ?? '')?.[1])
+    expect(mm(await page.getByTestId('hint-head').textContent())).toBeGreaterThan(mm(head0))
+    await page.getByTestId('passport-autofit').click()
+    await expect(page.getByTestId('hint-head')).toHaveAttribute('data-level', 'ok', { timeout: 30_000 })
+    await expect(stage).toHaveAttribute('data-fresh', '1', { timeout: 60_000 })
+    await page.screenshot({ path: 'test-results/screens/39-passport-own-preset.png' })
+
+    // Two people on one sheet: the other person's photo fills the places left.
+    await page.getByTestId('passport-next').click()
+    await page.getByTestId('passport-tab-sheet').click()
+    await expect(page.getByTestId('passport-sheet-status')).toContainText('photos on', { timeout: 60_000 })
+    const total = Number(/=\s*(\d+)/.exec((await page.getByTestId('passport-sheet-status').textContent()) ?? '')?.[1])
+    await stubDialogs(app, [astronaut], out)
+    await page.getByTestId('passport-add-person').click()
+    await expect(page.getByTestId('passport-sheet-status')).toContainText(`(${Math.ceil(total / 2)} + ${Math.floor(total / 2)})`, { timeout: 60_000 })
+    await page.getByTestId('passport-copies-mine').fill('2')
+    await expect(page.getByTestId('passport-sheet-status')).toContainText(`(2 + ${total - 2})`, { timeout: 60_000 })
+    await page.screenshot({ path: 'test-results/screens/40-passport-two-people.png' })
+
+    // Print: the page is the paper size at 100% scale with no margins (the system print dialog is replaced).
+    await app.evaluate(({ app }) => {
+      const g = globalThis as unknown as { prints: unknown[] }
+      g.prints = []
+      app.on('browser-window-created', (_e, win) => {
+        win.webContents.print = ((opts: unknown, cb: (ok: boolean, reason: string) => void) => {
+          g.prints.push({ opts, url: win.webContents.getURL() })
+          cb(true, '')
+        }) as typeof win.webContents.print
+      })
+    })
+    await page.getByTestId('passport-print').click()
+    await expect.poll(() => app.evaluate(() => (globalThis as unknown as { prints: unknown[] }).prints.length), { timeout: 60_000 }).toBe(1)
+    const [printed] = await app.evaluate(() => (globalThis as unknown as { prints: { opts: Record<string, unknown>; url: string }[] }).prints)
+    expect(printed.opts).toMatchObject({ scaleFactor: 100, margins: { marginType: 'none' }, pageSize: { width: 101600, height: 152400 }, printBackground: true })
+    const html = py<string>(`import sys, json, glob, os
+files = sorted(glob.glob(os.path.join(sys.argv[1], 'print-*.html')), key=os.path.getmtime)
+print(json.dumps(open(files[-1], encoding='utf-8').read()))`, join(data, 'cache', 'previews', 'passport'))
+    expect(html).toContain('size: 101.600mm 152.400mm')
+    expect((html.match(/<img /g) ?? []).length).toBe(total)
+    expect(html).toContain('width: 30.000mm; height: 40.000mm')
+    expect(errors).toEqual([])
+  } finally {
+    await app.close()
+  }
+})

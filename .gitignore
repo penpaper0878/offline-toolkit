@@ -16,3 +16,4 @@ playwright-report/
 *.tsbuildinfo
 build/cache/
 build/python-win/
+worker/tests/golden/**/*.actual.png

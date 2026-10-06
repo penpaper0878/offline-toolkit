@@ -1,6 +1,6 @@
 # Bundled components and licenses
 
-Status: Phase 3 (§0 and §0b list what is actually bundled now; §1–§7 are the Phase 0 plan for the whole app), **Lite bundle, personal use** (decisions D1–D2, confirmed 2026-09-30). Python package versions are the latest on PyPI as of 2026-09-30. CLI engine versions get pinned (URL + SHA-256) in `scripts/engines.lock.json` at Phase 5, using the latest stable release at build time. The minimum versions listed here are the ones whose features the toolkit relies on.
+Status: Phase 4 (§0, §0b and §0c list what is actually bundled now; §1–§7 are the Phase 0 plan for the whole app), **Lite bundle, personal use** (decisions D1–D2, confirmed 2026-09-30). Python package versions are the latest on PyPI as of 2026-09-30. CLI engine versions get pinned (URL + SHA-256) in `scripts/engines.lock.json` at Phase 5, using the latest stable release at build time. The minimum versions listed here are the ones whose features the toolkit relies on.
 
 Sizes are rough figures for Windows x64, unpacked. **Total ≈ 1.5–1.9 GB installed, ≈ 0.6–0.8 GB download.** The Lite bundle leaves out LaMa (≈ 200 MB), IS-Net (≈ 170 MB), the CJK fonts (≈ 130 MB) and switches Tesseract from `tessdata_best` to `tessdata_fast` (≈ 210 MB less).
 
@@ -61,8 +61,23 @@ Carlito, Caladea, Arimo, Tinos and Cousine have the metrics of Calibri, Cambria,
 
 - **No layout model.** Text comes from OCR line boxes; tables from ruled-line detection; shapes, lines, graphics and photos from colour regions of the text-free picture, tested against ideal shapes. PP-DocLayout / SLANet+ (`rapid-layout`, `rapid-table`) and MediaPipe as a package are not bundled.
 - **No HarfBuzz package.** Pillow's raqm layout shapes text for font matching. Pillow's wheels contain HarfBuzz and libraqm but load **FriBiDi** 1.0.17 (LGPL-2.1-or-later) at run time: Linux has it (`libfribidi0`), and for Windows `scripts/fetch-fribidi-win.mjs` takes conda-forge's build (SHA-256 pinned, 0.1 MB) and puts `fribidi-0.dll` next to the bundled `python.exe`, with its licence. Without it, text is measured unshaped and the analysis says so in its notes.
-- **Cut-outs** use the MediaPipe selfie segmenter for people and GrabCut for objects (MODNet arrives with Module 4 if needed).
+- **Cut-outs** use the MediaPipe selfie segmenter for people and GrabCut for objects (MODNet was not added in Module 4 either; see §0c).
 - **Inpainting** adds a smooth-surface fill (quadratic fit plus matched grain) for plain and gradient backgrounds, the commonest case on designed pages, besides Telea and xphoto FSR.
+
+## 0c. What Phase 4 adds (Module 4, Passport Photo Maker)
+
+Two small models, fetched by `scripts/fetch_models.py` at build time like the Module 3 models (SHA-256 pinned, recorded in `models/manifest.json`) and bundled in `resources/models`. **Models now: 8 MB in total.** No new Python or JavaScript packages: the module uses OpenCV (DNN, GrabCut, ximgproc guided filter), Pillow, NumPy, PyMuPDF and the resizer's encoder, all already bundled.
+
+| Model | Licence | Used for | How it is bundled |
+|---|---|---|---|
+| YuNet `face_detection_yunet_2023mar` | MIT | Finding faces | ONNX from the OpenCV model zoo (`opencv/opencv_zoo`, SHA-256 `8f2383e4…`), run with OpenCV's `FaceDetectorYN`. 0.23 MB |
+| MediaPipe Face Landmarker v2: the face landmark model (478 points, irises included, float16) | Apache-2.0 | Eyes, chin, face outline, tilt, eye openness; red-eye and skin areas | `face_landmarks_detector.tflite` taken out of the official `face_landmarker.task` bundle (bundle SHA-256 `64184e22…`, file SHA-256 `c7d54204…`), run with OpenCV DNN (classic engine). 2.5 MB |
+| MediaPipe Selfie Segmenter (from Phase 3) | Apache-2.0 | The person matte for background replacement | Reused; refined with a head close-up, band-limited GrabCut, a guided filter and edge decontamination |
+| Real-ESRGAN `realesr-general-x4v3` (from Phase 3) | BSD-3-Clause | Optional upscaling of small photos | Reused |
+
+**Differences from the plan below:** MODNet (planned for portrait matting, ≈ 25 MB) is not bundled: its weights could not be fetched from a pinned source when building, and the selfie segmenter with the refinements above passed the background tests on the test portraits. MediaPipe's face *detector* is replaced by YuNet (the landmark model needs a face box; YuNet is smaller and runs through OpenCV, which is already bundled). MediaPipe's multiclass segmenter (hair, skin, clothes) was tried for the hair line and dropped: it needs a layer (TRANSPOSE_CONV) that OpenCV DNN cannot run, and the `mediapipe` package is not bundled.
+
+**Test photos** (not shipped; `worker/tests/fixtures/faces/ATTRIBUTION.md`): the official 2012 portrait of President Obama by Pete Souza (work of the US federal government, public domain) and NASA's portrait of astronaut Eileen Collins (public domain, as distributed with scikit-image).
 
 ## 1. Runtimes and CLI engines
 
@@ -165,8 +180,9 @@ If you ever do share it, the simplest path is to license the toolkit's own code 
 | PP-DocLayout (via RapidLayout) | Apache-2.0 | 2, 3 | ≈ 10–40 MB |
 | SLANet+ table structure (via RapidTable) | Apache-2.0 | 2, 3 | ≈ 10 MB |
 | Real-ESRGAN `realesr-general-x4v3` | BSD-3-Clause | 3, 4 | ≈ 5 MB |
-| MODNet photographic portrait matting | Apache-2.0 | 4 | ≈ 25 MB |
-| MediaPipe Face Landmarker, Selfie Segmenter | Apache-2.0 | 4 | ≈ 5 MB |
+| MODNet photographic portrait matting (planned; **not bundled**, see §0c) | Apache-2.0 | 4 | ≈ 25 MB |
+| MediaPipe Face Landmarker (landmark model only), Selfie Segmenter | Apache-2.0 | 3, 4 | 2.8 MB |
+| YuNet face detector (added in Phase 4) | MIT | 4 | 0.23 MB |
 
 ## 6. Fonts and colour
 

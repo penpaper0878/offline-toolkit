@@ -251,6 +251,8 @@ function SizeCanvas() {
   return (
     <div ref={boxRef} className={`size-stage tool-${tool}`} data-testid="passport-size-stage" data-dz={dz} data-ox={ox} data-oy={oy}
       data-place={JSON.stringify(place)} data-fresh={fresh ? '1' : '0'}
+      data-crown={crownO ? toDisp(crownO[0], crownO[1]).map(Math.round).join(',') : undefined}
+      data-chin={chinO ? toDisp(chinO[0], chinO[1]).map(Math.round).join(',') : undefined}
       onWheel={(e) => {
         if (!place || tool !== 'move') return
         const r = (e.currentTarget as HTMLDivElement).getBoundingClientRect()

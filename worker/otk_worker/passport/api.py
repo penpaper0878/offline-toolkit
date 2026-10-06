@@ -149,6 +149,18 @@ def export_photo(params: dict, ctx) -> dict:
     return out
 
 
+def _flat_rgb(path: str) -> Image.Image:
+    """A photo file upright (EXIF orientation), in sRGB, transparency on white."""
+    from ..common import imageio
+
+    img = imageio.open_image(path).image
+    if "A" in img.getbands():
+        bg = Image.new("RGB", img.size, (255, 255, 255))
+        bg.paste(img.convert("RGBA"), mask=img.convert("RGBA").getchannel("A"))
+        return bg
+    return img.convert("RGB")
+
+
 def _sheet_images(params: dict, dpi: float, ctx) -> tuple[list[Image.Image], tuple[float, float], list[str]]:
     """The photos for a sheet, each rendered (or resampled) for `dpi`, and the cell size in mm."""
     notes: list[str] = []
@@ -156,14 +168,24 @@ def _sheet_images(params: dict, dpi: float, ctx) -> tuple[list[Image.Image], tup
     cell = None
     for i, ph in enumerate(params["photos"]):
         if ph.get("kind") == "file":
-            im = Image.open(ph["path"])
-            im.load()
+            im = _flat_rgb(ph["path"])
             w_mm, h_mm = float(ph["widthMm"]), float(ph["heightMm"])
             if cell is None:
                 cell = (w_mm, h_mm)
-            if abs(im.width / im.height - cell[0] / cell[1]) > 0.01 * cell[0] / cell[1]:
-                notes.append(f"Photo {i + 1} has a different shape ({im.width}×{im.height} px); it is stretched to fit the cell.")
-            imgs.append(im.convert("RGB"))
+            want, r = cell[0] / cell[1], im.width / im.height
+            if abs(r - want) > 0.01 * want:
+                # Never stretch a face: trim the photo to the cell's shape around its middle.
+                notes.append(f"Photo {i + 1} has a different shape ({im.width}×{im.height} px); its "
+                             f"{'sides are' if r > want else 'top and bottom are'} trimmed to fit.")
+                if r > want:
+                    w = max(1, round(im.height * want))
+                    x = (im.width - w) // 2
+                    im = im.crop((x, 0, x + w, im.height))
+                else:
+                    h = max(1, round(im.width / want))
+                    y = (im.height - h) // 2
+                    im = im.crop((0, y, im.width, y + h))
+            imgs.append(im)
             continue
         spec_d = dict(ph["spec"])
         spec_d["dpi"] = dpi

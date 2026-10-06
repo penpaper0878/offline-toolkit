@@ -50,14 +50,15 @@ function handle<A extends unknown[], T>(channel: string, fn: (...args: A) => Pro
   })
 }
 
-/** Worker results carry file paths; the renderer gets otk:// URLs instead. */
+/** Worker results carry file paths; preview files also get an otk:// URL for the renderer. The path stays:
+ * a pasted photo lives in the same folder and is still a file the wizard works with. */
 function urls<T>(v: T): T {
   if (Array.isArray(v)) return v.map(urls) as T
   if (v && typeof v === 'object') {
     const o: Record<string, unknown> = {}
     for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      o[k] = urls(x)
       if (k === 'path' && typeof x === 'string' && x.startsWith(folder())) o.url = fileUrl(x)
-      else o[k] = urls(x)
     }
     return o as T
   }

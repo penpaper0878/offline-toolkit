@@ -62,7 +62,7 @@ jobs:
             fonts
             models
           key: design-assets-${{ runner.os }}-${{ hashFiles('scripts/fetch_fonts.py', 'scripts/fonts.lock.json', 'scripts/fetch_models.py') }}
-      - name: Design fonts and models (Module 3)
+      - name: Design fonts and models (Modules 3 and 4)
         if: steps.design-cache.outputs.cache-hit != 'true'
         shell: bash   # stops at the first failing command (pwsh only reports the last one)
         run: |
@@ -124,7 +124,7 @@ jobs:
           body: |
             Windows 10/11, 64-bit. Personal use.
 
-            **Contains:** Module 1 (Image Resizer & Compressor), Module 2 (Document Converter, with LibreOffice, Pandoc, Ghostscript, Tesseract OCR, veraPDF and resvg bundled) and Module 3 (Image to Editable Design, with 73 open-source font families and offline super-resolution and cut-out models bundled). Module 4 arrives in a later phase.
+            **Contains:** Module 1 (Image Resizer & Compressor), Module 2 (Document Converter, with LibreOffice, Pandoc, Ghostscript, Tesseract OCR, veraPDF and resvg bundled), Module 3 (Image to Editable Design, with 73 open-source font families and offline super-resolution and cut-out models bundled) and Module 4 (Passport Photo Maker: crop, face-guided sizing for UK, Schengen, India, Australia, US, China visa and Canada rules and your own, background replacement, adjustments, exact-size photos and print sheets; offline face detection and landmark models bundled). The shared home screen arrives in the next phase.
 
             - `Offline-Toolkit-Setup-*.exe`: installer. Installs for your user only, no admin rights needed.
             - `*-portable-win-x64.zip`: portable. Unzip anywhere and run `Offline Toolkit.exe`. Settings stay in the `data` folder next to it.

@@ -1,7 +1,7 @@
 /**
  * Smoke test for the packaged Windows app (run by .github/workflows/release.yml).
  * Launches the built .exe exactly as a user would, with no development Python:
- * it must find and use its own bundled Python, stay offline, and resize a photo.
+ * it must find and use its own bundled Python, stay offline, and use every module once.
  *
  *   OTK_PACKAGED_EXE  path to "Offline Toolkit.exe" (test is skipped without it)
  *   OTK_TEST_PYTHON   the bundled python.exe, used by the test's own helpers
@@ -16,8 +16,9 @@ import { makePhoto, py, readback, ROOT, stubDialogs, tempDir } from './helpers'
 const exe = process.env.OTK_PACKAGED_EXE
 
 test.skip(!exe, 'Set OTK_PACKAGED_EXE to the packaged app to run this test')
+test.setTimeout(600_000)
 
-test('packaged app: bundled Python and engines, offline self-test, HEIC, resize, convert to PDF/A-2b, image to design', async () => {
+test('packaged app: bundled Python and engines, offline self-test, HEIC, resize, convert to PDF/A-2b, image to design, passport photo', async () => {
   const data = tempDir('pkg-data')
   const inputs = tempDir('pkg-in')
   const out = tempDir('pkg-out')
@@ -128,6 +129,44 @@ print(json.dumps(str(p)))`, tempDir('pkg-design'))
     await page.getByTestId('design-export-format').locator('[data-value="docx"]').click()
     await page.getByTestId('design-export-go').click()
     await expect.poll(() => readdirSync(designOut).includes('poster.docx'), { timeout: 120_000 }).toBe(true)
+
+    // Module 4 with the bundled face and segmentation models: a UK passport photo at exactly 413 × 531 px
+    // and 300 DPI, and a 4 × 6 in print sheet PDF at exact scale.
+    const passOut = tempDir('pkg-passport-out')
+    await page.getByTestId('nav-passport').click()
+    await stubDialogs(app, [join(ROOT, 'worker', 'tests', 'fixtures', 'faces', 'portrait-souza.jpg')], passOut)
+    await page.getByTestId('passport-open').click()
+    await expect(page.getByTestId('passport-next')).toBeEnabled({ timeout: 120_000 })
+    await page.getByTestId('passport-next').click()
+    await expect(page.getByTestId('hint-face')).toHaveAttribute('data-level', 'ok', { timeout: 120_000 })
+    await expect(page.getByTestId('hint-head')).toHaveAttribute('data-level', 'ok')
+    await expect(page.getByTestId('hint-background')).toContainText('Background replaced')
+    await expect(page.getByTestId('passport-size-stage')).toHaveAttribute('data-fresh', '1', { timeout: 120_000 })
+    await page.screenshot({ path: 'test-results/screens/packaged-passport.png' })
+    await page.getByTestId('passport-next').click()
+    const passJpg = join(passOut, 'photo.jpg')
+    await app.evaluate(({ dialog }, path) => {
+      dialog.showSaveDialog = (async () => ({ canceled: false, filePath: path })) as typeof dialog.showSaveDialog
+    }, passJpg)
+    await page.getByTestId('passport-save-photo').click()
+    await expect.poll(() => readdirSync(passOut).includes('photo.jpg'), { timeout: 120_000 }).toBe(true)
+    await expect(page.getByTestId('passport-save-photo')).toBeEnabled({ timeout: 60_000 })
+    const prb = readback(passJpg)
+    expect([prb.width, prb.height]).toEqual([413, 531])
+    expect(prb.jfifDensity).toEqual([300, 300])
+    await page.getByTestId('passport-tab-sheet').click()
+    await expect(page.getByTestId('passport-sheet-preview')).toBeVisible({ timeout: 120_000 })
+    const passPdf = join(passOut, 'sheet.pdf')
+    await app.evaluate(({ dialog }, path) => {
+      dialog.showSaveDialog = (async () => ({ canceled: false, filePath: path })) as typeof dialog.showSaveDialog
+    }, passPdf)
+    await page.getByTestId('passport-save-sheet').click()
+    await expect.poll(() => readdirSync(passOut).includes('sheet.pdf'), { timeout: 120_000 }).toBe(true)
+    await expect(page.getByTestId('passport-save-sheet')).toBeEnabled({ timeout: 60_000 })
+    const pageMm = py<number[]>(`import sys, json, pymupdf
+p = pymupdf.open(sys.argv[1])[0]
+print(json.dumps([round(p.rect.width / 72 * 25.4, 3), round(p.rect.height / 72 * 25.4, 3)]))`, passPdf)
+    expect(pageMm).toEqual([101.6, 152.4])
   } finally {
     await app.close()
   }

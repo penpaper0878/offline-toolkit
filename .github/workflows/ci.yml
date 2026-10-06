@@ -39,8 +39,8 @@ jobs:
           node scripts/fetch-fribidi-win.mjs build/fribidi-win
           Add-Content -Path $env:GITHUB_PATH -Value (Resolve-Path build/fribidi-win).Path
 
-      # Module 3: the bundled fonts (google/fonts at a pinned commit, checked against scripts/fonts.lock.json)
-      # and models (Real-ESRGAN converted to ONNX, MediaPipe selfie segmenter), cached per OS.
+      # Modules 3 and 4: the bundled fonts (google/fonts at a pinned commit, checked against scripts/fonts.lock.json)
+      # and models (Real-ESRGAN converted to ONNX, MediaPipe selfie segmenter and face landmarks, YuNet), cached per OS.
       - name: Restore design fonts and models
         id: design-cache
         uses: actions/cache/restore@v4
