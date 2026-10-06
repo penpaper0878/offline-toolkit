@@ -7,7 +7,7 @@ import type {
   AppInfo, AppSettings, BatchRequest, BatchResult, BatchItem, ConvertRequest, ConvertResult, ConverterCatalog,
   ConverterOptions, ConverterProgress, DesignAccuracy, DesignAnalyzeRequest, DesignExportRequest, DesignExportResult,
   DesignSummary, JobProgress, LogEntry, LogLevel, Preset, PresetState, PreflightResult, PreviewResult, ProbeResult,
-  FullSelfTestReport, ResizerSettings, SelfTestReport, SettingsState
+  FullSelfTestReport, LicenceInfo, ResizerSettings, SelfTestReport, SettingsState
 } from './types'
 
 export type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] }
@@ -106,6 +106,12 @@ export interface OtkApi {
     /** Progress arrives through jobs.onProgress with this jobId; jobs.cancel stops it. */
     full(jobId: string): Promise<FullSelfTestReport>
   }
+  about: {
+    /** The third-party components and their licences (build/licenses, resources/licenses when packaged). */
+    licences(): Promise<LicenceInfo>
+    /** One licence text, by its path in the licences folder. */
+    text(file: string): Promise<string>
+  }
   recent: {
     list(): Promise<RecentEntry[]>
     add(item: Omit<RecentItem, 'at'>): Promise<void>
@@ -178,6 +184,8 @@ export const IPC = {
   logEntry: 'log:entry',
   selftestOffline: 'selftest:offline',
   selftestFull: 'selftest:full',
+  aboutLicences: 'about:licences',
+  aboutText: 'about:text',
   recentList: 'recent:list',
   recentAdd: 'recent:add',
   recentRemove: 'recent:remove',

@@ -9,6 +9,7 @@
     "setup:py": "node scripts/setup-python.mjs",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "licenses": "node scripts/run-python.mjs scripts/collect_licenses.py",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.preload.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",

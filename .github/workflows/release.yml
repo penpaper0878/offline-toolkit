@@ -83,6 +83,8 @@ jobs:
           "fonts: {0:N1} MB" -f ((Get-ChildItem fonts -Recurse -File | Measure-Object Length -Sum).Sum / 1MB)
           Get-Content models/manifest.json
       - run: npm run build
+      - name: Third-party licences (every bundled component, its licence and copyleft level)
+        run: python scripts/collect_licenses.py --platform win-x64 --site-packages build/python-win/Lib/site-packages --python-root build/python-win
       - name: Build the installer (NSIS, per-user, no admin rights)
         run: npx electron-builder --win nsis --publish never
       - name: Smoke-test the packaged app
@@ -121,6 +123,7 @@ jobs:
           files: |
             dist/Offline-Toolkit-Setup-*.exe
             dist/*-portable-win-x64.zip
+            build/licenses/THIRD-PARTY-NOTICES.txt
           body: |
             Windows 10/11, 64-bit. Personal use.
 

@@ -465,3 +465,25 @@ input[type="range"] { accent-color: var(--accent); }
 .full-selftest .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .progress-row { display: flex; flex-direction: column; gap: 4px; }
 .selftest-groups h4 { margin: 10px 0 4px; font-size: 13px; }
+
+/* Settings → About & licences */
+.settings-grid .panel-section.wide-section { grid-column: 1 / -1; }
+.about-licences { display: flex; flex-direction: column; gap: 10px; }
+.about-licences .row-gap { display: flex; align-items: flex-end; }
+.licence-flagged { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; background: var(--warn-bg); }
+.licence-flagged h4 { margin: 0 0 4px; display: flex; gap: 6px; align-items: center; font-size: 13px; }
+.licence-flagged ul { margin: 6px 0; padding-inline-start: 18px; font-size: 13px; }
+.licence-flagged p { margin: 4px 0; }
+.licence-flagged .link-btn { font-size: inherit; }
+.licence-filter { flex-direction: row; align-items: center; gap: 6px; }
+.licence-search { padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--panel); color: inherit; min-width: 220px; }
+.licence-list { max-height: 420px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.licence-row { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, 2fr) auto; gap: 10px; align-items: center; padding: 5px 10px; border-bottom: 1px solid var(--border); }
+.licence-row:last-child { border-bottom: 0; }
+.licence-row .licence-name { font-size: 13px; overflow-wrap: anywhere; }
+.licence-spdx { overflow-wrap: anywhere; }
+.badge.level-none { background: var(--good-bg); color: var(--good); }
+.badge.level-weak { background: var(--accent-2); color: var(--accent); }
+.badge.level-strong, .badge.level-network { background: var(--warn-bg); color: var(--warn); }
+.licence-text { max-height: 60vh; overflow: auto; white-space: pre-wrap; font-family: var(--mono); font-size: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin: 8px 0 0; }
+@media (max-width: 760px) { .licence-row { grid-template-columns: minmax(0, 1fr) auto; } .licence-row > :nth-child(2), .licence-row > .licence-spdx { display: none; } }

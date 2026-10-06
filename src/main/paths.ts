@@ -62,6 +62,17 @@ export function modelsDir(): string {
   return process.env.OTK_MODELS ?? (isPackaged ? join(process.resourcesPath, 'models') : join(projectRoot(), 'models'))
 }
 
+/** Third-party licences (scripts/collect_licenses.py writes build/licenses; the installer carries it as resources/licenses). */
+export function licensesDir(): string {
+  return process.env.OTK_LICENSES ?? (isPackaged ? join(process.resourcesPath, 'licenses') : join(projectRoot(), 'build', 'licenses'))
+}
+
+/** Chromium's own licence notices: next to the executable when packaged, in Electron's folder in development. */
+export function chromiumLicensesFile(): string {
+  return isPackaged ? join(dirname(process.execPath), 'LICENSES.chromium.html')
+    : join(projectRoot(), 'node_modules', 'electron', 'dist', 'LICENSES.chromium.html')
+}
+
 export const logsDir = (): string => join(dataDir(), 'logs')
 export const cacheDir = (): string => join(dataDir(), 'cache')
 export const previewDir = (): string => join(cacheDir(), 'previews')

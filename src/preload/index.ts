@@ -112,6 +112,7 @@ const api: OtkApi = {
     onEntry: (cb) => subscribe<LogEntry>(IPC.logEntry, cb)
   },
   selftest: { offline: () => call(IPC.selftestOffline), full: (jobId) => call(IPC.selftestFull, jobId) },
+  about: { licences: () => call(IPC.aboutLicences), text: (file) => call(IPC.aboutText, file) },
   recent: {
     list: () => call(IPC.recentList),
     add: (item) => call(IPC.recentAdd, item),

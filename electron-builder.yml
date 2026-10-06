@@ -32,6 +32,12 @@ extraResources:
     to: engines
     filter:
       - "**/*"
+  # Every bundled component's licence (scripts/collect_licenses.py), read by Settings → About & licences.
+  - from: build/licenses
+    to: licenses
+extraFiles:
+  - from: build/licenses/THIRD-PARTY-NOTICES.txt
+    to: THIRD-PARTY-NOTICES.txt
 win:
   icon: build/icon.ico
   target:

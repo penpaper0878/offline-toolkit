@@ -295,6 +295,44 @@ export interface FullSelfTestReport {
   at: string
 }
 
+// ------------------------------------------------------------------ About & licences (scripts/collect_licenses.py)
+export type CopyleftLevel = 'none' | 'weak' | 'strong' | 'network'
+export type LicenceKind = 'runtime' | 'javascript' | 'python' | 'native' | 'engine' | 'java' | 'font' | 'model'
+
+export interface LicenceComponent {
+  id: string
+  kind: LicenceKind
+  name: string
+  version: string
+  /** SPDX expression. */
+  license: string
+  copyleft: CopyleftLevel
+  /** Licence texts, relative to the licences folder. */
+  files: string[]
+  note?: string
+  where?: string
+  homepage?: string
+  partOf?: string
+}
+
+export interface LicenceReport {
+  app: { name: string; version: string }
+  platform: string
+  generated: string
+  summary: { total: number; byKind: Partial<Record<LicenceKind, number>>; byCopyleft: Record<CopyleftLevel, number> }
+  /** What each copyleft level asks of someone who redistributes the app. */
+  meaning: Record<Exclude<CopyleftLevel, 'none'>, string>
+  components: LicenceComponent[]
+}
+
+export interface LicenceInfo {
+  /** null when this build has no licence list (development build without `npm run licenses`). */
+  report: LicenceReport | null
+  dir: string
+  noticesFile: string | null
+  chromiumFile: string | null
+}
+
 export interface AppInfo {
   version: string
   electron: string

@@ -127,9 +127,9 @@ export function Select<T extends string>(props: { label?: string; value: T; opti
   )
 }
 
-export function Section(props: { title: string; children: ReactNode; aside?: ReactNode }) {
+export function Section(props: { title: string; children: ReactNode; aside?: ReactNode; className?: string }) {
   return (
-    <section className="panel-section">
+    <section className={`panel-section${props.className ? ` ${props.className}` : ''}`}>
       <header>
         <h3>{props.title}</h3>
         {props.aside}

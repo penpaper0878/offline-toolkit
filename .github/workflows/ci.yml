@@ -102,6 +102,8 @@ jobs:
       - run: npm test
       - run: npm run test:py
       - run: npm run build
+      # The third-party licence list Settings → About & licences reads (the release makes it from the bundled Python).
+      - run: npm run licenses
       - name: End-to-end tests (Linux, virtual display)
         if: runner.os == 'Linux'
         run: xvfb-run -a -s "-screen 0 1600x1000x24" npx playwright test

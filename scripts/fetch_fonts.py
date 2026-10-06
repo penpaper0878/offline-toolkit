@@ -164,6 +164,12 @@ def main() -> None:
         licence = next((n for n in ("OFL.txt", "LICENSE.txt", "UFL.txt") if _exists(f"{RAW}/{d}/{n}")), None)
         if licence:
             (fam_dir / licence).write_bytes(get(f"{RAW}/{d}/{licence}"))
+        elif d.startswith("ofl/") and files:
+            # google/fonts lacks the licence file of a few families (Tinos at this commit). The OFL must travel with
+            # the fonts: write it in the standard form, with the copyright notice from the font itself.
+            licence = "OFL.txt"
+            (fam_dir / licence).write_text(ofl_text(dest / files[0]["file"]), encoding="utf-8")
+            log(f"{meta['name']}: no licence file upstream; wrote OFL.txt with the font's copyright notice")
         # One file per (style, weight) for static families; a variable family lists each file once
         # with the weight range of its wght axis.
         uniq = {}
@@ -186,6 +192,15 @@ def main() -> None:
         log(f"wrote {LOCK}")
     total = sum(p.stat().st_size for p in dest.rglob("*") if p.is_file())
     log(f"{len(catalogue)} families, {total / 1e6:.0f} MB in {dest}")
+
+
+def ofl_text(font: Path) -> str:
+    from fontTools.ttLib import TTFont
+
+    notice = TTFont(font, lazy=True)["name"].getDebugName(0) or ""
+    body = (ROOT / "scripts" / "licenses" / "spdx" / "OFL-1.1.txt").read_text(encoding="utf-8")
+    return (f"{notice}\n\nThis Font Software is licensed under the SIL Open Font License, Version 1.1.\n"
+            "This license is copied below, and is also available with a FAQ at:\nhttps://openfontlicense.org\n\n\n" + body)
 
 
 def _exists(url: str) -> bool:

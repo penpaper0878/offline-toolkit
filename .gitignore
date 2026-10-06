@@ -17,5 +17,6 @@ playwright-report/
 build/cache/
 build/python-win/
 build/engine-install/
+build/licenses/
 worker/tests/golden/**/*.actual.png
 worker/tests/golden/**/*.diff.png

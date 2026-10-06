@@ -8,8 +8,8 @@
  *   OTK_PACKAGED_ARGS optional extra arguments (dry runs against a dev build, e.g. ". --no-sandbox")
  */
 
-import { copyFileSync, readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { copyFileSync, existsSync, readdirSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
 import { makePhoto, py, readback, ROOT, stubDialogs, tempDir } from './helpers'
 
@@ -62,6 +62,26 @@ test('packaged app: bundled Python and engines, offline self-test, HEIC, resize,
     await expect(page.getByTestId('module-check')).toHaveCount(10)
     await expect(page.getByTestId('full-selftest-result')).toContainText('All passed')
     await page.screenshot({ path: 'test-results/screens/packaged-settings.png', fullPage: true })
+
+    // Every bundled component is listed with its licence (scripts/collect_licenses.py at build time); the AGPL and
+    // GPL parts come first. The Java runtime is the jlink-trimmed one.
+    const flags = page.getByTestId('licence-flag')
+    for (const name of ['pymupdf', 'Ghostscript', 'Pandoc']) await expect(flags.filter({ hasText: name }), name).toHaveCount(1)
+    await page.getByTestId('licence-filter').selectOption('engine')
+    await expect(page.getByTestId('licence-row')).toHaveCount(8)
+    await page.getByTestId('licence-filter').selectOption('all')
+    await page.getByTestId('licence-search').fill('fribidi')
+    expect(await page.getByTestId('licence-row').count()).toBeGreaterThanOrEqual(1)
+    await page.getByTestId('licence-search').fill('')
+    await page.getByTestId('about-licences').screenshot({ path: 'test-results/screens/packaged-licences.png' })
+    if (bundled) {
+      const root = dirname(exe!)
+      expect(existsSync(join(root, 'THIRD-PARTY-NOTICES.txt'))).toBe(true)
+      expect(existsSync(join(root, 'LICENSES.chromium.html'))).toBe(true)
+      const release = readFileSync(join(root, 'resources', 'engines', 'jre', 'release'), 'utf-8')
+      expect(release).toContain('java.desktop')
+      for (const unneeded of ['jdk.jshell', 'jdk.compiler', 'jdk.localedata', 'jdk.httpserver']) expect(release).not.toContain(unneeded)
+    }
 
     await page.getByTestId('nav-resizer').click()
     await stubDialogs(app, [photo, heic], out)

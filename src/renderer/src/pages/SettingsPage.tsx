@@ -4,6 +4,7 @@ import { newJobId, otk } from '../lib/api'
 import { updateAppSettings, useUi } from '../lib/ui-store'
 import { Section, Segmented, Toggle } from '../components/controls'
 import { Icon } from '../components/Icon'
+import { AboutLicences } from './AboutLicences'
 
 const ENGINE_LABEL: Record<string, string> = {
   soffice: 'LibreOffice', pandoc: 'Pandoc', gs: 'Ghostscript', tesseract: 'Tesseract OCR', java: 'Java (for veraPDF)',
@@ -183,6 +184,9 @@ export function SettingsPage() {
               </li>
             </ul>
           ) : <span className="spinner small" />}
+        </Section>
+        <Section title="About & licences" className="wide-section">
+          <AboutLicences />
         </Section>
       </div>
     </div>
