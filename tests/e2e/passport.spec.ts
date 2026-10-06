@@ -5,9 +5,9 @@
  * size) and print sheets (PDF at exact scale, PNG at 300 DPI), and checks the grid overflow warning.
  */
 
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { expect, test, type ElectronApplication } from '@playwright/test'
+import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { launch, py, readback, ROOT, stubDialogs, tempDir } from './helpers'
 
 const PORTRAIT = join(ROOT, 'worker', 'tests', 'fixtures', 'faces', 'portrait-souza.jpg')
@@ -20,6 +20,19 @@ async function stubSave(app: ElectronApplication, path: string): Promise<void> {
 
 async function onDisk(path: string, timeout = 60_000): Promise<void> {
   await expect.poll(() => existsSync(path), { timeout }).toBe(true)
+}
+
+/** After a failure: what the app showed and logged (on Windows CI the log is all there is to look at). */
+async function diagnose(page: Page, data: string, consoleLines: string[]): Promise<void> {
+  const toasts = await page.locator('.toast').allTextContents().catch(() => [])
+  const stage = await page.getByTestId('passport-size-stage').evaluate((el) => ({ ...(el as unknown as { dataset: Record<string, string> }).dataset }), undefined, { timeout: 2000 })
+    .catch(() => null)
+  let log = ''
+  try {
+    for (const f of readdirSync(join(data, 'logs'))) log += readFileSync(join(data, 'logs', f), 'utf-8')
+  } catch { /* no log yet */ }
+  console.log(['--- diagnosis', `toasts: ${JSON.stringify(toasts)}`, `size stage: ${JSON.stringify(stage)}`,
+    `console:\n${consoleLines.slice(-20).join('\n')}`, `event log:\n${log.trim().split('\n').slice(-30).join('\n')}`, '---'].join('\n'))
 }
 
 interface PdfInfo { pages: { mm: [number, number]; images: number; placements: number }[] }
@@ -40,7 +53,9 @@ test('make a passport photo: crop, size, background, adjust, save a photo and pr
   const out = tempDir('passport-out')
   const { app, page } = await launch(data)
   const errors: string[] = []
+  const consoleLines: string[] = []
   page.on('pageerror', (e) => errors.push(e.message))
+  page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') consoleLines.push(`${m.type()}: ${m.text()}`) })
   try {
     await stubDialogs(app, [PORTRAIT], out)
     await page.getByTestId('nav-passport').click()
@@ -231,6 +246,9 @@ print(json.dumps(json.load(open(sys.argv[1], encoding='utf-8'))['passport']))`, 
     expect(saved.specId).toBe('uk-passport')
     expect(saved.sheet).toMatchObject({ auto: false, rows: 2, cols: 2 })
     expect(errors).toEqual([])
+  } catch (e) {
+    await diagnose(page, data, consoleLines)
+    throw e
   } finally {
     await app.close()
   }
@@ -242,7 +260,9 @@ test('paste a photo, edit the rules, touch up the cut-out, correct the crown, pu
   const astronaut = join(ROOT, 'worker', 'tests', 'fixtures', 'faces', 'astronaut-collins.jpg')
   const { app, page } = await launch(data)
   const errors: string[] = []
+  const consoleLines: string[] = []
   page.on('pageerror', (e) => errors.push(e.message))
+  page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') consoleLines.push(`${m.type()}: ${m.text()}`) })
   try {
     await stubDialogs(app, [PORTRAIT], out)
     await page.getByTestId('nav-passport').click()
@@ -354,6 +374,9 @@ print(json.dumps(open(files[-1], encoding='utf-8').read()))`, join(data, 'cache'
     expect((html.match(/<img /g) ?? []).length).toBe(total)
     expect(html).toContain('width: 30.000mm; height: 40.000mm')
     expect(errors).toEqual([])
+  } catch (e) {
+    await diagnose(page, data, consoleLines)
+    throw e
   } finally {
     await app.close()
   }
