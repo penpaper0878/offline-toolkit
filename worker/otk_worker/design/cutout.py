@@ -10,6 +10,7 @@ the editor offers by restoring or erasing with a brush.
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 
 import numpy as np
@@ -29,17 +30,19 @@ class Cutout:
 
 
 _net = None
+_net_lock = threading.Lock()      # one OpenCV network, used by several worker threads: one at a time
 
 
 def _segmenter():
     global _net
-    if _net is None:
-        import cv2
+    with _net_lock:
+        if _net is None:
+            import cv2
 
-        path = assets.model_path(MODEL)
-        if path is None:
-            return None
-        _net = cv2.dnn.readNetFromTFLite(str(path))
+            path = assets.model_path(MODEL)
+            if path is None:
+                return None
+            _net = cv2.dnn.readNetFromTFLite(str(path))
     return _net
 
 
@@ -55,8 +58,10 @@ def person_probability(rgb: np.ndarray) -> np.ndarray | None:
     top, left = (side - h) // 2, (side - w) // 2
     square = cv2.copyMakeBorder(rgb, top, side - h - top, left, side - w - left, cv2.BORDER_REPLICATE)
     small = cv2.resize(square, (SIZE, SIZE), interpolation=cv2.INTER_AREA).astype(np.float32) / 255.0
-    net.setInput(cv2.dnn.blobFromImage(small, 1.0, (SIZE, SIZE), swapRB=False))
-    prob = net.forward()[0, 0]
+    blob = cv2.dnn.blobFromImage(small, 1.0, (SIZE, SIZE), swapRB=False)
+    with _net_lock:
+        net.setInput(blob)
+        prob = net.forward()[0, 0].copy()
     prob = cv2.resize(prob, (side, side), interpolation=cv2.INTER_LINEAR)
     return np.clip(prob[top:top + h, left:left + w], 0.0, 1.0)
 

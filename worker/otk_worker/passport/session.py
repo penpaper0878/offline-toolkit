@@ -35,6 +35,7 @@ class Session:
     meta: dict
     _pyramid: list[np.ndarray] = field(default_factory=list)
     analyses: "OrderedDict[tuple, Analysis]" = field(default_factory=OrderedDict)
+    _pyramid_lock: threading.Lock = field(default_factory=threading.Lock)
 
     @property
     def size(self) -> tuple[int, int]:
@@ -43,14 +44,15 @@ class Session:
     def level(self, n: int) -> np.ndarray:
         import cv2
 
-        if not self._pyramid:
-            self._pyramid.append(self.rgb)
-        while len(self._pyramid) <= n:
-            prev = self._pyramid[-1]
-            if min(prev.shape[:2]) < 32:
-                break
-            self._pyramid.append(cv2.pyrDown(prev))
-        return self._pyramid[min(n, len(self._pyramid) - 1)]
+        with self._pyramid_lock:            # requests on other threads may need the same level
+            if not self._pyramid:
+                self._pyramid.append(self.rgb)
+            while len(self._pyramid) <= n:
+                prev = self._pyramid[-1]
+                if min(prev.shape[:2]) < 32:
+                    break
+                self._pyramid.append(cv2.pyrDown(prev))
+            return self._pyramid[min(n, len(self._pyramid) - 1)]
 
 
 @dataclass

@@ -17,6 +17,7 @@ Measurements, in the coordinates of the picture given:
 from __future__ import annotations
 
 import math
+import threading
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -127,19 +128,26 @@ class Faces:
 
 _detector = None
 _landmarker = None
+# The worker answers requests on several threads, but an OpenCV detector or network holds its input between
+# setInput and forward: two threads using one at the same time get each other's results or an error. Each
+# model is used under its own lock.
+_load_lock = threading.Lock()
+_detector_lock = threading.Lock()
+_landmarker_lock = threading.Lock()
 
 
 def _models():
     global _detector, _landmarker
     import cv2
 
-    if _landmarker is None:
-        det, lm = assets.model_path(DETECTOR), assets.model_path(LANDMARKS)
-        if det is None or lm is None:
-            raise ModelMissing("The face models are missing; run scripts/fetch_models.py (or reinstall the app).")
-        _detector = cv2.FaceDetectorYN.create(str(det), "", (320, 320), 0.6, 0.3, 5000)
-        # The classic engine returns every named output (the landmarks are not the graph's last output).
-        _landmarker = cv2.dnn.readNetFromTFLite(str(lm), cv2.dnn.ENGINE_CLASSIC)
+    with _load_lock:
+        if _landmarker is None:
+            det, lm = assets.model_path(DETECTOR), assets.model_path(LANDMARKS)
+            if det is None or lm is None:
+                raise ModelMissing("The face models are missing; run scripts/fetch_models.py (or reinstall the app).")
+            _detector = cv2.FaceDetectorYN.create(str(det), "", (320, 320), 0.6, 0.3, 5000)
+            # The classic engine returns every named output (the landmarks are not the graph's last output).
+            _landmarker = cv2.dnn.readNetFromTFLite(str(lm), cv2.dnn.ENGINE_CLASSIC)
     return _detector, _landmarker
 
 
@@ -151,8 +159,11 @@ def _run_landmarks(rgb: np.ndarray, cx: float, cy: float, side: float, angle: fl
     m[0, 2] += CROP / 2 - cx
     m[1, 2] += CROP / 2 - cy
     crop = cv2.warpAffine(rgb, m, (CROP, CROP), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
-    net.setInput(cv2.dnn.blobFromImage(crop.astype(np.float32) / 255.0))
-    pts, flag, _ = net.forward(["Identity", "Identity_1", "Identity_2"])
+    blob = cv2.dnn.blobFromImage(crop.astype(np.float32) / 255.0)
+    with _landmarker_lock:
+        net.setInput(blob)
+        pts, flag, _ = net.forward(["Identity", "Identity_1", "Identity_2"])
+        pts, flag = pts.copy(), flag.copy()          # the outputs may live in the network's own buffers
     pts = pts.reshape(-1, 3)[:, :2].astype(np.float64)
     inv = cv2.invertAffineTransform(m)
     pts = np.c_[pts, np.ones(len(pts))] @ inv.T
@@ -181,8 +192,9 @@ def detect(rgb: np.ndarray, max_faces: int = 3) -> Faces:
     h, w = rgb.shape[:2]
     k = min(1.0, ANALYSE_SIDE / max(h, w))
     small = cv2.resize(rgb, (max(1, round(w * k)), max(1, round(h * k))), interpolation=cv2.INTER_AREA) if k < 1 else rgb
-    det.setInputSize((small.shape[1], small.shape[0]))
-    _, found = det.detect(np.ascontiguousarray(small[:, :, ::-1]))
+    with _detector_lock:
+        det.setInputSize((small.shape[1], small.shape[0]))
+        _, found = det.detect(np.ascontiguousarray(small[:, :, ::-1]))
     if found is None or len(found) == 0:
         return Faces()
     found = sorted(found, key=lambda f: -float(f[2] * f[3]))

@@ -33,6 +33,7 @@ export function customSpecFrom(base: PassportSpec | undefined): PassportSpec {
 
 let renderSeq = 0
 let renderTimer: ReturnType<typeof setTimeout> | null = null
+let renderRetried: PassportDoc | null = null
 let settingsTimer: ReturnType<typeof setTimeout> | null = null
 let analyzeSeq = 0
 
@@ -321,7 +322,13 @@ export const usePassport = create<State>((set, get) => ({
         set({ render: r, renderFor: doc })
         if (!doc.place && r.measures.place) set({ history: replace(get().history, { ...get().doc(), place: r.measures.place }) })
       } catch (e) {
-        if (seq === renderSeq) useUi.getState().reportError('The photo could not be drawn', e)
+        if (seq !== renderSeq) return
+        // A worker that was restarted, or another passing failure: try once more before reporting it.
+        if (renderRetried !== doc) {
+          renderRetried = doc
+          void otk().log.add('warn', `Passport: drawing the photo failed (${toUiError(e).message}); trying again`)
+          get().scheduleRender(400)
+        } else useUi.getState().reportError('The photo could not be drawn', e)
       } finally {
         if (seq === renderSeq) set({ rendering: false })
       }

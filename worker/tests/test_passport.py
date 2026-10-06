@@ -131,6 +131,28 @@ def test_face_measurements_follow_rotation_scale_and_mirror(photos, name):
 
 
 @needs_models
+def test_models_give_the_same_results_from_several_threads(photos):
+    """The worker answers requests on several threads (a render and an auto adjust can overlap). The shared
+    OpenCV models must not mix up their inputs: before they were locked this failed with a cv2.error."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from otk_worker.design import cutout
+    from otk_worker.passport import face as F
+
+    imgs = [photos["portrait-souza"], photos["astronaut-collins"]]
+    chins = [F.detect(i).main.chin for i in imgs]
+    probs = [cutout.person_probability(i).mean() for i in imgs]
+    with ThreadPoolExecutor(8) as ex:
+        for _ in range(3):
+            faces = [(k, ex.submit(F.detect, imgs[k])) for k in [0, 1] * 4]
+            people = [(k, ex.submit(cutout.person_probability, imgs[k])) for k in [0, 1] * 4]
+            for k, f in faces:
+                assert np.linalg.norm(f.result().main.chin - chins[k]) < 0.5
+            for k, f in people:
+                assert abs(f.result().mean() - probs[k]) < 1e-4
+
+
+@needs_models
 def test_no_face_in_a_landscape():
     from otk_worker.passport import face as F
 
