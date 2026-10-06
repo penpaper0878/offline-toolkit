@@ -131,6 +131,25 @@ def test_face_measurements_follow_rotation_scale_and_mirror(photos, name):
 
 
 @needs_models
+def test_a_close_up_face_is_found_whole(photos):
+    """A head-and-shoulders crop of a 50 MP photo is analysed at 1600 px, where the face is about 750 px high. YuNet
+    split such a face into two partial boxes (one face counted twice, measured from the lower half)."""
+    from otk_worker.passport import face as F
+
+    img = photos["portrait-souza"]
+    base = F.detect(img).main
+    crop = img[70:660, 175:633]                                       # the wizard's first crop, as at 820 px
+    big = np.asarray(Image.fromarray(crop).resize((1244, 1600), Image.Resampling.BICUBIC))
+    found = F.detect(big)
+    assert found.count == 1
+    k = 1600 / crop.shape[0]
+    f = found.main
+    eye_d = np.linalg.norm(base.eye_right - base.eye_left) * k
+    assert np.linalg.norm(f.chin - (base.chin - (175, 70)) * k) < eye_d * 0.08
+    assert np.linalg.norm(f.eye_left - (base.eye_left - (175, 70)) * k) < eye_d * 0.05
+
+
+@needs_models
 def test_models_give_the_same_results_from_several_threads(photos):
     """The worker answers requests on several threads (a render and an auto adjust can overlap). The shared
     OpenCV models must not mix up their inputs: before they were locked this failed with a cv2.error."""

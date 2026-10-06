@@ -27,7 +27,10 @@ from ..design import assets
 DETECTOR = "face_detection_yunet_2023mar.onnx"
 LANDMARKS = "face_landmarks_detector.tflite"
 CROP = 256
-ANALYSE_SIDE = 1600          # faces are found on a copy at most this many px on the long side
+# YuNet finds faces on a copy at most this many px on the long side. Its anchors reach about 300 px: a close-up face
+# much larger than that (a head-and-shoulders crop of a 50 MP photo analysed at 1600 px) came back as two partial
+# boxes. 640 px still finds a face a tenth of the picture high. The landmarks are measured at full size.
+ANALYSE_SIDE = 640
 SKULL_RATIO = 0.92           # top of skull to eye line, as a share of eye line to chin (adult average)
 
 # MediaPipe face mesh indices ("left"/"right" as seen in the picture)
