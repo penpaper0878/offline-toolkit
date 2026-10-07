@@ -11,11 +11,11 @@ import https from 'node:https'
 import { join } from 'node:path'
 import { type BrowserWindow, net } from 'electron'
 import type { FullSelfTestReport, ModuleCheck, SelfTestCheck, SelfTestReport } from '@shared/types'
-import { listViolations, violationCount } from './offline-guard'
+import { armCanary, CANARY_HOST, realViolations, violationCount } from './offline-guard'
 import { cacheDir, resourcesDir } from './paths'
 import type { WorkerPool } from './worker'
 
-const CANARY = 'https://example.com/'
+const CANARY = `https://${CANARY_HOST}/`
 
 async function check(name: string, fn: () => Promise<{ passed: boolean; detail: string }>): Promise<SelfTestCheck> {
   try {
@@ -26,8 +26,10 @@ async function check(name: string, fn: () => Promise<{ passed: boolean; detail: 
 }
 
 export async function runOfflineSelfTest(pool: WorkerPool, win: BrowserWindow | null): Promise<SelfTestReport> {
+  armCanary()
   const before = violationCount()
-  const earlier = listViolations()
+  // An earlier self-test's canaries are not attempts by the app (running both self-tests in a row reported them).
+  const earlier = realViolations()
   const checks: SelfTestCheck[] = []
 
   checks.push(await check('Main process (Node https)', async () => {
@@ -86,16 +88,16 @@ export async function runOfflineSelfTest(pool: WorkerPool, win: BrowserWindow | 
 export async function runFullSelfTest(pool: WorkerPool, win: BrowserWindow | null, jobId: string): Promise<FullSelfTestReport> {
   const started = Date.now()
   const network = await runOfflineSelfTest(pool, win)
-  const before = violationCount()
+  const before = realViolations().length
   const res = await pool.runJob<{ checks: ModuleCheck[]; passed: boolean }>(jobId, 'selftest.modules', {
     workDir: join(cacheDir(), 'selftest'), resourcesDir: resourcesDir()
   })
   await new Promise((r) => setTimeout(r, 300))
-  const attempts = violationCount() - before
+  const attempts = realViolations().slice(before)
   const quiet: SelfTestCheck = {
     name: 'No network attempts while the modules worked',
-    passed: attempts === 0,
-    detail: attempts === 0 ? 'None.' : `${attempts} attempt(s): ${listViolations().slice(-5).map((v) => `${v.layer} ${v.target}`).join(', ')}`
+    passed: attempts.length === 0,
+    detail: attempts.length === 0 ? 'None.' : `${attempts.length} attempt(s): ${attempts.slice(0, 5).map((v) => `${v.layer} ${v.target}`).join(', ')}`
   }
   return {
     passed: network.passed && res.passed && quiet.passed, network, modules: res.checks, quiet,

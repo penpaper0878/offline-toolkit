@@ -59,6 +59,7 @@ test('packaged app: bundled Python and engines, offline self-test, HEIC, resize,
     await page.getByTestId('run-full-selftest').click()
     await expect(page.getByTestId('full-selftest-result')).toBeVisible({ timeout: 300_000 })
     expect(await page.locator('[data-testid="module-check"][data-passed="0"]').allTextContents()).toEqual([])
+    expect(await page.getByTestId('full-selftest-checks').locator('li.bad').allTextContents()).toEqual([])
     await expect(page.getByTestId('module-check')).toHaveCount(10)
     await expect(page.getByTestId('full-selftest-result')).toContainText('All passed')
     await page.screenshot({ path: 'test-results/screens/packaged-settings.png', fullPage: true })

@@ -20,14 +20,20 @@ export interface Violation {
   ts: string
   layer: 'chromium' | 'node' | 'python'
   target: string
+  /** A self-test's deliberate attempt (to CANARY_HOST), not something the app tried to do. */
+  canary?: boolean
 }
 
+/** The host the offline self-test tries to reach from every runtime. */
+export const CANARY_HOST = 'example.com'
+
 const violations: Violation[] = []
+let canaryArmed = false
 let log: EventLog | null = null
 const ALLOWED_SCHEMES = new Set(['otk:', 'file:', 'data:', 'blob:', 'devtools:', 'chrome-extension:'])
 
 export function recordViolation(layer: Violation['layer'], target: string): void {
-  const v = { ts: new Date().toISOString(), layer, target }
+  const v: Violation = { ts: new Date().toISOString(), layer, target, ...(canaryArmed && target.includes(CANARY_HOST) ? { canary: true } : {}) }
   violations.push(v)
   log?.warn('offline-guard', `Blocked a network attempt (${layer}): ${target}`, v)
 }
@@ -38,6 +44,16 @@ export function violationCount(): number {
 
 export function listViolations(): Violation[] {
   return [...violations]
+}
+
+/** Attempts the app itself made: everything except the self-tests' canaries. */
+export function realViolations(): Violation[] {
+  return violations.filter((v) => !v.canary)
+}
+
+/** From now on, attempts to CANARY_HOST are the self-test's own (they may be logged after the test returns). */
+export function armCanary(): void {
+  canaryArmed = true
 }
 
 /** Must run before app 'ready'. `devServer` is the Vite URL in development only. */
