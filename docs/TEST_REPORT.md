@@ -21,7 +21,7 @@ Updated at the end of each phase. Every result below is from an actual run. Anyt
 | **No network at all**: pytest and the app tests inside a Linux network namespace with no interfaces (network guard off, so only the OS blocks) | `npm run test:offline` | **289 / 289 pytest, 12 / 12 app tests pass** here (before the font test was added); Ubuntu CI repeats it on every push |
 | Full self-test inside the app, here (Settings → *Check every module*) | `tests/e2e/selftest.spec.ts` | **10 / 10 checks pass** in about 10 s; no guard logged a violation while they ran |
 | `npm run setup` on an already set-up copy | `npm run setup` | **pass** in 12 s: every step skipped or re-checked, every engine found, Pillow shapes text |
-| Ubuntu CI (`ubuntu-latest`): all of the above, plus the no-network run | `.github/workflows/ci.yml`, run 37569423617 | **all pass** (57 vitest, 290 pytest, 12 app tests; no network: pytest and app tests) |
+| Ubuntu CI (`ubuntu-latest`): all of the above, plus the no-network run | `.github/workflows/ci.yml`, run 37569423617 (and again for the release commit, run 37572641554) | **all pass** (57 vitest, 290 pytest, 12 app tests; no network: pytest and app tests) |
 | Windows CI (`windows-latest`): the engines built from the lock (unpacked, Ghostscript with its C++ runtime, LibreOffice with its fonts) | same run | **all pass** (290 pytest including the converter tests with the bundled engines, 12 app tests) |
 | Packaged Windows app, smoke test with the network blocked by Windows Firewall | `.github/workflows/release.yml` | see *Windows packaging (Phase 5)* below |
 
@@ -42,7 +42,25 @@ The same test on GitHub's runners (three runs each): **Windows** longest frame g
 
 ### Licences
 
-`scripts/collect_licenses.py` on this Linux build: **192 components** (Electron runtime 4, JavaScript 13, Python 67, native libraries inside them 8, engines 3, veraPDF's jars 19, fonts 73, models 5); **1 AGPL** (PyMuPDF), **1 GPL** (Pandoc), 25 weak copyleft, 165 permissive; 2.9 MB of texts. The same script on the Windows wheels (installed for `win_amd64` here) found the Windows file names of the copyleft libraries inside them (FFmpeg in OpenCV, GEOS in shapely, libheif and libde265 in pi-heif, the GCC runtime). The Windows build's list is made by the release from its bundled Python (see *Windows packaging* below).
+`scripts/collect_licenses.py` on this Linux build: **192 components** (Electron runtime 4, JavaScript 13, Python 67, native libraries inside them 8, engines 3, veraPDF's jars 19, fonts 73, models 5); **1 AGPL** (PyMuPDF), **1 GPL** (Pandoc), 25 weak copyleft, 165 permissive; 2.9 MB of texts. The same script on the Windows wheels (installed for `win_amd64` here) found the Windows file names of the copyleft libraries inside them (FFmpeg in OpenCV, GEOS in shapely, libheif and libde265 in pi-heif, the GCC runtime). The Windows release's list, made from its bundled Python: **206 components**, **2 AGPL** (PyMuPDF, Ghostscript), **1 GPL** (Pandoc), 33 weak copyleft (adding LibreOffice, the Java runtime, FriBiDi and the LGPL libraries inside Tesseract's build), 170 permissive.
+
+### Windows packaging (Phase 5)
+
+**Release v1.0.0 (`release.yml`, run 37572641574): every step passed.** The first 1.0.0 build (run 37570940306) stopped at the smoke test on a false failure of the full self-test after the quick one; fixed below and built again.
+
+- **The smoke test ran with the network blocked by the operating system**: Windows Firewall rules blocked outbound connections for all 97 programs in the app (Electron, Python, LibreOffice, Ghostscript, Tesseract and its tools, Java, Pandoc, resvg) with Windows Filtering Platform auditing on. The packaged `Offline Toolkit.exe` passed (1.1 min), and **no blocked attempt to reach another computer was logged** (event 5157). It checked:
+  - the bundled Python and every engine, the offline self-test, and **Check every module** (10 of 10, no failing check);
+  - **About & licences**: PyMuPDF, Ghostscript and Pandoc flagged, the eight engines listed, FriBiDi found; `THIRD-PARTY-NOTICES.txt` and `LICENSES.chromium.html` next to the exe; the Java runtime cut to its modules (no `jdk.jshell`, `jdk.compiler`, `jdk.localedata`, `jdk.httpserver`); Microsoft's C++ runtime next to Ghostscript;
+  - HEIC, a resize to 240 × 240 px at 200 DPI, Word and HTML to PDF/A-2b with veraPDF passing both, Pillow shaping text, a poster analysed, cut out, checked and exported to Word, and a UK passport photo of 413 × 531 px at 300 DPI with a 4 × 6 in sheet of exactly 101.6 × 152.4 mm.
+- Engines (from the lock, unpacked): LibreOffice 26.2.6.3 (711 MB, with its 135 fonts), Ghostscript 10.08.0 (with the C++ runtime), Tesseract 5.5.3 + `tessdata_fast` (17), Temurin 21.0.12.1 cut with jlink (51 MB), veraPDF 1.28.2, Pandoc 3.8.2.1, resvg 0.45.1; 1213 MB unpacked.
+- Files (published as release [v1.0.0](https://github.com/penpaper0878/offline-toolkit/releases/tag/v1.0.0), not a pre-release):
+  - `Offline-Toolkit-Setup-1.0.0.exe`: **673 MB** installer
+  - `Offline-Toolkit-1.0.0-portable-win-x64.zip`: **905 MB** portable ZIP
+  - `THIRD-PARTY-NOTICES.txt`: 2.8 MB
+
+  21 MB more than v0.4.0 (652 / 893 MB). New in it: LibreOffice's own fonts (56 MB unpacked), Ghostscript's C++ runtime, the licence texts (about 3 MB) and the samples (1 MB); the Java runtime is about 80 MB smaller unpacked.
+- CI for the same commit (run 37572641554) passed on Ubuntu (with the no-network run) and Windows: 290 pytest and 12 app tests on each.
+- The builds are not code-signed.
 
 ### Found and fixed in this phase
 
