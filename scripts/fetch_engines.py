@@ -12,8 +12,9 @@ checks the publishers' own checksums where they publish them, and writes the new
 installs nothing (the `[relock]` CI job runs it). Pandoc, veraPDF, resvg and Python stay at the versions below
 because the tests depend on their exact behaviour.
 
-On Windows the official installers of LibreOffice (MSI), Ghostscript and Tesseract (NSIS) are run silently into
-build/engine-install (admin rights needed, as on GitHub's runners) and their program folders copied. The Java
+On Windows the official installers of LibreOffice (MSI), Ghostscript and Tesseract (NSIS) are unpacked, never run:
+the MSI with an administrative install (msiexec /a), the NSIS installers with 7-Zip, into build/engine-install, and
+their program folders copied. (Running them silently hung a CI job for six hours.) Every tool gets a time limit. The Java
 runtime is cut from the Temurin JDK with jlink down to the modules veraPDF needs. The versions found are written
 to manifest.json, which docs/ENGINES.md and Settings read.
 """
@@ -104,19 +105,23 @@ def text(url: str) -> str:
         return r.read().decode("utf-8", "replace")
 
 
-def download(url: str, target: Path, attempts: int = 4) -> tuple[str, str]:
-    """Stream `url` into `target`; returns its (sha256, sha1)."""
+def download(url: str, target: Path, attempts: int = 4, deadline: float = 1200) -> tuple[str, str]:
+    """Stream `url` into `target`; returns its (sha256, sha1). A try that takes longer than `deadline` seconds
+    (a server trickling bytes never trips the socket timeout) is abandoned and retried."""
     log(f"download {url}")
     target.parent.mkdir(parents=True, exist_ok=True)
     part = target.with_name(target.name + ".part")
     for i in range(attempts):
         h256, h1 = hashlib.sha256(), hashlib.sha1()
+        t0 = time.monotonic()
         try:
             with _open(url) as r, part.open("wb") as out:
                 while chunk := r.read(1 << 20):
                     h256.update(chunk)
                     h1.update(chunk)
                     out.write(chunk)
+                    if time.monotonic() - t0 > deadline:
+                        raise TimeoutError(f"slower than {out.tell() / deadline / 1e3:.0f} kB/s")
             part.replace(target)
             return h256.hexdigest(), h1.hexdigest()
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
@@ -303,9 +308,27 @@ def relock(plat: str, names: list[str]) -> None:
 
 # --- installing --------------------------------------------------------------------------------------------------
 
-def run(cmd: list[str], **kw) -> None:
-    log("> " + " ".join(cmd))
-    subprocess.run(cmd, check=True, **kw)
+def note(title: str, message: str, level: str = "notice") -> None:
+    """A line in the log and, on GitHub Actions, an annotation (the one CI output readable without the log)."""
+    log(f"{title}: {message}")
+    if os.environ.get("GITHUB_ACTIONS"):
+        print(f"::{level} title={title}::{message}", flush=True)
+
+
+def run(cmd: list[str] | str, *, timeout: float, what: str, **kw) -> None:
+    """Run a build tool, and stop it (with everything it started) if it takes longer than `timeout` seconds: an
+    installer waiting for an answer nobody can give must fail the build, not hang it."""
+    log("> " + (cmd if isinstance(cmd, str) else " ".join(cmd)))
+    proc = subprocess.Popen(cmd, **kw)
+    try:
+        code = proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True)
+        proc.kill()
+        raise SystemExit(f"{what} did not finish in {timeout:.0f} s and was stopped")
+    if code != 0:
+        raise SystemExit(f"{what} failed (exit {code})")
 
 
 def copy_tree(src: Path, dst: Path) -> None:
@@ -327,6 +350,37 @@ def _fresh(path: Path) -> Path:
     shutil.rmtree(path, ignore_errors=True)
     path.mkdir(parents=True)
     return path
+
+
+def _seven_zip() -> str | None:
+    for cand in (shutil.which("7z"), r"C:\Program Files\7-Zip\7z.exe"):
+        if cand and Path(cand).exists():
+            return cand
+    return None
+
+
+def _unpack_nsis(installer: Path, target: Path, what: str) -> None:
+    """Unpack an NSIS installer with 7-Zip (preinstalled on GitHub's Windows runners): nothing runs, nothing can ask a
+    question. Without 7-Zip, run the installer silently into `target` instead (needs admin rights)."""
+    seven = _seven_zip()
+    if seven:
+        run([seven, "x", "-y", f"-o{target}", str(installer)], timeout=900, what=f"7-Zip unpacking {what}",
+            stdout=subprocess.DEVNULL)
+        log(f"{what} unpacked: {', '.join(sorted(p.name for p in target.iterdir()))}")
+        return
+    # NSIS wants /D= last and unquoted, so the command line is passed as is and the folder may not contain spaces.
+    if " " in str(target):
+        raise SystemExit(f"the install folder must not contain spaces: {target}")
+    run(f'"{installer}" /S /D={target}', timeout=900, what=f"the {what} installer")
+
+
+def _tidy(folder: Path) -> None:
+    """Drop what unpacking leaves besides the program: NSIS's plug-in folder, uninstallers, the MSI's own copy."""
+    for p in list(folder.iterdir()):
+        if p.name in ("$PLUGINSDIR", "$TEMP") and p.is_dir():
+            shutil.rmtree(p, ignore_errors=True)
+        elif p.is_file() and (p.suffix.lower() in (".msi", ".nsis") or p.name.lower().startswith(("unins", "vcredist"))):
+            p.unlink()
 
 
 def _found(root: Path, name: str, what: str) -> Path:
@@ -370,31 +424,32 @@ def install_resvg(dest: Path, plat: str, entry: dict, files: list[Path]) -> str:
 
 def install_libreoffice(dest: Path, plat: str, entry: dict, files: list[Path]) -> str:
     target = _fresh(INSTALL / "libreoffice")
-    # Documented MSI properties: no desktop icon, no file associations, no update checks, no quick starter.
-    run(["msiexec", "/i", str(files[0]), "/qn", "/norestart", f"INSTALLLOCATION={target}", "CREATEDESKTOPLINK=0",
-         "REGISTER_ALL_MSO_TYPES=0", "REGISTER_NO_MSO_TYPES=1", "ISCHECKFORPRODUCTUPDATES=0", "QUICKSTART=0",
-         "UI_LANGS=en_US", "/l*v", str(INSTALL / "libreoffice-msi.log")])
+    msi_log = INSTALL / "libreoffice-msi.log"
+    # An administrative install only unpacks the MSI's files into TARGETDIR: nothing is registered, nothing asks.
+    try:
+        run(["msiexec", "/a", str(files[0]), "/qn", f"TARGETDIR={target}", "/l*v", str(msi_log)], timeout=1800,
+            what="unpacking the LibreOffice MSI")
+    except SystemExit:
+        if msi_log.exists():
+            raw = msi_log.read_bytes()
+            text_ = raw.decode("utf-16", "replace") if raw[:2] == b"\xff\xfe" else raw.decode("utf-8", "replace")
+            log("msiexec log, last lines:\n" + "\n".join(text_.splitlines()[-15:]))
+        raise
     root = _found(target, "soffice.com", "LibreOffice").parent.parent
     copy_tree(root, dest / "libreoffice")
+    _tidy(dest / "libreoffice")
     # Help and the dictionaries for typing are not needed for conversion.
     for sub in ("help", "share/extensions/dict-en", "share/extensions/dict-es", "share/extensions/dict-fr"):
         shutil.rmtree(dest / "libreoffice" / sub, ignore_errors=True)
     return _version([str(dest / "libreoffice" / "program" / "soffice.com"), "--version"])
 
 
-def _nsis(installer: Path, target: Path) -> None:
-    # NSIS wants /D= last and unquoted, so the command line is passed as is and the folder may not contain spaces.
-    if " " in str(target):
-        raise SystemExit(f"the install folder must not contain spaces: {target}")
-    log(f"> {installer.name} /S /D={target}")
-    subprocess.run(f'"{installer}" /S /D={target}', check=True)
-
-
 def install_ghostscript(dest: Path, plat: str, entry: dict, files: list[Path]) -> str:
     target = _fresh(INSTALL / "ghostscript")
-    _nsis(files[0], target)
+    _unpack_nsis(files[0], target, "Ghostscript")
     root = _found(target, "gswin64c.exe", "Ghostscript").parent.parent
     copy_tree(root, dest / "ghostscript")
+    _tidy(dest / "ghostscript")
     for sub in ("doc", "examples"):
         shutil.rmtree(dest / "ghostscript" / sub, ignore_errors=True)
     return "Ghostscript " + _version([str(dest / "ghostscript" / "bin" / "gswin64c.exe"), "--version"])
@@ -402,8 +457,11 @@ def install_ghostscript(dest: Path, plat: str, entry: dict, files: list[Path]) -
 
 def install_tesseract(dest: Path, plat: str, entry: dict, files: list[Path]) -> str:
     target = _fresh(INSTALL / "tesseract")
-    _nsis(files[0], target)
+    _unpack_nsis(files[0], target, "Tesseract")
     copy_tree(_found(target, "tesseract.exe", "Tesseract").parent, dest / "tesseract")
+    _tidy(dest / "tesseract")
+    for jar in (dest / "tesseract" / "tessdata").glob("*.jar"):
+        jar.unlink()                        # ScrollView, the training tools' Java viewer: not needed for OCR
     return _version([str(dest / "tesseract" / "tesseract.exe"), "--version"])
 
 
@@ -425,9 +483,34 @@ def install_jre(dest: Path, plat: str, entry: dict, files: list[Path]) -> str:
     out = dest / "jre"
     shutil.rmtree(out, ignore_errors=True)
     run([str(jlink), "--module-path", str(jlink.parent.parent / "jmods"), "--add-modules", ",".join(JRE_MODULES),
-         "--strip-debug", "--no-man-pages", "--no-header-files", "--compress=zip-6", "--output", str(out)])
+         "--strip-debug", "--no-man-pages", "--no-header-files", "--compress=zip-6", "--output", str(out)],
+        timeout=600, what="jlink")
     java = out / "bin" / ("java.exe" if plat.startswith("win") else "java")
     return f"{_version([str(java), '-version'])} (jlink: {len(JRE_MODULES)} modules)"
+
+
+# Ghostscript's Windows build needs Microsoft's C++ runtime, which its installer installs system-wide with
+# vcredist_x64.exe and a clean Windows does not have. Unpacked instead of installed, it gets app-local copies (which
+# Microsoft allows) from the bundled Java runtime or LibreOffice, which ship the same DLLs next to their programs.
+VC_RUNTIME = ["msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll"]
+
+
+def vc_runtime_for_ghostscript(dest: Path) -> str | None:
+    gs_bin = dest / "ghostscript" / "bin"
+    if not gs_bin.exists():
+        return None
+    have = {p.name.lower() for p in gs_bin.iterdir()}
+    copied = []
+    for dll in VC_RUNTIME:
+        if dll in have:
+            continue
+        src = next((p for folder in (dest / "jre" / "bin", dest / "libreoffice" / "program") if folder.exists()
+                    for p in folder.iterdir() if p.name.lower() == dll), None)
+        if src is None:
+            raise SystemExit(f"{dll} for Ghostscript not found in the bundled Java runtime or LibreOffice")
+        shutil.copyfile(src, gs_bin / dll)
+        copied.append(f"{dll} from {src.parent.relative_to(dest).as_posix()}")
+    return ", ".join(copied) or "already present"
 
 
 INSTALLERS = {"pandoc": install_pandoc, "verapdf": install_verapdf, "resvg": install_resvg,
@@ -461,13 +544,25 @@ def main() -> None:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
     for name in (args.components.split(",") if args.components else DEFAULTS[args.platform]):
         log(f"--- {name}")
-        entry = locked(args.platform, name)
-        files = [get(f) for f in entry["files"]]
-        manifest[name] = INSTALLERS[name](dest, args.platform, entry, files)
-        log(f"{name}: {manifest[name]}")
+        t0 = time.monotonic()
+        try:
+            entry = locked(args.platform, name)
+            files = [get(f) for f in entry["files"]]
+            t1 = time.monotonic()
+            manifest[name] = INSTALLERS[name](dest, args.platform, entry, files)
+        except (SystemExit, Exception) as exc:
+            note(f"engines: {name}", f"failed after {time.monotonic() - t0:.0f} s: {exc}", "error")
+            raise
+        size = sum(f.stat().st_size for f in files) / 1e6
+        note(f"engines: {name}", f"{str(manifest[name])[:120]} | download {size:.0f} MB in {t1 - t0:.0f} s, "
+                                 f"install {time.monotonic() - t1:.0f} s")
+        manifest_path.write_text(json.dumps(manifest, indent=1), encoding="utf-8")
+    if args.platform.startswith("win") and (rt := vc_runtime_for_ghostscript(dest)):
+        manifest["ghostscriptRuntime"] = f"Microsoft C++ runtime, app-local: {rt}"
+        note("engines: ghostscript runtime", manifest["ghostscriptRuntime"])
         manifest_path.write_text(json.dumps(manifest, indent=1), encoding="utf-8")
     total = sum(f.stat().st_size for f in dest.rglob("*") if f.is_file())
-    log(f"engines in {dest}: {total / 1e6:.0f} MB")
+    note("engines", f"{total / 1e6:.0f} MB in {dest.name}")
 
 
 if __name__ == "__main__":

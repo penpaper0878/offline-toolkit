@@ -15,16 +15,21 @@ interface Watch { frames: number; maxGap: number; p99Gap: number; over250: numbe
 /** Time every animation frame and a main-process IPC call (the recent list) every 50 ms. */
 async function startWatch(page: Page): Promise<void> {
   await page.evaluate(() => {
-    const w = window as unknown as { __watch: { gaps: number[]; ipc: number[]; stop: boolean; t0: number }; otk: { recent: { list(): Promise<unknown> } } }
+    // Runs in the page; the tests are compiled without the DOM library, hence the explicit shape.
+    const w = globalThis as unknown as {
+      __watch: { gaps: number[]; ipc: number[]; stop: boolean; t0: number }
+      otk: { recent: { list(): Promise<unknown> } }
+      requestAnimationFrame(cb: (t: number) => void): number
+    }
     const p = { gaps: [] as number[], ipc: [] as number[], stop: false, t0: performance.now() }
     w.__watch = p
     let last = performance.now()
     const tick = (t: number): void => {
       p.gaps.push(t - last)
       last = t
-      if (!p.stop) requestAnimationFrame(tick)
+      if (!p.stop) w.requestAnimationFrame(tick)
     }
-    requestAnimationFrame(tick)
+    w.requestAnimationFrame(tick)
     void (async () => {
       while (!p.stop) {
         const t0 = performance.now()
@@ -38,7 +43,7 @@ async function startWatch(page: Page): Promise<void> {
 
 async function stopWatch(page: Page): Promise<Watch> {
   return page.evaluate(() => {
-    const p = (window as unknown as { __watch: { gaps: number[]; ipc: number[]; stop: boolean; t0: number } }).__watch
+    const p = (globalThis as unknown as { __watch: { gaps: number[]; ipc: number[]; stop: boolean; t0: number } }).__watch
     p.stop = true
     const q = (a: number[], f: number): number => { const s = [...a].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(f * s.length))] ?? 0 }
     const r = (n: number): number => Math.round(n)

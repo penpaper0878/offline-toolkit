@@ -81,6 +81,10 @@ test('packaged app: bundled Python and engines, offline self-test, HEIC, resize,
       const release = readFileSync(join(root, 'resources', 'engines', 'jre', 'release'), 'utf-8')
       expect(release).toContain('java.desktop')
       for (const unneeded of ['jdk.jshell', 'jdk.compiler', 'jdk.localedata', 'jdk.httpserver']) expect(release).not.toContain(unneeded)
+      // Ghostscript is unpacked, not installed: it carries Microsoft's C++ runtime next to it (a clean Windows has none).
+      for (const dll of ['msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll']) {
+        expect(existsSync(join(root, 'resources', 'engines', 'ghostscript', 'bin', dll)), dll).toBe(true)
+      }
     }
 
     await page.getByTestId('nav-resizer').click()

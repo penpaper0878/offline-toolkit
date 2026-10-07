@@ -444,6 +444,12 @@ def collect_engines(c: Collector, engines: Path) -> None:
                      where="separate program")
         if folder.exists() and key in ("tesseract", "libreoffice", "ghostscript"):
             add_natives(c, "engine", comp, [str(p) for p in folder.rglob("*") if p.is_file()], [])
+    gs_bin = engines / "ghostscript" / "bin"
+    if gs_bin.exists() and any(p.name.lower() == "vcruntime140.dll" for p in gs_bin.iterdir()):
+        c.add("runtime", "vc-runtime", "Microsoft Visual C++ runtime (msvcp140, vcruntime140)", "14",
+              "LicenseRef-Microsoft-Redistributable", spdx_fallback=False, where="Ghostscript",
+              note="App-local copies next to Ghostscript, which needs them; Microsoft allows redistributing these DLLs "
+                   "with an application. The Java runtime and LibreOffice ship the same files.")
     lib = engines / "verapdf" / "lib"
     if lib.exists():
         c.add("engine", "engine:verapdf", "veraPDF (PDF/A validator)", str(manifest.get("verapdf", VERAPDF_VERSION)).replace("veraPDF ", ""),

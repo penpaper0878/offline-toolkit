@@ -135,7 +135,10 @@ test('Try a sample: each module opens its bundled sample, copied into the data f
     await page.getByTestId('home-sample-resizer').click()
     const thumb = page.getByTestId('thumbs').locator('.thumb.ready')
     await expect(thumb).toHaveCount(1, { timeout: 60_000 })
-    const [w, h] = await thumb.locator('img').first().evaluate((img: HTMLImageElement) => [img.naturalWidth, img.naturalHeight])
+    const [w, h] = await thumb.locator('img').first().evaluate((el) => {
+      const img = el as unknown as { naturalWidth: number; naturalHeight: number }
+      return [img.naturalWidth, img.naturalHeight]
+    })
     expect(h).toBeGreaterThan(w)
 
     await page.getByTestId('brand').click()
