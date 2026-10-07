@@ -42,3 +42,14 @@ def decode(data: bytes) -> Image.Image:
     im = Image.open(io.BytesIO(data))
     im.load()
     return im
+
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    """On GitHub Actions, the totals as an annotation: readable without the job log."""
+    import os
+    import sys
+
+    if not os.environ.get("GITHUB_ACTIONS"):
+        return
+    counts = {k: len(terminalreporter.stats.get(k, [])) for k in ("passed", "failed", "error", "skipped")}
+    print(f"\n::notice title=pytest ({sys.platform})::" + ", ".join(f"{v} {k}" for k, v in counts.items() if v or k == "passed"))

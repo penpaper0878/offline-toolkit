@@ -352,3 +352,27 @@ def test_transparent_areas_are_compared_over_white(tmp_path):
     assert res["status"] == "done" and res["verdict"] == "perfect", res["message"]
     with Image.open(res["output"]) as im:
         assert im.mode == "RGBA" and im.getpixel((2, 2))[3] == 0           # the transparency is kept in the file
+
+
+@needs_lo
+def test_libreoffice_draws_with_the_metric_compatible_fonts(tmp_path):
+    """Word documents keep their line breaks only if LibreOffice has Carlito, Caladea and Liberation (the metrics of
+    Calibri, Cambria, Arial and Times New Roman) and DejaVu. The Windows build carries them inside LibreOffice (the
+    MSI would have installed them into Windows' font folder); without them a PC would get other fonts."""
+    import re
+
+    import docx
+    import pymupdf
+
+    from otk_worker.converter import libreoffice as lo
+
+    fonts = ["Liberation Serif", "Liberation Sans", "Carlito", "Caladea", "DejaVu Sans"]
+    d = docx.Document()
+    for f in fonts:
+        d.add_paragraph().add_run(f"The quick brown fox in {f}").font.name = f
+    src = tmp_path / "fonts.docx"
+    d.save(src)
+    pdf = lo.convert(src, tmp_path, lo.pdf_filter("writer"))
+    used = {re.sub(r"^[A-Z]{6}\+", "", f[3]).replace("-", "").lower() for page in pymupdf.open(pdf) for f in page.get_fonts()}
+    for f in fonts:
+        assert any(u.startswith(f.replace(" ", "").lower()) for u in used), (f, sorted(used))

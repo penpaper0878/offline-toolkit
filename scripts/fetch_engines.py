@@ -440,6 +440,8 @@ def install_libreoffice(dest: Path, plat: str, entry: dict, files: list[Path]) -
     copy_tree(root, lo)
     _tidy(lo)
     before = _folder_sizes(lo)
+    had = sorted(p.name for p in (lo / "share" / "fonts" / "truetype").glob("*")) if (lo / "share" / "fonts" / "truetype").exists() else []
+    REPORT.append(f"LibreOffice fonts: share/fonts/truetype had {len(had)} files; {_fonts_into_libreoffice(lo)}")
     _trim_libreoffice(lo)
     REPORT.append(f"LibreOffice unpacked {before[0]:.0f} MB ({before[1]}), trimmed to {_folder_sizes(lo)[0]:.0f} MB")
     return _version([str(lo / "program" / "soffice.com"), "--version"])
@@ -464,7 +466,32 @@ def _trim_libreoffice(lo: Path) -> None:
     for f in (lo / "readmes").glob("readme_*"):
         if f.stem != "readme_en-US":
             f.unlink()
+    # The other languages' configuration packs (menu labels and the like): share/registry/Langpack-<lang>.xcd and
+    # share/registry/res/*_<lang>.xcd.
+    for f in [*(lo / "share" / "registry").glob("Langpack-*.xcd"), *(lo / "share" / "registry" / "res").glob("*.xcd")]:
+        lang = f.stem.split("-", 1)[1] if f.stem.startswith("Langpack-") else f.stem.rsplit("_", 1)[-1]
+        if LANG_DIR.match(lang) and lang != "en-US":
+            f.unlink()
     shutil.rmtree(lo / "help", ignore_errors=True)
+
+
+def _fonts_into_libreoffice(lo: Path) -> str:
+    """The MSI installs LibreOffice's fonts (Liberation, Carlito, Caladea, DejaVu, Noto and others, which keep the
+    layout of Office documents) into the Windows font folder, which an administrative install unpacks as Fonts/. The
+    bundled copy must carry them where LibreOffice loads its own fonts from: share/fonts/truetype."""
+    src = lo / "Fonts"
+    if not src.is_dir():
+        return "no Fonts folder"
+    dst = lo / "share" / "fonts" / "truetype"
+    dst.mkdir(parents=True, exist_ok=True)
+    moved = [f for f in sorted(src.iterdir()) if f.is_file() and f.suffix.lower() in (".ttf", ".otf", ".ttc")]
+    for f in moved:
+        shutil.move(str(f), dst / f.name)
+    left = [f.name for f in src.iterdir()]
+    if not left:
+        src.rmdir()
+    return (f"{len(moved)} fonts moved from Fonts/ to share/fonts/truetype ({', '.join(f.stem for f in moved[:12])}"
+            f"{', ...' if len(moved) > 12 else ''}){'; left in Fonts/: ' + ', '.join(left[:5]) if left else ''}")
 
 
 def _folder_sizes(root: Path) -> tuple[float, str]:
