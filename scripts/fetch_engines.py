@@ -436,12 +436,52 @@ def install_libreoffice(dest: Path, plat: str, entry: dict, files: list[Path]) -
             log("msiexec log, last lines:\n" + "\n".join(text_.splitlines()[-15:]))
         raise
     root = _found(target, "soffice.com", "LibreOffice").parent.parent
-    copy_tree(root, dest / "libreoffice")
-    _tidy(dest / "libreoffice")
-    # Help and the dictionaries for typing are not needed for conversion.
-    for sub in ("help", "share/extensions/dict-en", "share/extensions/dict-es", "share/extensions/dict-fr"):
-        shutil.rmtree(dest / "libreoffice" / sub, ignore_errors=True)
-    return _version([str(dest / "libreoffice" / "program" / "soffice.com"), "--version"])
+    lo = dest / "libreoffice"
+    copy_tree(root, lo)
+    _tidy(lo)
+    before = _folder_sizes(lo)
+    _trim_libreoffice(lo)
+    REPORT.append(f"LibreOffice unpacked {before[0]:.0f} MB ({before[1]}), trimmed to {_folder_sizes(lo)[0]:.0f} MB")
+    return _version([str(lo / "program" / "soffice.com"), "--version"])
+
+
+LANG_DIR = re.compile(r"^[a-z]{2,3}(-[A-Za-z0-9]+)*$")
+
+
+def _trim_libreoffice(lo: Path) -> None:
+    """Keep what an English-only default install has. An administrative install unpacks every optional part of the
+    multilingual MSI: the interface in about a hundred languages and all spelling dictionaries. Conversion needs
+    neither (LibreOffice falls back to its built-in English; locale data for numbers and dates is in its libraries)."""
+    for d in (lo / "program" / "resource").glob("*"):
+        if d.is_dir() and d.name != "en-US":
+            shutil.rmtree(d)
+    for base in ("share/template", "share/autotext", "share/wordbook"):
+        for d in (lo / base).glob("*"):
+            if d.is_dir() and LANG_DIR.match(d.name) and d.name not in ("en-US", "common"):
+                shutil.rmtree(d)
+    for d in (lo / "share" / "extensions").glob("dict-*"):
+        shutil.rmtree(d)
+    for f in (lo / "readmes").glob("readme_*"):
+        if f.stem != "readme_en-US":
+            f.unlink()
+    shutil.rmtree(lo / "help", ignore_errors=True)
+
+
+def _folder_sizes(root: Path) -> tuple[float, str]:
+    """Total MB, and the largest folders two levels down."""
+    sizes = {}
+    total = 0.0
+    for f in root.rglob("*"):
+        if f.is_file():
+            n = f.stat().st_size / 1e6
+            total += n
+            rel = f.relative_to(root).parts
+            for depth in (1, 2):
+                if len(rel) > depth:
+                    key = "/".join(rel[:depth])
+                    sizes[key] = sizes.get(key, 0) + n
+    top = sorted(sizes.items(), key=lambda kv: -kv[1])[:10]
+    return total, ", ".join(f"{k} {v:.0f}" for k, v in top)
 
 
 def install_ghostscript(dest: Path, plat: str, entry: dict, files: list[Path]) -> str:
@@ -516,6 +556,8 @@ def vc_runtime_for_ghostscript(dest: Path) -> str | None:
 INSTALLERS = {"pandoc": install_pandoc, "verapdf": install_verapdf, "resvg": install_resvg,
               "libreoffice": install_libreoffice, "ghostscript": install_ghostscript, "tesseract": install_tesseract,
               "tessdata": install_tessdata, "jre": install_jre}
+REPORT: list[str] = []      # one CI annotation at the end (GitHub keeps only the first ten of a step)
+
 DEFAULTS = {"win-x64": ["pandoc", "verapdf", "resvg", "libreoffice", "ghostscript", "tesseract", "tessdata", "jre"],
             "linux-x64": ["pandoc", "verapdf", "resvg"]}
 
@@ -554,21 +596,20 @@ def main() -> None:
             note(f"engines: {name}", f"failed after {time.monotonic() - t0:.0f} s: {exc}", "error")
             raise
         size = sum(f.stat().st_size for f in files) / 1e6
-        note(f"engines: {name}", f"{str(manifest[name])[:120]} | download {size:.0f} MB in {t1 - t0:.0f} s, "
-                                 f"install {time.monotonic() - t1:.0f} s")
+        REPORT.append(f"{name}: {str(manifest[name])[:100]} (download {size:.0f} MB in {t1 - t0:.0f} s, "
+                      f"install {time.monotonic() - t1:.0f} s)")
+        log(REPORT[-1])
         manifest_path.write_text(json.dumps(manifest, indent=1), encoding="utf-8")
     if args.platform.startswith("win") and (rt := vc_runtime_for_ghostscript(dest)):
         manifest["ghostscriptRuntime"] = f"Microsoft C++ runtime, app-local: {rt}"
-        note("engines: ghostscript runtime", manifest["ghostscriptRuntime"])
+        REPORT.append(f"Ghostscript: {manifest['ghostscriptRuntime']}")
         manifest_path.write_text(json.dumps(manifest, indent=1), encoding="utf-8")
     size = lambda d: sum(f.stat().st_size for f in d.rglob("*") if f.is_file()) / 1e6  # noqa: E731
     parts = sorted(((size(d), d.name) for d in dest.iterdir() if d.is_dir()), reverse=True)
-    note("engines", f"{sum(m for m, _ in parts):.0f} MB in {dest.name}: " + ", ".join(f"{n} {m:.0f}" for m, n in parts))
-    lo = dest / "libreoffice"
-    if lo.exists():
-        big = sorted(((size(d), d.relative_to(lo).as_posix()) for d in [*lo.iterdir(), *lo.glob("*/*")] if d.is_dir()),
-                     reverse=True)[:8]
-        note("engines: libreoffice folders", ", ".join(f"{n} {m:.0f} MB" for m, n in big))
+    note("engines", f"{sum(m for m, _ in parts):.0f} MB in {dest.name}: " + ", ".join(f"{n} {m:.0f}" for m, n in parts)
+         + " | " + " | ".join(REPORT))
+    if (dest / "libreoffice").exists():
+        note("engines: libreoffice folders (MB)", _folder_sizes(dest / "libreoffice")[1])
 
 
 if __name__ == "__main__":
