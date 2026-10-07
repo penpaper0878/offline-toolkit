@@ -27,6 +27,7 @@ import datetime as dt
 import hashlib
 import importlib.metadata as md
 import json
+import os
 import re
 import shutil
 import sys
@@ -594,6 +595,11 @@ def main() -> None:
     for x in doc["components"]:
         if x["copyleft"] in ("network", "strong"):
             print(f"[licences]   {x['copyleft']}: {x['name']} {x['version']} ({x['license']})")
+    if os.environ.get("GITHUB_ACTIONS"):
+        flagged = "; ".join(f"{x['name']} {x['version']} ({x['license']})" for x in doc["components"]
+                            if x["copyleft"] in ("network", "strong"))
+        print(f"::notice title=licences ({c.platform})::{s['total']} components; "
+              f"{', '.join(f'{k} {v}' for k, v in s['byCopyleft'].items())}; AGPL/GPL: {flagged}", flush=True)
 
 
 if __name__ == "__main__":

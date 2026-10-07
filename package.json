@@ -1,7 +1,7 @@
 {
   "name": "offline-toolkit",
   "productName": "Offline Toolkit",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Offline desktop toolkit: image resizer, document converter, image to editable design, passport photos. Personal use.",
   "main": "out/main/index.js",

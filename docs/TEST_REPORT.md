@@ -2,6 +2,68 @@
 
 Updated at the end of each phase. Every result below is from an actual run. Anything not run is listed as such.
 
+## Phase 5: one app, installer and licences (v1.0.0), 2026-10-07
+
+### Environment
+
+- **Machine:** the same Linux container (Ubuntu 24.04, x86-64, 4 cores, 15 GB RAM), run as root, Xvfb for the app tests. Engines here: LibreOffice 24.2, Ghostscript 10.02, Tesseract 5.3 from apt, OpenJDK 21, and Pandoc 3.8.2.1, veraPDF 1.28.2 and resvg 0.45.1 from the pinned lock.
+- **Windows:** GitHub's `windows-latest` runners, with the engines built from `scripts/engines.lock.json` for the first time in this phase (§0d of ENGINES.md).
+- **Not reachable from here:** documentfoundation.org, python.org, the Adoptium API and other repositories' GitHub pages, so the Windows lock was resolved and hashed by the `[relock]` workflow on GitHub; the Ghostscript and Tesseract installers (GitHub release files) were downloaded here, checked against the lock and unpacked with this machine's 7-Zip.
+
+### Results
+
+| Suite | Command | Result |
+|---|---|---|
+| TypeScript typecheck | `npm run typecheck` | **pass** |
+| JavaScript unit tests (vitest): Phases 1–4, plus where opened and dropped files go (every page, mixed drops, Windows paths, case), the recent list (order, repeats, limit, malformed entries) and settings merging | `npm test` | **57 / 57 pass** |
+| Python tests (pytest): Phases 1–4, plus the module self-test (every check, the report, cancelling), the licence list (copyleft levels of 12 SPDX expressions, copyleft libraries found inside wheels, the worker's packages, fonts and models each with a licence text), the converter's check of transparent pictures, a close-up face found whole, and LibreOffice drawing with its metric-compatible fonts | `npm run test:py` | **290 / 290 pass**, none skipped |
+| End-to-end, real app + worker (Playwright): resizer ×2, converter, design ×2, passport ×2, **home screen** (status, cards, shortcuts, *Open a file…* with the picture chooser, documents to the converter, recent work: reopen, remove, clear, off; start where I left off), **Try a sample** in all four modules, **Check every module**, **About & licences** (copyleft first, filters, search, licence texts) and **large files** | `npm run test:e2e` | **12 / 12 pass** (the packaged-app test runs on Windows only) |
+| **No network at all**: pytest and the app tests inside a Linux network namespace with no interfaces (network guard off, so only the OS blocks) | `npm run test:offline` | **289 / 289 pytest, 12 / 12 app tests pass** here (before the font test was added); Ubuntu CI repeats it on every push |
+| Full self-test inside the app, here (Settings → *Check every module*) | `tests/e2e/selftest.spec.ts` | **10 / 10 checks pass** in about 10 s; no guard logged a violation while they ran |
+| `npm run setup` on an already set-up copy | `npm run setup` | **pass** in 12 s: every step skipped or re-checked, every engine found, Pillow shapes text |
+| Ubuntu CI (`ubuntu-latest`): all of the above, plus the no-network run | `.github/workflows/ci.yml`, run 37569423617 | **all pass** (57 vitest, 290 pytest, 12 app tests; no network: pytest and app tests) |
+| Windows CI (`windows-latest`): the engines built from the lock (unpacked, Ghostscript with its C++ runtime, LibreOffice with its fonts) | same run | **all pass** (290 pytest including the converter tests with the bundled engines, 12 app tests) |
+| Packaged Windows app, smoke test with the network blocked by Windows Firewall | `.github/workflows/release.yml` | see *Windows packaging (Phase 5)* below |
+
+### Large files (the window kept drawing and answering)
+
+`tests/e2e/large-files.spec.ts`: a 50.05-megapixel JPEG (14.8 MB) through the resizer, a 32-page 107.7 MB PDF through the converter (to page images, cancelled after 20 s) and a 50-megapixel portrait through the passport wizard, timing every animation frame and a main-process IPC round trip every 50 ms. Four runs here (two normal, one inside the no-network namespace, one after the last changes):
+
+| Measure | Limit in the test | Measured (range of 4 runs) |
+|---|---|---|
+| Longest pause between frames | 1000 ms | resizer 33–83 ms, converter 17–167 ms, passport 67–200 ms |
+| Frames later than 250 ms | at most 3 | 0 in every run |
+| Slowest main-process answer | 500 ms | 4–79 ms |
+| Main-process answer, 95th percentile | 100 ms | 1–5 ms |
+| A click on another page answered | 2 s | 93–168 ms |
+| Cancel of the PDF conversion took effect | 30 s | 0.3–1.9 s |
+
+The same test on GitHub's runners (three runs each): **Windows** longest frame gap 16 ms in every module and run (one frame at 60 Hz), slowest main-process answer 3–5 ms, click 67–83 ms, cancel 0.8–1.4 s; **Ubuntu** 17–67 ms, 6–8 ms, 64–104 ms, 0.8–0.9 s.
+
+### Licences
+
+`scripts/collect_licenses.py` on this Linux build: **192 components** (Electron runtime 4, JavaScript 13, Python 67, native libraries inside them 8, engines 3, veraPDF's jars 19, fonts 73, models 5); **1 AGPL** (PyMuPDF), **1 GPL** (Pandoc), 25 weak copyleft, 165 permissive; 2.9 MB of texts. The same script on the Windows wheels (installed for `win_amd64` here) found the Windows file names of the copyleft libraries inside them (FFmpeg in OpenCV, GEOS in shapely, libheif and libde265 in pi-heif, the GCC runtime). The Windows build's list is made by the release from its bundled Python (see *Windows packaging* below).
+
+### Found and fixed in this phase
+
+- **Ghostscript would probably not have started on a PC without Microsoft's C++ runtime** (since v0.2; not tried on such a PC). Its Windows build needs `msvcp140`, `vcruntime140` and `vcruntime140_1`; its installer installs them system-wide with `vcredist_x64.exe`, and the app copied only Ghostscript's folder. GitHub's runners have the runtime, so every smoke test passed. Found while replacing the installers: Ghostscript now carries app-local copies (from the bundled Java runtime), the smoke test checks they are there, and the other engines were checked (resvg and Pandoc need only Windows' own runtime, Tesseract carries its MinGW libraries, LibreOffice, Java and Python their own).
+- **LibreOffice's own fonts were not in the bundled copy** (since v0.2, probably): the MSI installs its 135 fonts (Liberation, Carlito, Caladea, DejaVu, Noto, Amiri and others, the metric-compatible substitutes that keep Word line breaks) into the Windows font folder, and the copied program folder's own font folder was empty. GitHub's runners had the fonts system-wide, so no test noticed. Found by the unpacked folder's size report: the fonts now go into LibreOffice's `share/fonts/truetype`, and a new test converts a Word file set in Liberation Serif and Sans, Carlito, Caladea and DejaVu Sans and checks the PDF embeds each (a missing font comes out as a substitute, which the test catches); it passes on Windows.
+- **The unpacked LibreOffice was 1576 MB**: an administrative install unpacks every optional part of the multilingual MSI (about a hundred interface languages, all dictionaries). Trimmed to what an English-only install has: 711 MB, every converter test passing on Windows.
+- **Running the engine installers silently hung a CI job for six hours** (the job's time limit): the switch to official installers ran LibreOffice's MSI and the Ghostscript and Tesseract installers with their silent switches, and one of them never returned (which one cannot be told without the job's log; Ghostscript's installer, for one, also starts the C++ runtime's own installer). They are now unpacked, never run (an administrative MSI install, 7-Zip for the others), every tool and download has a time limit, and the jobs have time limits.
+- **The app shipped the Tinos font without its licence** (v0.3.0–v0.4.0): google/fonts has no `OFL.txt` for Tinos at the pinned commit. Found by the licence collector, which fails on a component without a licence; `fetch_fonts.py` now writes the standard OFL text with the font's own copyright notice when upstream has none.
+- **A close-up face in a big photo was found as two** (found by the 50-megapixel test): the wizard analyses its head-and-shoulders crop at 1600 px, where the face was about 750 px high, and YuNet returned two partial boxes ("2 faces found", the main box the lower half of the face). Faces are now found on a copy at most 640 px long, landmarks still at full size; a new test fails with the old setting. All passport tests and reference pictures pass unchanged.
+- **The converter's check said "review" for SVG → PNG with transparency** (found by the module self-test): the check drew transparent pixels over black, so a correct PNG differed from the source page. Transparent pictures are now compared over white, with a regression test.
+- **The first engine relock picked LibreOffice 26.8.0.3 and Tesseract 5.4.0**: the newest LibreOffice was the first release of a new feature series, and UB Mannheim's own repository stops at Tesseract 5.4. LibreOffice is now held to the mature 26.2 series and the upstream Tesseract repository is searched too, which gave back 26.2.6.3 and 5.5.3, the versions the converter's tests were tuned on.
+- **The planned OS-level offline proof on Windows was never built** (only Linux ran without a network). The packaged smoke test now runs with outbound connections blocked by Windows Firewall for every program in the app and fails if any blocked attempt was logged.
+
+### Known limits (Phase 5)
+
+- The Windows CI test job runs with the in-app guards only; the operating system blocks the network in the Linux namespace run and in the packaged smoke test.
+- The large-file limits were measured on Linux with software rendering; Windows CI runs the same test with the same limits.
+- No RAM-aware job scheduler and no free-space check before a job (ARCHITECTURE.md §5.1); a full disk ends a job with the system's error.
+- Builds are not code-signed (SmartScreen asks once).
+- Engine versions follow the lock; updating it (`[relock]`) needs the tests to pass again before a release, as this phase did.
+
 ## Phase 4: Module 4 (Passport Photo Maker), 2026-10-06
 
 ### Environment
