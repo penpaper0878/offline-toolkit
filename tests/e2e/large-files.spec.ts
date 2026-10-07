@@ -157,6 +157,13 @@ print(json.dumps(True))`, join(ROOT, 'worker', 'tests', 'fixtures', 'faces', 'po
     mkdirSync('test-results', { recursive: true })
     writeFileSync(join('test-results', 'large-files.json'), JSON.stringify(results, null, 1))
     console.log('large files:', JSON.stringify(results))
+    if (process.env.GITHUB_ACTIONS) {
+      // An annotation on the CI run, readable without the log.
+      const w = (k: string): Watch => results[k] as Watch
+      console.log(`\n::notice title=Large files (${process.platform})::longest frame gap resizer ${w('resizer').maxGap} ms, ` +
+        `converter ${w('converter').maxGap} ms, passport ${w('passport').maxGap} ms; slowest main-process answer ` +
+        `${Math.max(w('resizer').ipcMax, w('converter').ipcMax, w('passport').ipcMax)} ms; click ${String(results.navigateMs)} ms, cancel ${String(results.cancelMs)} ms`)
+    }
     expectResponsive(resizer, 'resizer, 50 MP')
     expectResponsive(converter, 'converter, 100+ MB PDF')
     expectResponsive(passport, 'passport, 50 MP portrait')

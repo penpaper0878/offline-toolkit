@@ -70,7 +70,7 @@ if (args.has('--no-engines')) {
 } else if (!force && existsSync(join(root, 'engines', platform, 'manifest.json'))) {
   console.log(`present in engines/${platform}`)
 } else {
-  if (win) console.log('Runs the official LibreOffice, Ghostscript and Tesseract installers silently: allow the admin prompt.')
+  if (win) console.log('Unpacks the official LibreOffice, Ghostscript and Tesseract installers (msiexec /a and 7-Zip); nothing is installed.')
   py('--online', 'scripts/fetch_engines.py', '--platform', platform)
   if (!win) {
     console.log('\nOn Linux, install the rest with your package manager, for example:')

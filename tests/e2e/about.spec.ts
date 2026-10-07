@@ -12,7 +12,7 @@ const LIST = join(ROOT, 'build', 'licenses', 'third-party.json')
 
 test('About & licences: every bundled component, copyleft first, with its licence text', async () => {
   test.skip(!existsSync(LIST), 'run `npm run licenses` first')
-  const report = JSON.parse(readFileSync(LIST, 'utf-8')) as { summary: { total: number }; components: { name: string; copyleft: string }[] }
+  const report = JSON.parse(readFileSync(LIST, 'utf-8')) as { summary: { total: number; byCopyleft: Record<string, number> }; components: { name: string; copyleft: string }[] }
   const { app, page } = await launch(tempDir('data-about'))
   try {
     await page.getByTestId('nav-settings').click()
@@ -24,7 +24,8 @@ test('About & licences: every bundled component, copyleft first, with its licenc
     const flags = page.getByTestId('licence-flag')
     await expect(flags.filter({ hasText: 'pymupdf' })).toHaveAttribute('data-level', 'network')
     await expect(page.getByTestId('licence-flagged')).toContainText('give the app to someone else')
-    await expect(page.getByTestId('licence-summary').locator('[data-level="network"]')).toContainText('1 AGPL')
+    // 1 AGPL component on Linux (PyMuPDF); the Windows build adds Ghostscript.
+    await expect(page.getByTestId('licence-summary').locator('[data-level="network"]')).toContainText(`${report.summary.byCopyleft.network} AGPL`)
     await page.screenshot({ path: 'test-results/screens/60-about-licences.png' })
 
     // Filters and search.
@@ -32,7 +33,7 @@ test('About & licences: every bundled component, copyleft first, with its licenc
     await expect(rows).toHaveCount(report.summary.total)
     await page.getByTestId('licence-filter').selectOption('copyleft')
     await expect(rows).toHaveCount(report.components.filter((c) => c.copyleft !== 'none').length)
-    await expect(rows.locator('[data-copyleft="none"]')).toHaveCount(0)
+    await expect(page.locator('[data-testid="licence-row"][data-copyleft="none"]')).toHaveCount(0)
     await page.getByTestId('licence-filter').selectOption('font')
     await expect(rows).toHaveCount(73)
     await page.getByTestId('licence-search').fill('noto sans devanagari')

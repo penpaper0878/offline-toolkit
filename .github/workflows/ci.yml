@@ -108,10 +108,10 @@ jobs:
       - run: npm run licenses
       - name: End-to-end tests (Linux, virtual display)
         if: runner.os == 'Linux'
-        run: xvfb-run -a -s "-screen 0 1600x1000x24" npx playwright test
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" npx playwright test --reporter=list,github
       - name: End-to-end tests (Windows)
         if: runner.os == 'Windows'
-        run: npx playwright test
+        run: npx playwright test --reporter=list,github   # github: failures become annotations
       - name: Offline run (Linux network namespace, no network interfaces)
         if: runner.os == 'Linux'
         run: sudo --preserve-env=PATH bash -c 'sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true; ./scripts/test-offline.sh'

@@ -561,8 +561,14 @@ def main() -> None:
         manifest["ghostscriptRuntime"] = f"Microsoft C++ runtime, app-local: {rt}"
         note("engines: ghostscript runtime", manifest["ghostscriptRuntime"])
         manifest_path.write_text(json.dumps(manifest, indent=1), encoding="utf-8")
-    total = sum(f.stat().st_size for f in dest.rglob("*") if f.is_file())
-    note("engines", f"{total / 1e6:.0f} MB in {dest.name}")
+    size = lambda d: sum(f.stat().st_size for f in d.rglob("*") if f.is_file()) / 1e6  # noqa: E731
+    parts = sorted(((size(d), d.name) for d in dest.iterdir() if d.is_dir()), reverse=True)
+    note("engines", f"{sum(m for m, _ in parts):.0f} MB in {dest.name}: " + ", ".join(f"{n} {m:.0f}" for m, n in parts))
+    lo = dest / "libreoffice"
+    if lo.exists():
+        big = sorted(((size(d), d.relative_to(lo).as_posix()) for d in [*lo.iterdir(), *lo.glob("*/*")] if d.is_dir()),
+                     reverse=True)[:8]
+        note("engines: libreoffice folders", ", ".join(f"{n} {m:.0f} MB" for m, n in big))
 
 
 if __name__ == "__main__":

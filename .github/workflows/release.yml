@@ -107,7 +107,7 @@ jobs:
           $start = Get-Date
           $env:OTK_PACKAGED_EXE = Join-Path $app 'Offline Toolkit.exe'
           $env:OTK_TEST_PYTHON = Join-Path $app 'resources\engines\python\python.exe'
-          npx playwright test tests/e2e/packaged.spec.ts
+          npx playwright test tests/e2e/packaged.spec.ts --reporter=list,github
           $code = $LASTEXITCODE
           $leaks = @(Get-WinEvent -FilterHashtable @{ LogName = 'Security'; Id = 5157; StartTime = $start } -ErrorAction SilentlyContinue |
             Where-Object { $_.Message -match 'win-unpacked' -and $_.Message -notmatch 'Destination Address:\s+(127\.|::1|0:0:0:0:0:0:0:1)' })

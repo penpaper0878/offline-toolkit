@@ -213,7 +213,7 @@ npm run dev            # start the app with hot reload (or: npm start for the bu
 3. On Windows, puts FriBiDi next to the venv's `python.exe` (Pillow needs it to shape Hindi, Arabic and kerning; SHA-256 pinned).
 4. `scripts/fetch_fonts.py`: 73 font families from google/fonts at a pinned commit, every file checked against `scripts/fonts.lock.json` → `fonts/` (73 MB).
 5. `scripts/fetch_models.py`: Real-ESRGAN (converted to ONNX), MediaPipe selfie segmenter and face landmarks, YuNet → `models/` (8 MB), SHA-256 pinned.
-6. `scripts/fetch_engines.py --platform <win-x64|linux-x64>`: the conversion engines → `engines/<platform>/`. Every download is pinned (URL + SHA-256) in `scripts/engines.lock.json`. On Windows: LibreOffice 26.2 (MSI), Ghostscript and Tesseract (official installers, run silently: allow the admin prompt), tessdata_fast, Temurin 21 cut down with jlink, veraPDF, Pandoc and resvg, about 0.8 GB of downloads. On Linux: Pandoc, veraPDF and resvg; install LibreOffice, Ghostscript, Tesseract (+ language packs) and a Java runtime with your package manager (the script prints the `apt` line). `--no-engines` skips this step.
+6. `scripts/fetch_engines.py --platform <win-x64|linux-x64>`: the conversion engines → `engines/<platform>/`. Every download is pinned (URL + SHA-256) in `scripts/engines.lock.json`. On Windows: LibreOffice 26.2 (MSI), Ghostscript and Tesseract (the official installers, unpacked with 7-Zip, never run), tessdata_fast, Temurin 21 cut down with jlink, veraPDF, Pandoc and resvg, about 0.8 GB of downloads. On Linux: Pandoc, veraPDF and resvg; install LibreOffice, Ghostscript, Tesseract (+ language packs) and a Java runtime with your package manager (the script prints the `apt` line). `--no-engines` skips this step.
 7. `npm run build` and `npm run licenses` (the list Settings → *About & licences* shows).
 8. A quick check: Pillow's text shaping and every engine found.
 
@@ -273,7 +273,7 @@ The end-to-end tests need `npm run build` (done by `test:e2e`) and `npm run lice
 - **`npm run setup` stops**: it names the step that failed. Run it again after fixing that; finished steps are skipped. Behind a proxy, set `HTTPS_PROXY` for npm and pip.
 - **"Python 3.11 or newer was not found"**: install it from python.org (tick *Add to PATH*), or set `OTK_PYTHON_BOOTSTRAP` to its `python.exe`.
 - **"SHA-256 mismatch" while fetching engines, fonts or models**: the file at the pinned URL changed. Nothing unverified is used. Delete `build/cache/engines` and try again; if it persists, update the lock (*Updating the engines* above) and run the tests.
-- **The engine installers ask for admin rights** (Windows): LibreOffice, Ghostscript and Tesseract are installed into `build\engine-install` and copied from there. Allow the prompt; the installed app itself never needs admin rights.
+- **"7-Zip unpacking Ghostscript did not finish" or similar** (Windows): the official installers are unpacked into `build\engine-install` with 7-Zip (install it from 7-zip.org if `7z` is missing; without it the installers are run silently, which needs admin rights) and LibreOffice's MSI with `msiexec /a`. Every step has a time limit, so a stuck tool fails the setup instead of hanging it.
 - **Pillow cannot shape text** (Hindi or Arabic measured wrongly in the design module, setup's quick check says *NO*): on Windows run `node scripts/fetch-fribidi-win.mjs worker\.venv\Scripts`; on Linux install `libfribidi0`.
 
 **Using the modules**

@@ -14,10 +14,10 @@ Sizes are rough figures for Windows x64, unpacked. **Total ≈ 1.5–1.9 GB inst
 
 | Engine | Version | Source (build time) | Size on Windows (unpacked) |
 |---|---|---|---|
-| LibreOffice | 26.2.6.3 (the mature 26.2 series) | The official MSI from The Document Foundation's archive, installed silently and its program folder copied; help and spelling dictionaries removed | ≈ 600 MB |
+| LibreOffice | 26.2.6.3 (the mature 26.2 series) | The official MSI from The Document Foundation's archive, unpacked (`msiexec /a`, an administrative install: nothing registered) and its program folder copied; help and spelling dictionaries removed | ≈ 600 MB |
 | Pandoc | 3.8.2.1 (official build) | PyPI wheel `pypandoc_binary==1.16.2` (hash-checked by PyPI). Distribution builds such as Debian's lack the embedded data files and fail under `--sandbox` | ≈ 200 MB |
-| Ghostscript | 10.08.0 | The official installer (`ArtifexSoftware/ghostpdl-downloads`), run silently; `doc/` and `examples/` removed | ≈ 70 MB |
-| Tesseract | 5.5.3 | The Windows installer from the `tesseract-ocr/tesseract` 5.5.3 release (the UB Mannheim build), run silently | ≈ 50 MB |
+| Ghostscript | 10.08.0 | The official installer (`ArtifexSoftware/ghostpdl-downloads`), unpacked with 7-Zip; `doc/` and `examples/` removed; Microsoft's C++ runtime DLLs it needs copied next to it from the Java runtime | ≈ 70 MB |
+| Tesseract | 5.5.3 | The Windows installer from the `tesseract-ocr/tesseract` 5.5.3 release (the UB Mannheim build), unpacked with 7-Zip | ≈ 50 MB |
 | tessdata_fast | commit `874164186573` | eng, osd, hin, mar, san, nep, ben, guj, pan, tam, tel, kan, mal, ori, urd, ara, heb, each file SHA-256 pinned | ≈ 54 MB |
 | Java runtime | Temurin 21.0.12.1 | The Temurin JDK zip (Adoptium API), cut with `jlink` to the 12 modules veraPDF needs | ≈ 56 MB (was ≈ 130 MB as a full JRE) |
 | veraPDF | 1.28.2 greenfield (CLI + its jars) | Maven Central, each jar checked against Maven's SHA-1 and the lock's SHA-256 | ≈ 20 MB |
@@ -96,6 +96,8 @@ Two small models, fetched by `scripts/fetch_models.py` at build time like the Mo
 | pandoc | pypandoc_binary 1.16.2 (pandoc 3.8.2.1) | 40 MB |
 | verapdf | veraPDF 1.28.2 (19 jars) | 19 MB |
 | resvg | resvg 0.45.1 | 1 MB |
+
+**Unpacked, not installed.** The installers are never run: LibreOffice's MSI is unpacked with an administrative install (`msiexec /a`) and the Ghostscript and Tesseract NSIS installers with 7-Zip, and their program folders copied (Ghostscript's `vcredist_x64.exe`, the uninstallers and NSIS's plug-in folder are left out, as are Tesseract's ScrollView jars). Running them silently, tried first, hung a CI job for its whole six hours. Unpacking showed that **Ghostscript needs Microsoft's C++ runtime** (`msvcp140`, `vcruntime140`, `vcruntime140_1`), which its installer installs system-wide and a clean Windows does not have: since v0.2 the copied Ghostscript probably would not have started on such a PC (GitHub's runners have the runtime, so no test noticed). It now carries app-local copies of the three DLLs, taken from the bundled Java runtime (Microsoft allows redistributing them with an application; the licence list names them). The other engines were checked: resvg and Pandoc need only Windows' own runtime, Tesseract carries its MinGW libraries, and LibreOffice, Java and Python ship their own.
 
 **A trimmed Java runtime.** `jlink` builds the runtime from the JDK with `java.base, java.compiler, java.datatransfer, java.desktop, java.logging, java.management, java.naming, java.scripting, java.sql, java.xml, jdk.charsets, jdk.unsupported` (what `jdeps` finds in veraPDF's jars, plus the modules its parsers load by reflection), `--strip-debug --no-man-pages --no-header-files --compress=zip-6`. Checked here with OpenJDK 21: the same veraPDF verdicts and failed-rule counts as the full JDK on a compliant and a non-compliant PDF, and every PDF/A test passes; the packaged smoke test checks the runtime's module list and the full self-test validates a PDF/A with it. 56 MB instead of about 130 MB.
 
@@ -223,4 +225,4 @@ If you ever do share it, the simplest path is to license the toolkit's own code 
 
 ## 7. Build-time only (not shipped)
 
-electron-builder (MIT), NSIS (zlib), the Temurin JDK (GPL-2.0 with the Classpath exception: only its `jlink` and module files are used, to cut the runtime), Windows Installer (`msiexec`) and the engines' own NSIS installers, run silently into `build/engine-install` and copied. The plan's lessmsi and 7-Zip were not needed.
+electron-builder (MIT), NSIS (zlib), the Temurin JDK (GPL-2.0 with the Classpath exception: only its `jlink` and module files are used, to cut the runtime), Windows Installer (`msiexec /a`, an administrative install, which only unpacks) for LibreOffice and 7-Zip (LGPL-2.1, preinstalled on GitHub's runners) for the Ghostscript and Tesseract installers, as the plan said (with `msiexec /a` instead of lessmsi). Running the installers silently was tried first and hung a CI job for six hours.
