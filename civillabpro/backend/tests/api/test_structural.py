@@ -17,7 +17,9 @@ def design(client, team, project):
 
 
 def test_elements_registry_describes_the_beam(client, owner):
-    (beam,) = client.get("/api/v1/structural/elements", headers=owner).json()
+    elements = {e["type"]: e for e in client.get("/api/v1/structural/elements", headers=owner).json()}
+    assert set(elements) == {"beam", "column"}
+    beam = elements["beam"]
     assert beam["type"] == "beam" and beam["code_basis"][0] == "IS 456:2000" and beam["limitations"]
     assert beam["defaults"]["clear_span_mm"] == 4000
     props = beam["input_schema"]["properties"]
@@ -142,3 +144,44 @@ def test_dashboard_and_search_reflect_saved_work(client, team, project, design):
     assert hits[0]["kind"] == "project" and hits[0]["title"].startswith("SC-2026-014")
     other = register(client, email="o@other.example", org="Other", name="Other Owner")
     assert client.get("/api/v1/search", headers=other, params={"q": "lintel"}).json() == []
+
+
+COLUMN = {"element_type": "column", "name": "C1", "inputs": {}}
+
+
+def test_column_goes_through_the_same_life_cycle(client, team, project):
+    elements = {e["type"]: e for e in client.get("/api/v1/structural/elements", headers=team["viewer"]).json()}
+    col = elements["column"]
+    assert col["title"] == "RCC column" and col["defaults"]["pu_kn"] == 1200
+    props = col["input_schema"]["properties"]
+    assert props["end_x"]["labels"]["c"].startswith("1.00 l") and props["k_x"]["show_if"] == {"end_x": "custom"}
+
+    calc = client.post("/api/v1/structural/column/calculate", headers=team["viewer"], json={}).json()
+    assert calc["status"] == "ok" and calc["reinforcement"]["main"]["label"] == "12-T12"
+    assert [c["id"] for c in calc["charts"]] == ["interaction_x", "interaction_y"]
+
+    r = client.post(f"/api/v1/projects/{project['id']}/designs", headers=team["engineer"], json=COLUMN)
+    assert r.status_code == 201
+    d = r.json()
+    assert d["element_type"] == "column" and d["result"]["charts"][0]["series"][0]["kind"] == "line"
+    url = f"/api/v1/designs/{d['id']}"
+    r = client.put(url, headers=team["engineer"], json={"inputs": {**d["inputs"], "pu_kn": 1400}})
+    assert r.json()["revision"] == 1 and r.json()["result"]["data"]["case1_mx"] == 90
+    assert client.post(f"{url}/approve", headers=team["reviewer"]).json()["review_status"] == "approved"
+
+    pdf = client.get(f"{url}/report.pdf", headers=team["viewer"])
+    assert pdf.content.startswith(b"%PDF-") and 'filename="column_C1_R1_report.pdf"' in pdf.headers["content-disposition"]
+    wb = openpyxl.load_workbook(io.BytesIO(client.get(f"{url}/bbs.xlsx", headers=team["viewer"]).content))
+    assert wb["BBS"]["B8"].value.startswith("Main bars")
+    doc = ezdxf.read(io.StringIO(client.get(f"{url}/drawing.dxf", headers=team["viewer"]).content.decode()))
+    assert "CLP-CENTER" in {layer.dxf.name for layer in doc.layers} and not doc.audit().errors
+
+    s = client.get("/api/v1/dashboard/summary", headers=team["viewer"]).json()
+    assert s["designs"]["by_type"] == {"column": 1}
+
+
+def test_column_input_errors_come_back_by_field(client, owner):
+    r = client.post("/api/v1/structural/column/calculate", headers=owner, json={"width_mm": 200, "depth_mm": 900})
+    assert r.status_code == 422 and "wall" in r.json()["error"]["message"]
+    r = client.post("/api/v1/structural/column/calculate", headers=owner, json={"pu_kn": 0, "fck": 15})
+    assert {d["field"] for d in r.json()["error"]["details"]} == {"pu_kn", "fck"}

@@ -33,6 +33,7 @@ class DesignResult(BaseModel):
     bbs: dict[str, Any] | None = Field(description="Bar bending schedule")
     quantities: dict[str, Any] | None
     drawing: dict[str, Any] | None = Field(description="Drawing model: views of primitives in millimetres")
+    charts: list[dict[str, Any]] | None = Field(None, description="Charts: id, title, x and y axes, series of points (line or point)")
 
 
 class ElementOut(BaseModel):

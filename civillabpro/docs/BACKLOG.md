@@ -26,13 +26,17 @@ State: **done**, **next** (the item to start with), **ready** (can be started), 
 | UI-003 | Design workspace with dockable panels and schema-driven property grid |
 | UI-004 | Dashboard, projects, structural catalogue, users and roles |
 | OPS-001 | Single-process serving of the client, Dockerfile, compose file |
+| OPS-002 | Alembic ignores tables owned by PostgreSQL extensions (0.1.1) |
+| STR-010 | Column engine 1.0.0: slenderness, minimum eccentricity, additional moments, biaxial bending, ties (0.2.0) |
+| ENG-004 | Section analysis kernel `rc_section` (0.2.0) |
+| UI-005 | Charts in the result contract, the workspace and the PDF (0.2.0) |
 
 ## Epic STR: structural design
 
 | ID | Item | State | Notes |
 |---|---|---|---|
-| STR-010 | Column: axial load with uniaxial and biaxial bending | **next** | IS 456 Cl. 25 (slenderness), Cl. 39; interaction by strain compatibility, checked against SP 16 charts; ties to Cl. 26.5.3 |
-| STR-011 | One-way slab | ready | Cl. 22, 23.2, 24, 26.5.2 |
+| STR-009 | Compare the column clauses with the printed code | **next** | the cross-check list in CODE_REGISTER.md; needs the code text |
+| STR-011 | One-way slab | **next after STR-009** | Cl. 22, 23.2, 24, 26.5.2 |
 | STR-012 | Two-way slab, restrained and simply supported | ready | Annex D coefficients; torsion steel at corners |
 | STR-013 | Isolated footing | ready | Cl. 34; one-way and punching shear; needs safe bearing capacity input |
 | STR-014 | Beam: flanged sections (T and L) | ready | Cl. 23.1, Annex G-2 |
@@ -50,6 +54,10 @@ State: **done**, **next** (the item to start with), **ready** (can be started), 
 | STR-026 | Load combinations of IS 875 and IS 1893 | later | needed once frame forces are imported |
 | STR-027 | Compare two revisions of a design side by side | ready | data already stored |
 | STR-028 | Design groups: one design applied to several members, schedule multiplied | ready | |
+| STR-029 | Circular columns, and helical reinforcement (Cl. 39.4) | ready | `rc_section` needs a circular section |
+| STR-030 | Effective length from storey stiffness (Annex E charts) | later | needs beam and column stiffnesses at both ends |
+| STR-031 | Column stack: several lifts, lap positions, bar changes between storeys | later | |
+| STR-032 | Column forces imported from an analysis file (STAAD, ETABS exports) | later | with STR-026 |
 
 ## Epic PLAT: platform
 

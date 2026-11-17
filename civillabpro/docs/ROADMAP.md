@@ -17,8 +17,10 @@ Phases are ordered by what the next one needs, not by size. No dates are given: 
 | Beam engine (rectangular; simply supported and cantilever; flexure, shear, torsion, deflection, detailing) | done, engine 1.0.0 |
 | Reports: PDF calculation, Excel bar schedule, DXF drawing | done |
 | Revisions and approval | done |
-| Column (axial load with uniaxial and biaxial bending, IS 456 Cl. 39, SP 16 charts) | next |
-| Slab (one-way, two-way to Annex D) | planned |
+| Section analysis kernel (strain compatibility, Cl. 39.1) | done |
+| Column (axial load with biaxial bending, slenderness, ties) | done, engine 1.0.0; clauses to compare with the printed code |
+| Charts in the result contract (interaction diagrams) | done |
+| Slab (one-way, two-way to Annex D) | next |
 | Isolated footing | planned |
 | Beam extensions: flanged sections, continuous beams (Table 12 and 13), curtailment, stirrup zones, IS 13920 detailing | planned |
 

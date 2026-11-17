@@ -19,6 +19,7 @@ import { CalcSheet, ChecksTable, Flags } from "../components/CalcSheet";
 import { DrawingCanvas } from "../components/DrawingCanvas";
 import { Unit } from "../components/Fx";
 import { PropertyGrid, validateAll, type Values } from "../components/PropertyGrid";
+import { ChartView } from "../components/ChartView";
 import { BbsTable, QuantitiesPanel } from "../components/Schedule";
 import { ReviewChip, StatusChip } from "../components/Status";
 import { fmt, titleCase } from "../lib/format";
@@ -44,21 +45,28 @@ const Scroll = ({ children }: { children: React.ReactNode }) => <div className="
 const PANELS: Record<string, React.FunctionComponent<IDockviewPanelProps>> = {
   properties: () => { const w = useWorkspace(); return <Scroll><PropertyGrid properties={w.spec.input_schema.properties} values={w.values} errors={w.errors} onChange={w.setValue} disabled={w.readOnly} /></Scroll>; },
   section: () => { const v = useWorkspace().result?.drawing?.views.find((x) => x.id === "section"); return v ? <DrawingCanvas view={v} /> : <Scroll><Missing what="The section" /></Scroll>; },
-  elevation: () => { const v = useWorkspace().result?.drawing?.views.find((x) => x.id === "elevation"); return v ? <DrawingCanvas view={v} /> : <Scroll><Missing what="The longitudinal section" /></Scroll>; },
+  elevation: () => { const v = useWorkspace().result?.drawing?.views.find((x) => x.id === "elevation"); return v ? <DrawingCanvas view={v} /> : <Scroll><Missing what="The elevation" /></Scroll>; },
   calculation: () => { const r = useWorkspace().result; return <Scroll>{r ? <CalcSheet sheet={r.sheet} /> : <Missing what="The calculation sheet" />}</Scroll>; },
   checks: () => { const r = useWorkspace().result; return <Scroll>{r ? <ChecksTable sheet={r.sheet} /> : <Missing what="The list of checks" />}</Scroll>; },
   bbs: () => { const r = useWorkspace().result; return <Scroll>{r?.bbs ? <BbsTable bbs={r.bbs} /> : <Missing what="The bar bending schedule" />}</Scroll>; },
   quantities: () => { const r = useWorkspace().result; return <Scroll>{r?.quantities ? <QuantitiesPanel q={r.quantities} /> : <Missing what="The quantity take-off" />}</Scroll>; },
+  charts: () => {
+    const r = useWorkspace().result;
+    if (!r) return <Scroll><Missing what="The charts" /></Scroll>;
+    if (!r.charts?.length) return <Scroll><div className="p-4 text-[var(--clp-ink-3)]">This element has no charts{r.status === "stopped" ? " while the calculation is stopped" : ""}.</div></Scroll>;
+    return <Scroll><div className="@container"><div className="grid grid-cols-1 @3xl:grid-cols-2">{r.charts.map((c) => <ChartView key={c.id} chart={c} />)}</div></div></Scroll>;
+  },
 };
 
-const LAYOUT_KEY = (type: string) => `clp.layout.${type}.v3`;
+const LAYOUT_KEY = (type: string) => `clp.layout.${type}.v4`;
 
 function defaultLayout(dock: DockviewApi) {
   dock.clear();
   // Inputs on the left; drawings above the results so wide views and tables both get the full width.
   dock.addPanel({ id: "properties", component: "properties", title: "Properties", initialWidth: 340 });
   dock.addPanel({ id: "section", component: "section", title: "Section", position: { referencePanel: "properties", direction: "right" } });
-  dock.addPanel({ id: "elevation", component: "elevation", title: "Longitudinal section", position: { referencePanel: "section", direction: "within" }, inactive: true });
+  dock.addPanel({ id: "elevation", component: "elevation", title: "Elevation", position: { referencePanel: "section", direction: "within" }, inactive: true });
+  dock.addPanel({ id: "charts", component: "charts", title: "Charts", position: { referencePanel: "section", direction: "within" }, inactive: true });
   dock.addPanel({ id: "calculation", component: "calculation", title: "Calculation", position: { referencePanel: "section", direction: "below" } });
   dock.addPanel({ id: "checks", component: "checks", title: "Checks", position: { referencePanel: "calculation", direction: "within" }, inactive: true });
   dock.addPanel({ id: "bbs", component: "bbs", title: "Bar schedule", position: { referencePanel: "calculation", direction: "within" }, inactive: true });
@@ -98,7 +106,10 @@ export function DesignWorkspacePage() {
   const errors = useMemo(() => (spec && values ? validateAll(spec.input_schema.properties, values) : {}), [spec, values]);
   const valid = Object.keys(errors).length === 0;
   const settled = useDebounced(values, 300);
-  const calc = useCalculation(elementType, valid && settled ? settled : null);
+  // Validate the values that are sent, not the ones on screen: after a pause on an invalid entry, the debounced
+  // copy still holds it for 300 ms once the screen is corrected, and would otherwise reach the server.
+  const settledValid = useMemo(() => !!spec && !!settled && Object.keys(validateAll(spec.input_schema.properties, settled)).length === 0, [spec, settled]);
+  const calc = useCalculation(elementType, settledValid ? settled : null);
   const serverErrors = useMemo(() => {
     const out: Record<string, string> = {};
     if (calc.error instanceof ApiError) for (const d of calc.error.details) if (d.field) out[d.field] = d.message;

@@ -10,24 +10,26 @@ It lives in `civillabpro/` of the `offline-toolkit` repository. The rest of that
 
 ## Current status
 
-Version 0.1.0. Phase 1 in progress.
+Version 0.2.0. Phase 1 in progress: beam and column built; slabs and footing next.
 
 | Area | State |
 |---|---|
 | Platform core (identity, roles, audit, projects) | built, tested on SQLite and PostgreSQL 16 |
 | Shell and client | built, walked through in a browser in light and dark |
 | Structural: beam engine 1.0.0 | built, independent hand check passing |
+| Structural: column engine 1.0.0 | built, independent hand check passing; code text not yet compared (see the code register) |
 | Exports: PDF, Excel, DXF | built, reviewed page by page |
 | Deployment | single-process mode verified; Dockerfile and compose file written, compose validated, image not built (no Docker daemon in the build session) |
 | Desktop shell (Electron) | not started (PLAT-010) |
 | Modules 3 to 11 | designed in ARCHITECTURE.md and DATABASE_SCHEMA.md, not started |
+| Cloud environment | personal environment `offline-toolkit` (allows law.resource.org; setup script installs the venv, npm packages and PostGIS). The script is unproven until a fresh session starts on it. |
 
-Test counts at 0.1.1: backend 112 (76 engineering and architecture, 36 API, one of them PostgreSQL-only), frontend 15, hand check 360 values over 18 cases plus 2 stop states, browser walkthrough 0 console errors.
+Test counts at 0.2.0: backend 178 (140 engineering, architecture and hand checks; 38 API, one of them PostgreSQL-only); frontend 18; hand checks: beam 360 values over 18 cases, column 506 values over 18 cases, 2 stop states each; browser walkthrough with beam and column, 0 console errors.
 
 ## NEXT STEPS
 
-1. **STR-010 column engine.** Confirm IS 456 Cl. 25 and Cl. 39 and SP 16 charts in the code register; build `domain/column.py` as a pure engine with a worked example; hand check against SP 16 interaction charts; add the registry entry. No new endpoint, table or screen should be needed: if one is, the registry pattern has a gap to fix first.
-2. STR-011 and STR-012 slabs, STR-013 isolated footing (same loop).
+1. **Compare the column clauses with the code text** (the "To cross-check" list in the code register). Reading law.resource.org needs either the environment's network (now allowed) plus approval of a direct download, or the user pasting the pages. Fix anything that differs and re-run both hand checks.
+2. **STR-011 and STR-012 slabs**, then **STR-013 isolated footing** (the footing can use `rc_section` for column-to-footing checks). Same loop: codes, engine, hand check, tests, registry entry.
 3. Beam extensions STR-014 to STR-017.
 4. PLAT-010 desktop shell.
 
@@ -50,6 +52,11 @@ Test counts at 0.1.1: backend 112 (76 engineering and architecture, 36 API, one 
 | D13 | No code text is shipped; the library holds references and the organisation's notes | BIS copyright |
 | D14 | Bundled DejaVu Sans in reports | Greek letters and maths signs identical on every machine |
 | D15 | Bars are chosen for least total steel among arrangements that satisfy Annex G, Cl. 26.5.1, Table 15 spacing and Cl. 38.1(f), each judged at its own effective depth | consistent without iteration |
+| D16 | The generic result contract carries optional `charts` (axes, series of `line` or `point`); the workspace and the PDF render any element's charts | interaction diagrams without a column-specific screen |
+| D17 | Section analysis under axial load and bending lives in the kernel (`rc_section.py`), not in the column module | footings, walls and pile caps need it too |
+| D18 | Column bars are chosen by least steel per metre including ties and cross-ties, each arrangement judged with its own P_b, P_uz and k | main steel alone picks many small bars that cost more ties |
+| D19 | The workspace validates the debounced values it sends, not only the values on screen | a pause on an invalid entry otherwise sent a stale request |
+| D20 | Titles and notes render in prose mode (no " x " to "×", no "sqrt" to "√"); formulas in maths mode | "about the x axis" printed as "about the × axis" |
 
 Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not here.
 
@@ -87,6 +94,15 @@ Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not her
 * Library versions at 0.1.0 are recent majors (React 19, MUI 9, Vite 8, Tailwind 4, TypeScript 7, dockview-react 8, recharts 3, FastAPI 0.16x, SQLAlchemy 2.1). Check the installed typings before assuming an older API.
 
 ## Log
+
+### 0.2.0 (17 November 2026): RCC column
+
+* Built: `rc_section` kernel; column engine 1.0.0 with detailing; registry entry; `charts` in the result contract; chart panel in the workspace and charts in the PDF; prose rendering of titles; leader labels anchored away from their points (screen, PDF, DXF); a column leg in the browser walkthrough. Details in `docs/modules/02-rcc-column.md`.
+* Worked example: 300 x 450, l 3.6 m, M25 / Fe 500, P_u 1200 kN, M_ux 90 (-45), M_uy 30 (10): slender about y only, k_y 0.484, ratios 0.879 and 0.908, 12-T12 (5 + 3), T8 at 175 with two cross-ties, 66.1 kg.
+* Code text: law.resource.org was blocked by the network policy. A personal environment `offline-toolkit` allowing it was created and this session moved onto it, but the page-fetching tool resolves names outside the proxy and still could not reach it, and the direct download through the proxy was declined by the permission check. The clauses were corroborated through secondary sources; the code register lists what remains to compare.
+* Found and fixed during the build: cross-ties hidden under the axis lines in the section drawing; labels left of a leader running back across the drawing; notes orphaned on their own PDF page; "x axis" rendered as a product; coincident design points with overlapping labels; and, in the workspace, a stale invalid request sent after correcting an input (reproduced deterministically in the walkthrough before the fix, and gone after it).
+* Hand check of the column: one disagreement, the balanced load of a 230 x 230 column (3.61 against 3.69 kN). Shown to be the rounding of SP 16 Table A acting on forces that cancel: the engine gives the hand value exactly when fed Table A's stresses. The comparison now measures P_b against the force scale.
+* Version 0.2.0 (backend and client).
 
 ### 0.1.1 (17 November 2026): CI fix for PostGIS databases
 

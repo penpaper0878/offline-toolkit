@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import html
 import io
+import math
 import re
 from pathlib import Path
 from typing import Any
@@ -57,7 +58,8 @@ H2 = ParagraphStyle("h2", parent=BODY, fontName=BOLD, fontSize=10.5, leading=14,
 EQ = ParagraphStyle("eq", parent=BODY, fontName=ITAL, fontSize=8.5, leading=11.5)
 RIGHT = ParagraphStyle("right", parent=BODY, alignment=2)
 
-_GREEK = {"tau": "\u03c4", "gamma": "\u03b3", "eps": "\u03b5"} if UNICODE_FONT else {"tau": "t", "gamma": "g", "eps": "e"}
+_GREEK = ({"tau": "\u03c4", "gamma": "\u03b3", "eps": "\u03b5", "alpha": "\u03b1"} if UNICODE_FONT
+          else {"tau": "t", "gamma": "g", "eps": "e", "alpha": "a"})
 
 
 def _greek(name: str) -> str:
@@ -65,8 +67,11 @@ def _greek(name: str) -> str:
 _SUB = re.compile(r"\b(tau|gamma|eps|[A-Za-z]+)('?)_([A-Za-z0-9]+(?:,[A-Za-z0-9]+)*)('?)")
 
 
-def fx(text: str) -> str:
-    """Calculation-sheet markup to reportlab paragraph markup (subscripts, powers, Greek letters)."""
+def fx(text: str, prose: bool = False) -> str:
+    """Calculation-sheet markup to reportlab paragraph markup (subscripts, powers, Greek letters).
+
+    With ``prose`` (titles, notes) " x " and "sqrt" stay words: "about the x axis" is not a product.
+    """
     t = html.escape(str(text), quote=False)
 
     def sub(m: re.Match[str]) -> str:
@@ -75,11 +80,15 @@ def fx(text: str) -> str:
 
     t = _SUB.sub(sub, t)
     t = re.sub(r"\bgamma\b", _greek("gamma"), t)
-    t = re.sub(r"\^(\d+)", r"<super>\1</super>", t)
+    t = re.sub(r"\^(\d+(?:\.\d+)?)", r"<super>\1</super>", t)
+    t = re.sub(r"\^((?:<font[^>]*>[^<]*</font>|[^\s<^()]+)(?:<sub>[^<]*</sub>)?)", r"<super>\1</super>", t)  # ^alpha_n
     t = re.sub(r"\b(mm|m)(2|3)\b", r"\1<super>\2</super>", t)
-    t = t.replace(" x ", " \u00d7 ")
+    if not prose:
+        t = t.replace(" x ", " \u00d7 ")
     if UNICODE_FONT:
-        t = t.replace("&lt;=", "\u2264").replace("&gt;=", "\u2265").replace("sqrt", "\u221a")
+        t = t.replace("&lt;=", "\u2264").replace("&gt;=", "\u2265")
+        if not prose:
+            t = t.replace("sqrt", "\u221a")
     return t
 
 
@@ -207,7 +216,9 @@ def view_drawing(view: dict[str, Any], max_w: float, max_h: float) -> Drawing:
                          textAnchor=it["anchor"]))
         elif t == "leader":
             g.add(Line(X(it["x"]), Y(it["y"]), X(it["tx"]), Y(it["ty"]) + 0.3 * it["h"] * scale, strokeColor=MUTED, strokeWidth=0.4))
-            g.add(String(X(it["tx"]) + 2, Y(it["ty"]), it["text"], fontName=REG, fontSize=max(it["h"] * scale, 5.5), fillColor=INK))
+            left = it["tx"] < it["x"]  # a label placed to the left of its point reads towards it
+            g.add(String(X(it["tx"]) + (-2 if left else 2), Y(it["ty"]), it["text"], fontName=REG, fontSize=max(it["h"] * scale, 5.5), fillColor=INK,
+                         textAnchor="end" if left else "start"))
         elif t == "dim":
             fs = max(it["h"] * scale, 5.5)
             tick = 0.35 * it["h"] * scale
@@ -232,6 +243,69 @@ def view_drawing(view: dict[str, Any], max_w: float, max_h: float) -> Drawing:
     return d
 
 
+SERIES_COLOURS = (colors.HexColor("#2a78d6"), colors.HexColor("#eb6834"))  # validated pair: line series, then point series
+
+
+def _nice_step(span: float) -> float:
+    raw = span / 5.0 if span > 0 else 1.0
+    mag = 10 ** math.floor(math.log10(raw))
+    return next(m * mag for m in (1, 2, 2.5, 5, 10) if m * mag >= raw)
+
+
+def chart_drawing(chart: dict[str, Any], width: float, height: float) -> Drawing:
+    """A plain x-y chart: hairline grid, labelled axes, line series and marked points with their labels."""
+    pts = [p for s_ in chart["series"] for p in s_["points"]]
+    xmin, xmax = min(0.0, min(p[0] for p in pts)), max(p[0] for p in pts)
+    ymin, ymax = min(0.0, min(p[1] for p in pts)), max(p[1] for p in pts)
+    xs, ys = _nice_step(xmax - xmin), _nice_step(ymax - ymin)
+    xmin, xmax = math.floor(xmin / xs) * xs, math.ceil(xmax * 1.05 / xs) * xs
+    ymin, ymax = math.floor(ymin / ys) * ys, math.ceil(ymax * 1.05 / ys) * ys
+    left, bottom, right, top = 46.0, 30.0, 10.0, 16.0
+    pw, ph = width - left - right, height - bottom - top
+    d = Drawing(width, height)
+
+    def X(v: float) -> float:  # noqa: N802
+        return left + (v - xmin) / (xmax - xmin) * pw
+
+    def Y(v: float) -> float:  # noqa: N802
+        return bottom + (v - ymin) / (ymax - ymin) * ph
+
+    v = xmin
+    while v <= xmax + 1e-9:
+        d.add(Line(X(v), bottom, X(v), bottom + ph, strokeColor=RULE, strokeWidth=0.3))
+        d.add(String(X(v), bottom - 10, f"{v:g}", fontName=REG, fontSize=6.5, fillColor=MUTED, textAnchor="middle"))
+        v += xs
+    v = ymin
+    while v <= ymax + 1e-9:
+        d.add(Line(left, Y(v), left + pw, Y(v), strokeColor=RULE, strokeWidth=0.3))
+        d.add(String(left - 4, Y(v) - 2.2, f"{v:g}", fontName=REG, fontSize=6.5, fillColor=MUTED, textAnchor="end"))
+        v += ys
+    d.add(Line(left, bottom, left + pw, bottom, strokeColor=MUTED, strokeWidth=0.6))
+    d.add(Line(left, bottom, left, bottom + ph, strokeColor=MUTED, strokeWidth=0.6))
+    d.add(String(left + pw / 2, 4, f"{chart['x']['label']} ({chart['x']['unit']})", fontName=REG, fontSize=7, fillColor=INK, textAnchor="middle"))
+    ylab = Group(String(0, 0, f"{chart['y']['label']} ({chart['y']['unit']})", fontName=REG, fontSize=7, fillColor=INK, textAnchor="middle"))
+    ylab.rotate(90)
+    ylab.translate(bottom + ph / 2, -10)
+    d.add(ylab)
+    lx = left + 6
+    for i, series in enumerate(chart["series"]):
+        colour = SERIES_COLOURS[min(i, len(SERIES_COLOURS) - 1)]
+        if series["kind"] == "line":
+            coords = [c for p in series["points"] for c in (X(p[0]), Y(p[1]))]
+            d.add(PolyLine(coords, strokeColor=colour, strokeWidth=1.2))
+            d.add(Line(lx, bottom + ph - 4, lx + 12, bottom + ph - 4, strokeColor=colour, strokeWidth=1.2))
+        else:
+            labels = series.get("labels") or []
+            for j, p in enumerate(series["points"]):
+                d.add(Circle(X(p[0]), Y(p[1]), 2.6, fillColor=colour, strokeColor=colors.white, strokeWidth=0.6))
+                if j < len(labels):
+                    d.add(String(X(p[0]) + 4, Y(p[1]) + 3 + 7 * j, labels[j], fontName=REG, fontSize=6.5, fillColor=INK))
+            d.add(Circle(lx + 6, bottom + ph - 4, 2.6, fillColor=colour, strokeColor=colors.white, strokeWidth=0.6))
+        d.add(String(lx + 16, bottom + ph - 6.3, series["name"], fontName=REG, fontSize=7, fillColor=INK))
+        lx += 22 + 4.2 * len(series["name"])
+    return d
+
+
 def _input_rows(schema: dict[str, Any], inputs: dict[str, Any]) -> list[tuple[str, list[list[Any]]]]:
     """Group the inputs for the report from the element's own schema; hidden fields are left out."""
     groups: dict[str, list[list[Any]]] = {}
@@ -244,7 +318,8 @@ def _input_rows(schema: dict[str, Any], inputs: dict[str, Any]) -> list[tuple[st
         shown = "-" if value is None else labels.get(str(value), fmt(value, 3).rstrip("0").rstrip(".") if isinstance(value, float) else fmt(value, 0))
         if value is None and prop.get("description"):
             shown = f"- ({prop['description']})"
-        groups.setdefault(prop.get("group", "Input"), []).append([prop.get("title", key), shown, Paragraph(fx(prop.get("unit", "")), BODY)])
+        groups.setdefault(prop.get("group", "Input"), []).append(
+            [Paragraph(fx(prop.get("title", key), prose=True), BODY), Paragraph(html.escape(shown), BODY), Paragraph(fx(prop.get("unit", "")), BODY)])
     return list(groups.items())
 
 
@@ -288,7 +363,7 @@ def build_pdf(meta: dict[str, str], inputs: dict[str, Any], input_schema: dict[s
         rows: list[list[Any]] = [[section["title"], "", ""]]
         for it in section["items"]:
             if it["kind"] == "step":
-                body = [Paragraph(fx(it["title"]), BODY)]
+                body = [Paragraph(fx(it["title"], prose=True), BODY)]
                 if it["eq"]:
                     body.append(Paragraph(fx(it["eq"]) + (f" = {fx(it['sub'])}" if it["sub"] and it["eq"] else ""), EQ))
                 elif it["sub"]:
@@ -299,7 +374,7 @@ def build_pdf(meta: dict[str, str], inputs: dict[str, Any], input_schema: dict[s
                 util = f" (utilisation {it['util']:.2f})" if it["util"] is not None else ""
                 line = (f"{fx(it['lhs_label'])} = {fmt(it['lhs'], it['dp'])} {_LE if it['op'] == '<=' else _GE} "
                         f"{fx(it['rhs_label'])} = {fmt(it['rhs'], it['dp'])} {fx(it['unit'])}{util}")
-                rows.append([Paragraph(html.escape(it["ref"]), SMALL), [Paragraph(f"<b>Check:</b> {fx(it['title'])}", BODY), Paragraph(line, EQ)],
+                rows.append([Paragraph(html.escape(it["ref"]), SMALL), [Paragraph(f"<b>Check:</b> {fx(it['title'], prose=True)}", BODY), Paragraph(line, EQ)],
                              _verdict(it["ok"])])
         s.append(_table(rows, col, extra=[("SPAN", (0, 0), (-1, 0))]))
         s.append(Spacer(1, 4))
@@ -327,16 +402,26 @@ def build_pdf(meta: dict[str, str], inputs: dict[str, Any], input_schema: dict[s
                 ["Reinforcement", f"{q['steel_kg']:.1f}", "kg"], ["Steel per volume of concrete", fmt(q["steel_kg_per_m3"], 1), Paragraph(fx("kg/m3"), BODY)]]
         s.append(KeepTogether([_table(rows, [width * 0.45, width * 0.35, width * 0.20])] + [Paragraph(html.escape(b), SMALL) for b in q["basis"]]))
 
+    charts = result.get("charts") or []
+    for i, chart in enumerate(charts):
+        block = ([Paragraph("Charts", H2)] if i == 0 else []) + [Paragraph(f"<b>{fx(chart['title'], prose=True)}</b>", BODY), Spacer(1, 3),
+                                                                 chart_drawing(chart, width * 0.75, 70 * mm)]
+        if chart.get("note"):
+            block.append(Paragraph(html.escape(chart["note"]), SMALL))
+        s.append(KeepTogether(block + [Spacer(1, 6)]))
+
     drawing = result.get("drawing")
     if drawing:
-        for i, view in enumerate(drawing["views"]):
-            max_h = 95 * mm if view["id"] == "section" else 60 * mm
+        views = drawing["views"]
+        for i, view in enumerate(views):
+            x0, y0, x1, y1 = view["bounds"]
+            max_h = 95 * mm if view["id"] == "section" else (120 * mm if (y1 - y0) > (x1 - x0) else 60 * mm)
             block = [Paragraph(f"<b>{html.escape(view['title'])}</b>", BODY), Spacer(1, 3), view_drawing(view, width * (0.55 if view["id"] == "section" else 1.0), max_h),
                      Spacer(1, 6)]
+            if i == len(views) - 1:  # the notes stay with the last view rather than starting a page of their own
+                block += [Paragraph(html.escape(note), SMALL) for note in drawing["notes"]]
             # The heading travels with the first view, so it never sits alone at the foot of a page.
             s.append(KeepTogether(([Paragraph("Reinforcement details", H2)] if i == 0 else []) + block))
-        for note in drawing["notes"]:
-            s.append(Paragraph(html.escape(note), SMALL))
 
     doc.build(s, canvasmaker=lambda *a, **k: _NumberedCanvas(*a, title_block=meta, **k))
     return buf.getvalue()

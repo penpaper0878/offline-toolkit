@@ -59,7 +59,11 @@ def build_dxf(drawing: dict[str, Any]) -> bytes:
                 msp.add_text(it["text"], height=it["h"], dxfattribs={"layer": layer}).set_placement(P(it["x"], it["y"]), align=_ALIGN[it["anchor"]])
             elif t == "leader":
                 msp.add_line(P(it["x"], it["y"]), P(it["tx"], it["ty"] + 0.3 * it["h"]), dxfattribs={"layer": LAYERS["dimension"][0]})
-                msp.add_text(it["text"], height=it["h"], dxfattribs={"layer": layer}).set_placement(P(it["tx"] + 0.3 * it["h"], it["ty"]))
+                if it["tx"] < it["x"]:  # label to the left of its point: right-aligned so it reads towards it
+                    msp.add_text(it["text"], height=it["h"], dxfattribs={"layer": layer}).set_placement(
+                        P(it["tx"] - 0.3 * it["h"], it["ty"]), align=TextEntityAlignment.RIGHT)
+                else:
+                    msp.add_text(it["text"], height=it["h"], dxfattribs={"layer": layer}).set_placement(P(it["tx"] + 0.3 * it["h"], it["ty"]))
             elif t == "dim":
                 override = {"dimtxt": it["h"], "dimasz": 0.6 * it["h"], "dimexo": 0.3 * it["h"], "dimexe": 0.4 * it["h"], "dimgap": 0.25 * it["h"],
                             "dimtad": 1, "dimdec": 0, "dimtsz": 0.35 * it["h"]}

@@ -1,6 +1,6 @@
 # CivilLabPro OS: software architecture
 
-Status: version 0.1 (platform core and the first structural engine are built; see [ROADMAP.md](ROADMAP.md)).
+Status: version 0.2 (platform core and two structural engines, beam and column, are built; see [ROADMAP.md](ROADMAP.md)).
 This document describes the whole platform. Sections say which parts exist today and which are designed but not yet built.
 
 ## 1. What the system is
@@ -101,7 +101,10 @@ Contexts talk through application services and IDs, never through each other's t
 * one calculate endpoint, `POST /structural/{element_type}/calculate`;
 * one table, `structural_designs`, holding inputs and results as documents;
 * one PDF, Excel and DXF exporter, reading the generic result;
-* one workspace screen, whose property grid is generated from the input model's JSON schema (title, unit, group, limits, conditional rows).
+* one workspace screen, whose property grid is generated from the input model's JSON schema (title, unit, group, limits, conditional rows);
+* one chart renderer on screen and in the PDF, for the optional `charts` of a result (axes and series of points).
+
+The column (0.2.0) was the first test of this claim: it added a domain module, its detailing, a hand check and a registry entry. The one shared change it needed, charts, was made to the contract, so every later element can use it.
 
 Adding a column, slab or footing is therefore: a domain module, a hand check, a registry entry. No endpoint, migration, exporter or screen. The same pattern is the template for the water, sewerage and highway engines.
 
@@ -116,6 +119,8 @@ Adding a column, slab or footing is therefore: a domain module, a hand check, a 
 **Drawing model** (`drawing.py`). A drawing is a list of primitives in millimetres. The canvas renders it as SVG, the exporter writes it as DXF with real DIMENSION entities, the report embeds it. One description, three outputs.
 
 **Reinforcement data** (`rebar.py`). Bar sizes, areas, unit masses.
+
+**Section analysis** (`rc_section.py`). A rectangular section under axial load and bending by strain compatibility (Cl. 39.1): the Fig. 21 block integrated in closed form for any neutral-axis depth, bars on the Fig. 23 curves, the capacity at an axial load, the balanced state and the interaction curve. Used by the column; footings, walls and pile caps will use it.
 
 Rules for every engine:
 
@@ -255,13 +260,13 @@ civillabpro/
     app/
       main.py                    assembles routers; optional client serving
       core/                      config, database, security, errors, dependencies
-      engineering/               trace, is456, rebar, drawing       (pure)
+      engineering/               trace, is456, rebar, drawing, rc_section   (pure)
       assets/fonts/              report fonts
       modules/
         identity/                models, schemas, permissions, service, router
         projects/                models, schemas, service, router
         structural/
-          domain/                beam, beam_detailing, registry     (pure)
+          domain/                beam, column and their detailing, registry   (pure)
           exports/               pdf_report, bbs_xlsx, dxf
           models, schemas, service, router
         dashboard/               router (read models, search)

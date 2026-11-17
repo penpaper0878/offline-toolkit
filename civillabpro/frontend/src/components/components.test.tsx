@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { DrawingView, SchemaProp, Sheet } from "../api/types";
 import { CalcSheet, ChecksTable } from "./CalcSheet";
 import { renderPrimitives } from "./DrawingCanvas";
-import { Fx } from "./Fx";
+import { Fx, fxNodes } from "./Fx";
 import { isVisible, PropertyGrid, validateAll, validateField } from "./PropertyGrid";
 
 describe("Fx markup", () => {
@@ -12,6 +12,19 @@ describe("Fx markup", () => {
     expect(container.textContent).toBe("τc,max ≥ τv = Vu × 103 / (b d), fck ≤ 55, γ b D, √(db')");
     expect([...container.querySelectorAll("sub")].map((s) => s.textContent)).toEqual(["c,max", "v", "u", "ck", "b"]);
     expect(container.querySelector("sup")?.textContent).toBe("3");
+  });
+
+  it("renders a symbol with its own subscript as a power, and decimal powers", () => {
+    const { container } = render(<Fx>{"(M_ux/M_ux1)^alpha_n + (90/125)^1.660"}</Fx>);
+    expect(container.textContent).toBe("(Mux/Mux1)αn + (90/125)1.660");
+    expect([...container.querySelectorAll("sup")].map((s) => s.textContent)).toEqual(["αn", "1.660"]);
+  });
+
+  it("leaves words alone in prose: the x axis is not a product", () => {
+    const { container } = render(<span>{fxNodes("Moment capacity about x at P_u, about the x axis", true)}</span>);
+    expect(container.textContent).toBe("Moment capacity about x at Pu, about the x axis");
+    const { container: eq } = render(<span>{fxNodes("0.87 x 500")}</span>);
+    expect(eq.textContent).toBe("0.87 × 500");
   });
 
   it("raises the power in units and leaves plain words alone", () => {
@@ -126,5 +139,25 @@ describe("drawing renderer", () => {
     expect(texts).toEqual(["230", "450", "3-T16", "Cover 30 mm"]);
     expect(container.querySelectorAll("line").length).toBe(1 + 5 + 5 + 1); // stirrup, two dimensions (line, 2 extensions, 2 ticks), leader
     expect(container.innerHTML).not.toMatch(/NaN|undefined/);
+  });
+});
+
+describe("chart view", () => {
+  it("lists every series in its table view", async () => {
+    const { ChartView } = await import("./ChartView");
+    const chart = {
+      id: "interaction_x", title: "Interaction about the x axis, 12-T12", x: { label: "M_ux", unit: "kN m" }, y: { label: "P_u", unit: "kN" },
+      series: [
+        { name: "Capacity", kind: "line" as const, points: [[150, 0], [160, 400], [0, 2000]] as [number, number][] },
+        { name: "Design forces", kind: "point" as const, points: [[90, 1200], [90, 1200]] as [number, number][], labels: ["Case 1", "Case 2"] },
+      ],
+      note: "Uniaxial capacity by strain compatibility.",
+    };
+    render(<ChartView chart={chart} />);
+    expect(screen.getByRole("img")).toHaveAccessibleName(/Capacity and Design forces/);
+    fireEvent.click(screen.getByRole("button", { name: "Table" }));
+    expect(screen.getByText("Capacity")).toBeInTheDocument();
+    expect(screen.getByText("Case 2")).toBeInTheDocument();
+    expect(screen.getAllByRole("row")).toHaveLength(2 + 3 + 2); // two header rows, three curve points, two design points
   });
 });

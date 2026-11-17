@@ -41,7 +41,8 @@ export function renderPrimitives(items: Primitive[], top: number): ReactNode[] {
         break;
       case "leader":
         out.push(<line key={`${i}l`} x1={it.x} y1={Y(it.y)} x2={it.tx} y2={Y(it.ty + 0.3 * it.h)} stroke="var(--dwg-dim)" strokeWidth={0.8} vectorEffect="non-scaling-stroke" />);
-        out.push(text(`${i}t`, it.tx + 0.3 * it.h, Y(it.ty), it.text, it.h, "start", stroke));
+        // a label to the left of its point is right-aligned, so it reads towards what it marks
+        out.push(it.tx < it.x ? text(`${i}t`, it.tx - 0.3 * it.h, Y(it.ty), it.text, it.h, "end", stroke) : text(`${i}t`, it.tx + 0.3 * it.h, Y(it.ty), it.text, it.h, "start", stroke));
         break;
       case "dim": {
         const tick = 0.35 * it.h;

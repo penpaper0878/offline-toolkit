@@ -9,7 +9,7 @@ import { useTab } from "../shell/hooks";
 import { useAuth } from "../stores/auth";
 
 // The order in which further members join the registry (docs/ROADMAP.md, phase 1 and 2).
-const NEXT = ["Column (axial load and biaxial bending)", "One-way and two-way slab", "Isolated footing", "Combined and strap footing", "Staircase", "Retaining wall",
+const NEXT = ["One-way and two-way slab", "Isolated footing", "Combined and strap footing", "Staircase", "Retaining wall",
   "Pile cap", "Water tanks to IS 3370 (rectangular, circular, ESR, GSR)", "Box and pipe culvert"];
 
 export function StructuralPage() {

@@ -39,11 +39,15 @@ export type Primitive =
 export interface DrawingView { id: string; title: string; scale_note: string; items: Primitive[]; bounds: [number, number, number, number] }
 export interface Drawing { title: string; views: DrawingView[]; notes: string[] }
 
+export interface ChartSeries { name: string; kind: "line" | "point"; points: [number, number][]; labels?: string[] }
+export interface Chart { id: string; title: string; x: { label: string; unit: string }; y: { label: string; unit: string }; series: ChartSeries[]; note?: string }
+
 export interface KeyResult { label: string; sym: string; value: number | string | null; unit: string; dp: number }
 export interface DesignResult {
   element_type: string; engine_version: string; code_basis: string[]; status: "ok" | "not_ok" | "stopped"; stop_message: string | null;
   checks_passed: number; checks_total: number; max_utilisation: number | null; key_results: KeyResult[]; data: Record<string, unknown>;
   reinforcement: Record<string, unknown> | null; sheet: Sheet; bbs: Bbs | null; quantities: Quantities | null; drawing: Drawing | null;
+  charts?: Chart[] | null;
 }
 
 export interface SchemaProp {

@@ -73,13 +73,14 @@ const BASE = process.argv[3] || process.env.BASE || 'http://127.0.0.1:5173';
   await shot('06-checks');
   await page.getByText('Bar schedule', { exact: true }).first().click();
   await page.waitForTimeout(300);
-  await page.getByText('Longitudinal section', { exact: true }).first().click();
+  await page.getByText('Elevation', { exact: true }).first().click();
   await page.waitForTimeout(400);
   await shot('07-bbs-elevation');
 
   step('invalid input');
   await page.locator('#pg-width_mm').fill('50');
   await page.getByText('Not less than 150.').waitFor();
+  await page.waitForTimeout(500); // longer than the input debounce: correcting the value must not send the stale one
   await shot('08-invalid');
   await page.locator('#pg-width_mm').fill('230');
 
@@ -101,6 +102,33 @@ const BASE = process.argv[3] || process.env.BASE || 'http://127.0.0.1:5173';
   await page.waitForTimeout(300);
   await shot('11-calculator');
   await page.keyboard.press('Alt+c');
+
+  step('column');
+  await page.locator('[data-ribbon="project"]').click();
+  await page.getByRole('link', { name: /New RCC column/ }).click();
+  await page.getByText('12-T12').first().waitFor({ timeout: 15000 });
+  await page.getByText('Charts', { exact: true }).first().click();
+  await page.getByRole('img', { name: /Interaction about the x axis/ }).waitFor({ timeout: 10000 });
+  await page.waitForTimeout(600);
+  await shot('c1-column-charts-dark');
+  await page.keyboard.press('Control+s');
+  await page.waitForURL('**/designs/*', { timeout: 10000 });
+  await page.getByText(/saved/i).first().waitFor();
+  for (const [id, ext] of [['pdf', '.pdf'], ['xlsx', '.xlsx'], ['dxf', '.dxf']]) {
+    const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), page.locator(`[data-ribbon="${id}"]`).click()]);
+    await dl.saveAs(`${out}/export-column${ext}`);
+    console.log('download', dl.suggestedFilename(), require('fs').statSync(`${out}/export-column${ext}`).size);
+  }
+  await page.getByText('Section', { exact: true }).first().click();
+  await page.getByText('Checks', { exact: true }).first().click();
+  await page.keyboard.press('Alt+t');
+  await page.waitForTimeout(500);
+  await shot('c2-column-light');
+  await page.getByText('Charts', { exact: true }).first().click();
+  await page.waitForTimeout(500);
+  await shot('c3-column-charts-light');
+  await page.keyboard.press('Alt+t');
+  await page.waitForTimeout(300);
 
   step('dashboard with data');
   await page.keyboard.press('Alt+1');

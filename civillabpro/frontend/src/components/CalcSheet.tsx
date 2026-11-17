@@ -47,7 +47,7 @@ export function CalcSheet({ sheet }: { sheet: Sheet }) {
                 {it.kind === "step" ? (
                   <>
                     <div className="min-w-0">
-                      <div>{fxNodes(it.title)}</div>
+                      <div>{fxNodes(it.title, true)}</div>
                       {(it.eq || it.sub) && <div className="mt-0.5 text-[13px] break-words"><Fx>{it.eq && it.sub ? `${it.eq} = ${it.sub}` : it.eq || it.sub}</Fx></div>}
                     </div>
                     <div className="text-right whitespace-nowrap num"><b>{fmt(it.value, it.dp)}</b> <Unit>{it.unit}</Unit></div>
@@ -55,7 +55,7 @@ export function CalcSheet({ sheet }: { sheet: Sheet }) {
                 ) : (
                   <>
                     <div className="min-w-0">
-                      <div><b>Check:</b> {fxNodes(it.title)}</div>
+                      <div><b>Check:</b> {fxNodes(it.title, true)}</div>
                       <div className="mt-0.5 text-[13px] num break-words">
                         <Fx>{it.lhs_label}</Fx> = {fmt(it.lhs, it.dp)} {it.op === "<=" ? "≤" : "≥"} <Fx>{it.rhs_label}</Fx> = {fmt(it.rhs, it.dp)} <Unit>{it.unit}</Unit>
                       </div>
@@ -96,7 +96,7 @@ export function ChecksTable({ sheet }: { sheet: Sheet }) {
         <tbody>
           {sorted.map((c) => (
             <tr key={c.id} className="border-b border-[var(--clp-border)] last:border-0">
-              <td className="py-1.5 pr-2">{fxNodes(c.title)}</td>
+              <td className="py-1.5 pr-2">{fxNodes(c.title, true)}</td>
               <td className="py-1.5 px-2 text-[11px] text-[var(--clp-ink-3)] whitespace-nowrap">{c.ref}</td>
               <td className="py-1.5 px-2 text-right num whitespace-nowrap">{fmt(c.lhs, c.dp)} <Unit>{c.unit}</Unit></td>
               <td className="py-1.5 px-2 text-right num whitespace-nowrap">{c.op === "<=" ? "≤" : "≥"} {fmt(c.rhs, c.dp)}</td>

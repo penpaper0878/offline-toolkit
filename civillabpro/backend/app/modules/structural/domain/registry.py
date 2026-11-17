@@ -14,7 +14,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from app.modules.structural.domain import beam
+from app.modules.structural.domain import beam, column
 
 
 @dataclass(frozen=True)
@@ -44,6 +44,22 @@ ELEMENTS: dict[str, ElementSpec] = {
             "No curtailment of bars and one stirrup spacing along the span.",
             "Deflection by the span/depth rule of Cl. 23.2.1; no calculated deflection or crack width.",
             "Ductile detailing to IS 13920 is not applied.",
+        ),
+    ),
+    column.ELEMENT_TYPE: ElementSpec(
+        type=column.ELEMENT_TYPE,
+        title="RCC column",
+        description="Rectangular tied column under axial load and biaxial bending: slenderness, minimum eccentricity, additional moments, ties.",
+        engine_version=column.ENGINE_VERSION,
+        code_basis=column.CODE_BASIS,
+        input_model=column.ColumnInput,
+        design=column.design_column,
+        limitations=(
+            "Rectangular tied columns only: circular and helically reinforced columns are not yet covered.",
+            "Axial load and end moments come from an external analysis; load combinations are not generated.",
+            "Effective length from Table 28 or an entered factor; the frame stability charts of Annex E are not used.",
+            "Additional moments are applied about the slender axes only.",
+            "One lift per design. Ductile detailing to IS 13920 is not applied.",
         ),
     ),
 }
