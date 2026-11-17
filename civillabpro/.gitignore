@@ -19,3 +19,8 @@ coverage/
 
 # Local output
 *.log
+
+# The repository root ignores fonts/ and models/ for the Offline Toolkit project.
+# CivilLabPro bundles its report fonts and may keep model packages, so re-include them here.
+!**/assets/fonts/
+!**/models/

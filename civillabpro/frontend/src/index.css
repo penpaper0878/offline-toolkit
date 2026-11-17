@@ -1,0 +1,94 @@
+/* Layer order lets Tailwind utilities override MUI component styles without !important. */
+@layer theme, base, mui, components, utilities;
+@import "tailwindcss";
+
+/* MUI sets .dark / .light on <html>; Tailwind's dark: variant follows the same switch. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", "Consolas", ui-monospace, monospace;
+}
+
+/* App tokens. Chart colours follow a validated data-viz palette (one hue per job; status colours are reserved). */
+:root {
+  --clp-bg: #eef1f5;
+  --clp-panel: #ffffff;
+  --clp-panel-2: #f6f8fa;
+  --clp-border: #d5dbe3;
+  --clp-ink: #17202b;
+  --clp-ink-2: #4b5766;
+  --clp-ink-3: #7c8794;
+  --clp-accent: #1f5fbf;
+  --clp-ok: #17803f;
+  --clp-bad: #c0352b;
+  --clp-warn: #9a6700;
+  --viz-series-1: #2a78d6;
+  --viz-grid: #e1e0d9;
+  --viz-axis: #c3c2b7;
+  --viz-good: #0ca30c;
+  --viz-critical: #d03b3b;
+  --viz-serious: #ec835a;
+  --dwg-concrete: #17202b;
+  --dwg-rebar: #c0352b;
+  --dwg-stirrup: #1f5fbf;
+  --dwg-dim: #6b7684;
+  --dwg-support: #9aa4b1;
+}
+.dark {
+  --clp-bg: #0b0f14;
+  --clp-panel: #131a22;
+  --clp-panel-2: #18212b;
+  --clp-border: #26313d;
+  --clp-ink: #e6ebf1;
+  --clp-ink-2: #a9b4c0;
+  --clp-ink-3: #74808d;
+  --clp-accent: #5ea0f0;
+  --clp-ok: #3fb96b;
+  --clp-bad: #ef6b60;
+  --clp-warn: #e0a83a;
+  --viz-series-1: #3987e5;
+  --viz-grid: #2c2c2a;
+  --viz-axis: #383835;
+  --viz-good: #0ca30c;
+  --viz-critical: #d03b3b;
+  --viz-serious: #ec835a;
+  --dwg-concrete: #e6ebf1;
+  --dwg-rebar: #ff7b6e;
+  --dwg-stirrup: #6fb0ff;
+  --dwg-dim: #8b97a5;
+  --dwg-support: #5b6672;
+}
+
+html, body, #root { height: 100%; }
+body { margin: 0; background: var(--clp-bg); color: var(--clp-ink); font-family: var(--font-sans); font-size: 13px; -webkit-font-smoothing: antialiased; }
+.num { font-variant-numeric: tabular-nums; }
+.fx { font-family: "Cambria Math", "STIX Two Math", Georgia, serif; font-style: italic; }
+.fx sub, .fx sup { font-size: 0.72em; font-style: normal; }
+
+/* Thin scrollbars inside dense panels */
+* { scrollbar-width: thin; scrollbar-color: var(--clp-border) transparent; }
+
+/* Dockview: take colours from the app tokens so both themes match the shell. */
+.clp-dock {
+  --dv-background-color: var(--clp-bg);
+  --dv-group-view-background-color: var(--clp-panel);
+  --dv-tabs-and-actions-container-background-color: var(--clp-panel-2);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--clp-panel);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--clp-panel-2);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--clp-panel);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--clp-panel-2);
+  --dv-activegroup-visiblepanel-tab-color: var(--clp-ink);
+  --dv-activegroup-hiddenpanel-tab-color: var(--clp-ink-2);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--clp-ink);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--clp-ink-2);
+  --dv-separator-border: var(--clp-border);
+  --dv-paneview-header-border-color: var(--clp-border);
+  --dv-tab-divider-color: var(--clp-border);
+  --dv-tabs-and-actions-container-height: 30px;
+  --dv-tabs-and-actions-container-font-size: 12px;
+  --dv-drag-over-background-color: color-mix(in srgb, var(--clp-accent) 22%, transparent);
+  --dv-active-sash-color: var(--clp-accent);
+}
+
+@media print { .no-print { display: none !important; } }

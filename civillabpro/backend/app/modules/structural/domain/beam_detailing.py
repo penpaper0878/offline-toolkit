@@ -248,7 +248,7 @@ def drawing(inp: BeamInput, cover: float, reinf: dict[str, Any], bbs: dict[str, 
     # ---------------------------------------------------------------- elevation
     elev = model.view("elevation", "Longitudinal section", "to scale")
     total = lc + (sw if cantilever else 2.0 * sw)
-    te = min(max(total / 75.0, 0.09 * D), 0.22 * D)
+    te = min(max(total / 50.0, 0.10 * D), 0.30 * D)  # text height that stays legible at the width of the view
     y_b = cover + dst + bot["dia"] / 2.0
     y_t = D - (cover + dst + top["dia"] / 2.0)
     main = next(i for i in bbs["items"] if "tension" in i["description"])
