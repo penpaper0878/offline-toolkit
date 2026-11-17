@@ -22,7 +22,7 @@ Version 0.1.0. Phase 1 in progress.
 | Desktop shell (Electron) | not started (PLAT-010) |
 | Modules 3 to 11 | designed in ARCHITECTURE.md and DATABASE_SCHEMA.md, not started |
 
-Test counts at 0.1.0: backend 111 (76 engineering and architecture, 35 API), frontend 15, hand check 360 values over 18 cases plus 2 stop states, browser walkthrough 0 console errors.
+Test counts at 0.1.1: backend 112 (76 engineering and architecture, 36 API, one of them PostgreSQL-only), frontend 15, hand check 360 values over 18 cases plus 2 stop states, browser walkthrough 0 console errors.
 
 ## NEXT STEPS
 
@@ -81,11 +81,19 @@ Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not her
 
 * Backend: `cd civillabpro/backend && python -m venv .venv && . .venv/bin/activate && pip install -e ".[dev]"`; `pytest`; `uvicorn app.main:app --reload`.
 * Frontend: `cd civillabpro/frontend && npm ci && npm run dev` (proxies `/api` to 127.0.0.1:8000).
-* PostgreSQL tests: `CLP_TEST_DATABASE_URL=postgresql+psycopg://... pytest tests/api`.
+* PostgreSQL tests: `CLP_TEST_DATABASE_URL=postgresql+psycopg://... pytest tests/api`. Test against a database with the PostGIS extensions installed (as CI and the compose file do), not only plain PostgreSQL: see the 0.1.1 log entry.
+* A throwaway local PostgreSQL cluster must not live in the scratchpad: its folder permissions get reset and the server aborts. Use the postgres user's home, `/var/lib/postgresql/`.
 * The repository root `.gitignore` ignores `fonts/` and `models/` for the other project; `civillabpro/.gitignore` re-includes them.
 * Library versions at 0.1.0 are recent majors (React 19, MUI 9, Vite 8, Tailwind 4, TypeScript 7, dockview-react 8, recharts 3, FastAPI 0.16x, SQLAlchemy 2.1). Check the installed typings before assuming an older API.
 
 ## Log
+
+### 0.1.1 (17 November 2026): CI fix for PostGIS databases
+
+* The first CI run failed at `alembic check` on the PostgreSQL job. The CI service (and the production compose file) use the PostGIS image, which installs `postgis`, `postgis_topology` and `postgis_tiger_geocoder`; these add their schemas to the database `search_path`, and SQLAlchemy reflects every table visible on it. Alembic therefore reported `spatial_ref_sys`, the topology tables and about forty geocoder tables as tables to drop. Local testing had used plain PostgreSQL, so it passed there.
+* Fix: `app/core/migrations.py` gives Alembic an `include_name` hook that leaves out relations PostgreSQL records as extension members (`pg_depend`, `deptype = 'e'`) unless a model defines the same name. Real drift is still reported.
+* The first version of the fix read the catalogue before Alembic opened its transaction, which made Alembic leave the commit to the caller: `upgrade` ran and was rolled back. The lookup is now lazy and happens only during comparison. Both mistakes are covered by `test_extension_tables_are_ignored_but_real_drift_is_not` (runs when `CLP_TEST_DATABASE_URL` is PostgreSQL), which upgrades, compares, and checks that only a deliberately stray table is reported.
+* Verified locally on PostgreSQL 16 with PostGIS 3 and the same four extensions as the CI image, on plain PostgreSQL 16, and on SQLite.
 
 ### 0.1.0 (16 to 17 November 2026): platform core and beam engine
 

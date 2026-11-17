@@ -7,6 +7,7 @@ from logging.config import fileConfig
 from alembic import context
 from app.core.config import get_settings
 from app.core.database import Base, make_engine
+from app.core.migrations import include_name_filter
 from app.modules import models_registry  # noqa: F401  (imports every model so metadata is complete)
 
 config = context.config
@@ -29,8 +30,10 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     engine = make_engine(_url())
     with engine.connect() as connection:
-        # render_as_batch lets ALTER TABLE migrations run on SQLite as well.
-        context.configure(connection=connection, target_metadata=target_metadata, render_as_batch=True, compare_type=True)
+        # render_as_batch lets ALTER TABLE migrations run on SQLite as well; include_name keeps tables
+        # owned by PostgreSQL extensions (PostGIS, its topology and geocoder) out of the comparison.
+        context.configure(connection=connection, target_metadata=target_metadata, render_as_batch=True, compare_type=True,
+                          include_name=include_name_filter(connection, target_metadata))
         with context.begin_transaction():
             context.run_migrations()
     engine.dispose()
