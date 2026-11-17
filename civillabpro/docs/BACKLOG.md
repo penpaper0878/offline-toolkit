@@ -1,0 +1,120 @@
+# CivilLabPro OS: development backlog
+
+Ordered within each epic. IDs are stable: refer to them in commits and in [PROJECT_MEMORY.md](PROJECT_MEMORY.md).
+State: **done**, **next** (the item to start with), **ready** (can be started), **later** (needs something before it).
+
+## Done in version 0.1
+
+| ID | Item |
+|---|---|
+| PLAT-001 | Monorepo layout, backend and frontend toolchains, lint, CI |
+| PLAT-002 | Configuration with production guards |
+| PLAT-003 | Portable schema on PostgreSQL and SQLite, Alembic history, schema drift test |
+| IDN-001 | Organisation registration, login, rotating refresh tokens, lockout, password change |
+| IDN-002 | Roles and permissions, user administration, last-owner protection |
+| IDN-003 | Tenant isolation with tests on every endpoint |
+| IDN-004 | Audit trail |
+| PRJ-001 | Project register: create, search, filter, update, delete |
+| ENG-001 | Calculation sheet model (steps, checks, flags) |
+| ENG-002 | IS 456 rule functions with cross-checks |
+| ENG-003 | Drawing model with SVG, DXF and PDF renderers |
+| STR-001 | Beam engine 1.0.0 with independent hand check |
+| STR-002 | Element registry, generic design storage, revisions, approval |
+| STR-003 | PDF calculation report, Excel bar schedule, DXF drawing |
+| UI-001 | Shell: ribbon, sidebar, document tabs, status bar, themes |
+| UI-002 | Command palette with search, floating calculator, shortcuts |
+| UI-003 | Design workspace with dockable panels and schema-driven property grid |
+| UI-004 | Dashboard, projects, structural catalogue, users and roles |
+| OPS-001 | Single-process serving of the client, Dockerfile, compose file |
+
+## Epic STR: structural design
+
+| ID | Item | State | Notes |
+|---|---|---|---|
+| STR-010 | Column: axial load with uniaxial and biaxial bending | **next** | IS 456 Cl. 25 (slenderness), Cl. 39; interaction by strain compatibility, checked against SP 16 charts; ties to Cl. 26.5.3 |
+| STR-011 | One-way slab | ready | Cl. 22, 23.2, 24, 26.5.2 |
+| STR-012 | Two-way slab, restrained and simply supported | ready | Annex D coefficients; torsion steel at corners |
+| STR-013 | Isolated footing | ready | Cl. 34; one-way and punching shear; needs safe bearing capacity input |
+| STR-014 | Beam: flanged sections (T and L) | ready | Cl. 23.1, Annex G-2 |
+| STR-015 | Beam: continuous spans by Table 12 and 13 coefficients | ready | Cl. 22.5 |
+| STR-016 | Beam: bar curtailment and stirrup zones | ready | Cl. 26.2.3; cuts steel on long spans |
+| STR-017 | Beam: anchorage check at simple supports | ready | Cl. 26.2.3.3(c), Ld <= 1.3 M1/V + L0 |
+| STR-018 | Beam: calculated deflection and crack width | later | Annex C, Annex F |
+| STR-019 | Ductile detailing | later | IS 13920:2016; needs frame context |
+| STR-020 | Combined and strap footing | later | after STR-013 |
+| STR-021 | Pile cap | later | truss and bending methods |
+| STR-022 | Staircase | later | |
+| STR-023 | Retaining wall (cantilever, counterfort) | later | stability and structural design |
+| STR-024 | Water tanks to IS 3370: rectangular, circular, GSR, ESR | later | with phase 3 |
+| STR-025 | Box culvert and pipe culvert | later | IRC loading; with phase 4 |
+| STR-026 | Load combinations of IS 875 and IS 1893 | later | needed once frame forces are imported |
+| STR-027 | Compare two revisions of a design side by side | ready | data already stored |
+| STR-028 | Design groups: one design applied to several members, schedule multiplied | ready | |
+
+## Epic PLAT: platform
+
+| ID | Item | State | Notes |
+|---|---|---|---|
+| PLAT-010 | Desktop shell (Electron) with packaged backend and SQLite | ready | backend already runs single-process |
+| PLAT-011 | Installers for Windows and Linux; auto-update | later | after PLAT-010 |
+| PLAT-012 | File storage port (S3-compatible and local folder), `files` table | ready | |
+| PLAT-013 | Document control register and transmittals | later | after PLAT-012 |
+| PLAT-014 | Job queue (Redis, Celery) and job status API | later | first needed by WAT-030 |
+| PLAT-015 | WebSocket channel for notifications and job progress | later | with PLAT-014 |
+| PLAT-016 | Word export of reports | ready | python-docx, same generic result |
+| PLAT-017 | Organisation branding on reports (logo, address, title block) | ready | |
+| PLAT-018 | Backup and restore procedure; desktop project export / import | ready | |
+| PLAT-019 | Structured request logging, metrics, error tracking | ready | |
+| PLAT-020 | Indian number formatting and optional Hindi / Gujarati interface | later | |
+
+## Epic IDN: identity and access
+
+| ID | Item | State | Notes |
+|---|---|---|---|
+| IDN-010 | Per-project membership | ready | `project_members` |
+| IDN-011 | Custom roles per organisation | later | after IDN-010 |
+| IDN-012 | Refresh token in an httpOnly cookie for the web deployment | ready | keep header mode for desktop |
+| IDN-013 | OIDC single sign-on (Google, Microsoft, government SSO) | later | |
+| IDN-014 | Password reset by email; invitations | ready | needs a mail port |
+| IDN-015 | Two-factor authentication (TOTP) | later | |
+| IDN-016 | Rate limiting on auth endpoints at the proxy | ready | lockout exists; this adds per-IP limits |
+| IDN-017 | Digital signature (DSC) on issued reports | later | with LIMS |
+
+## Epic UI: client
+
+| ID | Item | State | Notes |
+|---|---|---|---|
+| UI-010 | Edit project details; project settings page | ready | |
+| UI-011 | Revision history panel in the workspace | ready | endpoint exists |
+| UI-012 | Print view of the calculation sheet from the browser | ready | PDF export exists |
+| UI-013 | ESLint with the React hooks rules in CI | ready | TypeScript strict is on |
+| UI-014 | Walkthrough script in CI (Playwright) | ready | script exists in `e2e/` |
+| UI-015 | Measure and annotate tools on the drawing canvas | later | |
+| UI-016 | 3D reinforcement view (Three.js) | later | from the same drawing data plus bar geometry |
+| UI-017 | Tablet layout for site use | later | |
+
+## Epics for later phases (broken down when the phase opens)
+
+| Epic | First items |
+|---|---|
+| STD: standards library | STD-001 register and status import; STD-002 clause index and search; STD-003 bookmarks and notes |
+| EST: estimation | EST-001 SOR import format and CPWD DSR; EST-002 rate analysis; EST-003 BOQ from designs; EST-004 measurement book; EST-005 RA and final bills |
+| WAT: water | WAT-001 population forecast; WAT-002 demand and peak factors; WAT-010 transmission main; WAT-020 reservoirs; WAT-030 network solver; WAT-040 EPANET exchange |
+| SEW: sewerage | SEW-001 sewer reach design; SEW-010 STP processes; SEW-020 pumping station |
+| HWY: highway | HWY-001 flexible pavement IRC 37; HWY-002 rigid pavement IRC 58; HWY-010 curves and superelevation |
+| LAB: laboratory | LAB-001 sample register; LAB-002 concrete cube test; LAB-010 NABL report and QR verification |
+| GIS | GIS-001 map and layers; GIS-002 imports; GIS-010 network link to WAT and SEW |
+| PM | PM-001 tasks and Gantt; PM-002 DPR; PM-003 RFI; PM-010 inspections |
+| AI | AI-001 LLM gateway port; AI-002 retrieval with citations; AI-003 engines as tools; AI-010 evaluation sets |
+
+## Definition of done (every item that adds or changes an engine)
+
+1. Codes confirmed and entered in [CODE_REGISTER.md](CODE_REGISTER.md) with the clauses used and every interpretation.
+2. Domain code pure; each formula line cites its clause; each limit is a check.
+3. Defaults are a worked example with its expected values written in the module docstring.
+4. Independent hand check in `tests/handcheck/`, by a different method, covering the base case, 10 to 20 alternative cases and every stop state.
+5. Unit tests for each branch; a sweep proving no input in range breaks it.
+6. API tests on SQLite and PostgreSQL; migration reversible; schema drift test green.
+7. Report, schedule and drawing looked at page by page.
+8. Browser walkthrough clean, in light and dark.
+9. Module note, backlog and project memory updated; engine version bumped.

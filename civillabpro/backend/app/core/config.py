@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import model_validator
@@ -26,6 +27,9 @@ class Settings(BaseSettings):
     max_failed_logins: int = 5
     lockout_minutes: int = 15
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    # Built web client (frontend/dist). When set, this process also serves the UI: one process for
+    # a desktop install or a small server. Leave unset when a web server or CDN serves the client.
+    static_dir: Path | None = None
 
     @model_validator(mode="after")
     def _production_is_configured(self) -> Settings:

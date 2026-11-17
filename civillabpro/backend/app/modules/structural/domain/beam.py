@@ -479,11 +479,11 @@ def design_beam(inp: BeamInput) -> dict[str, Any]:
                 "s", arr.clear_spacing, "<=", "s_max", is456.max_clear_bar_spacing(fy), "mm", 0)
     if cantilever:
         ls_lim = min(25.0 * b, 100.0 * b * b / d)
-        sheet.check("lateral", f"{REF}, Cl. 23.3(b)", "Lateral stability: clear projection not above 25 b or 100 b2/d",
+        sheet.check("lateral", f"{REF}, Cl. 23.3(b)", "Lateral stability: clear projection not above 25 b or 100 b^2/d",
                     "l", inp.clear_span_mm, "<=", "limit", ls_lim, "mm", 0)
     else:
         ls_lim = min(60.0 * b, 250.0 * b * b / d)
-        sheet.check("lateral", f"{REF}, Cl. 23.3(a)", "Lateral stability: clear span not above 60 b or 250 b2/d",
+        sheet.check("lateral", f"{REF}, Cl. 23.3(a)", "Lateral stability: clear span not above 60 b or 250 b^2/d",
                     "l", inp.clear_span_mm, "<=", "limit", ls_lim, "mm", 0)
 
     side = beam_detailing.side_face_bars(inp, cover, ten, oth, torsion=forces.tu > 0)

@@ -53,7 +53,7 @@ REG, BOLD, ITAL, UNICODE_FONT = _register_fonts()
 
 BODY = ParagraphStyle("body", fontName=REG, fontSize=8.5, leading=11, textColor=INK)
 SMALL = ParagraphStyle("small", parent=BODY, fontSize=7.5, leading=9.5, textColor=MUTED)
-H2 = ParagraphStyle("h2", parent=BODY, fontName=BOLD, fontSize=10.5, leading=14, spaceBefore=8, spaceAfter=4)
+H2 = ParagraphStyle("h2", parent=BODY, fontName=BOLD, fontSize=10.5, leading=14, spaceBefore=8, spaceAfter=4, keepWithNext=1)
 EQ = ParagraphStyle("eq", parent=BODY, fontName=ITAL, fontSize=8.5, leading=11.5)
 RIGHT = ParagraphStyle("right", parent=BODY, alignment=2)
 
@@ -329,12 +329,12 @@ def build_pdf(meta: dict[str, str], inputs: dict[str, Any], input_schema: dict[s
 
     drawing = result.get("drawing")
     if drawing:
-        s.append(Paragraph("Reinforcement details", H2))
-        for view in drawing["views"]:
+        for i, view in enumerate(drawing["views"]):
             max_h = 95 * mm if view["id"] == "section" else 60 * mm
             block = [Paragraph(f"<b>{html.escape(view['title'])}</b>", BODY), Spacer(1, 3), view_drawing(view, width * (0.55 if view["id"] == "section" else 1.0), max_h),
                      Spacer(1, 6)]
-            s.append(KeepTogether(block))
+            # The heading travels with the first view, so it never sits alone at the foot of a page.
+            s.append(KeepTogether(([Paragraph("Reinforcement details", H2)] if i == 0 else []) + block))
         for note in drawing["notes"]:
             s.append(Paragraph(html.escape(note), SMALL))
 

@@ -1,0 +1,41 @@
+# Server deployment: PostgreSQL with PostGIS, and the application (API + web client).
+#   cp deploy/.env.example deploy/.env    # then set the two secrets
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+# Put a TLS-terminating reverse proxy (nginx, Caddy, a cloud load balancer) in front of port 8000.
+name: civillabpro
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: civillabpro
+      POSTGRES_USER: civillabpro
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U civillabpro -d civillabpro"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      CLP_ENV: production
+      CLP_DATABASE_URL: postgresql+psycopg://civillabpro:${POSTGRES_PASSWORD}@db:5432/civillabpro
+      CLP_JWT_SECRET: ${CLP_JWT_SECRET:?set CLP_JWT_SECRET in deploy/.env}
+      CLP_ALLOW_SELF_REGISTRATION: ${CLP_ALLOW_SELF_REGISTRATION:-true}
+      CLP_CORS_ORIGINS: '[]'
+    ports:
+      - "${CLP_PORT:-8000}:8000"
+
+volumes:
+  pgdata:

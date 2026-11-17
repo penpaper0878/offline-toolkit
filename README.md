@@ -1,5 +1,7 @@
 # Offline Toolkit
 
+> This repository also holds a separate project, **CivilLabPro OS**, in [`civillabpro/`](civillabpro/README.md). It shares nothing with the Offline Toolkit code described here.
+
 A fully offline desktop app for **personal use (not for redistribution)** (Electron + React + TypeScript, with Python workers and bundled engines) with four modules:
 
 1. **Image resizer and compressor**: exact pixels or physical size at any DPI, and a target file-size range.
