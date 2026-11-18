@@ -212,8 +212,14 @@ def view_drawing(view: dict[str, Any], max_w: float, max_h: float) -> Drawing:
         elif t == "circle":
             g.add(Circle(X(it["cx"]), Y(it["cy"]), max(it["r"] * scale, 0.8), strokeColor=colour, strokeWidth=0.4, fillColor=colour if it["filled"] else None))
         elif t == "text":
-            g.add(String(X(it["x"]), Y(it["y"]), it["text"], fontName=REG, fontSize=max(it["h"] * scale, 5.5), fillColor=colour,
-                         textAnchor=it["anchor"]))
+            if it.get("rot"):
+                label = Group(String(0, 0, it["text"], fontName=REG, fontSize=max(it["h"] * scale, 5.5), fillColor=colour, textAnchor=it["anchor"]))
+                label.rotate(it["rot"])
+                label.translate(Y(it["y"]), -X(it["x"]))  # in the turned frame: back to (X, Y) on the page
+                g.add(label)
+            else:
+                g.add(String(X(it["x"]), Y(it["y"]), it["text"], fontName=REG, fontSize=max(it["h"] * scale, 5.5), fillColor=colour,
+                             textAnchor=it["anchor"]))
         elif t == "leader":
             g.add(Line(X(it["x"]), Y(it["y"]), X(it["tx"]), Y(it["ty"]) + 0.3 * it["h"] * scale, strokeColor=MUTED, strokeWidth=0.4))
             left = it["tx"] < it["x"]  # a label placed to the left of its point reads towards it
@@ -415,7 +421,9 @@ def build_pdf(meta: dict[str, str], inputs: dict[str, Any], input_schema: dict[s
         views = drawing["views"]
         for i, view in enumerate(views):
             x0, y0, x1, y1 = view["bounds"]
-            max_h = 95 * mm if view["id"] == "section" else (120 * mm if (y1 - y0) > (x1 - x0) else 60 * mm)
+            aspect = (x1 - x0) / max(y1 - y0, 1e-9)
+            # a section, a tall elevation, a near-square plan and a long elevation each get the height that suits them
+            max_h = 95 * mm if view["id"] == "section" else 120 * mm if aspect < 1 else 110 * mm if aspect < 2 else 60 * mm
             block = [Paragraph(f"<b>{html.escape(view['title'])}</b>", BODY), Spacer(1, 3), view_drawing(view, width * (0.55 if view["id"] == "section" else 1.0), max_h),
                      Spacer(1, 6)]
             if i == len(views) - 1:  # the notes stay with the last view rather than starting a page of their own

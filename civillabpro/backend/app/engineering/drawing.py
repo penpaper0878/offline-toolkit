@@ -47,8 +47,13 @@ class View:
         height: float = 20.0,
         anchor: Literal["start", "middle", "end"] = "start",
         layer: Layer = "text",
+        vertical: bool = False,
     ) -> None:
-        self.items.append({"t": "text", "x": x, "y": y, "text": text, "h": height, "anchor": anchor, "layer": layer})
+        """A line of text; vertical text is turned 90 degrees anticlockwise and reads upwards, its glyphs to the left of x."""
+        item: dict[str, Any] = {"t": "text", "x": x, "y": y, "text": text, "h": height, "anchor": anchor, "layer": layer}
+        if vertical:
+            item["rot"] = 90
+        self.items.append(item)
 
     def dim(
         self,
@@ -106,9 +111,14 @@ class View:
                 ys += [it["cy"] - it["r"], it["cy"] + it["r"]]
             elif t == "text":
                 w = 0.6 * it["h"] * len(it["text"])
-                x0 = it["x"] - (w if it["anchor"] == "end" else w / 2 if it["anchor"] == "middle" else 0)
-                xs += [x0, x0 + w]
-                ys += [it["y"] - 0.3 * it["h"], it["y"] + it["h"]]
+                along, across = (it["y"], it["x"]) if it.get("rot") else (it["x"], it["y"])
+                a0 = along - (w if it["anchor"] == "end" else w / 2 if it["anchor"] == "middle" else 0)
+                if it.get("rot"):  # glyphs extend to the left of the baseline
+                    xs += [across - it["h"], across + 0.3 * it["h"]]
+                    ys += [a0, a0 + w]
+                else:
+                    xs += [a0, a0 + w]
+                    ys += [across - 0.3 * it["h"], across + it["h"]]
             elif t == "dim":
                 pad = 1.6 * it["h"]
                 if it["horizontal"]:

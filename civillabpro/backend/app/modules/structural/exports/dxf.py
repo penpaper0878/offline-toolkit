@@ -56,7 +56,8 @@ def build_dxf(drawing: dict[str, Any]) -> bytes:
                     hatch.paths.add_edge_path().add_arc(P(it["cx"], it["cy"]), it["r"], 0, 360)
                 msp.add_circle(P(it["cx"], it["cy"]), it["r"], dxfattribs={"layer": layer})
             elif t == "text":
-                msp.add_text(it["text"], height=it["h"], dxfattribs={"layer": layer}).set_placement(P(it["x"], it["y"]), align=_ALIGN[it["anchor"]])
+                msp.add_text(it["text"], height=it["h"], dxfattribs={"layer": layer, "rotation": float(it.get("rot", 0))}).set_placement(
+                    P(it["x"], it["y"]), align=_ALIGN[it["anchor"]])
             elif t == "leader":
                 msp.add_line(P(it["x"], it["y"]), P(it["tx"], it["ty"] + 0.3 * it["h"]), dxfattribs={"layer": LAYERS["dimension"][0]})
                 if it["tx"] < it["x"]:  # label to the left of its point: right-aligned so it reads towards it

@@ -37,7 +37,7 @@ export function renderPrimitives(items: Primitive[], top: number): ReactNode[] {
         out.push(<circle key={i} cx={it.cx} cy={Y(it.cy)} r={it.r} {...common} fill={it.filled ? stroke : "none"} />);
         break;
       case "text":
-        out.push(text(`${i}`, it.x, Y(it.y), it.text, it.h, it.anchor, stroke));
+        out.push(text(`${i}`, it.x, Y(it.y), it.text, it.h, it.anchor, stroke, it.rot ? -it.rot : undefined)); // y runs down on screen
         break;
       case "leader":
         out.push(<line key={`${i}l`} x1={it.x} y1={Y(it.y)} x2={it.tx} y2={Y(it.ty + 0.3 * it.h)} stroke="var(--dwg-dim)" strokeWidth={0.8} vectorEffect="non-scaling-stroke" />);

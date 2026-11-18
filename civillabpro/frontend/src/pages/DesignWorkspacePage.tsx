@@ -44,8 +44,10 @@ const Scroll = ({ children }: { children: React.ReactNode }) => <div className="
 // Dock panels. Each reads the shared workspace, so any panel can be moved, tabbed, split or floated.
 const PANELS: Record<string, React.FunctionComponent<IDockviewPanelProps>> = {
   properties: () => { const w = useWorkspace(); return <Scroll><PropertyGrid properties={w.spec.input_schema.properties} values={w.values} errors={w.errors} onChange={w.setValue} disabled={w.readOnly} /></Scroll>; },
-  section: () => { const v = useWorkspace().result?.drawing?.views.find((x) => x.id === "section"); return v ? <DrawingCanvas view={v} /> : <Scroll><Missing what="The section" /></Scroll>; },
-  elevation: () => { const v = useWorkspace().result?.drawing?.views.find((x) => x.id === "elevation"); return v ? <DrawingCanvas view={v} /> : <Scroll><Missing what="The elevation" /></Scroll>; },
+  // The two drawing panels show the element's first and second views (a section for members, a plan for slabs and
+  // footings); their tab titles follow the views' titles. The panel ids stay fixed so saved layouts keep working.
+  section: () => { const v = useWorkspace().result?.drawing?.views[0]; return v ? <DrawingCanvas view={v} /> : <Scroll><Missing what="The drawing" /></Scroll>; },
+  elevation: () => { const v = useWorkspace().result?.drawing?.views[1]; return v ? <DrawingCanvas view={v} /> : <Scroll><Missing what="The second view" /></Scroll>; },
   calculation: () => { const r = useWorkspace().result; return <Scroll>{r ? <CalcSheet sheet={r.sheet} /> : <Missing what="The calculation sheet" />}</Scroll>; },
   checks: () => { const r = useWorkspace().result; return <Scroll>{r ? <ChecksTable sheet={r.sheet} /> : <Missing what="The list of checks" />}</Scroll>; },
   bbs: () => { const r = useWorkspace().result; return <Scroll>{r?.bbs ? <BbsTable bbs={r.bbs} /> : <Missing what="The bar bending schedule" />}</Scroll>; },
@@ -74,6 +76,12 @@ function defaultLayout(dock: DockviewApi) {
   // Sizes are set once every group exists: the property grid keeps a fixed width, the drawings take the upper 45 %.
   dock.getPanel("properties")?.group.api.setSize({ width: 340 });
   dock.getPanel("section")?.group.api.setSize({ height: Math.max(260, Math.round(dock.height * 0.45)) });
+}
+
+/** Name the two drawing tabs after the views they show ("Plan", "Section A-A", ...). */
+function applyViewTitles(dock: DockviewApi | null, titles: string) {
+  if (!dock || !titles) return;
+  titles.split("\n").slice(0, 2).forEach((title, i) => dock.getPanel(i === 0 ? "section" : "elevation")?.api.setTitle(title));
 }
 
 function useDebounced<T>(value: T, ms: number): T {
@@ -147,7 +155,12 @@ export function DesignWorkspacePage() {
   const issued = !!designId && !dirty; // exports always describe a saved revision
   const doExport = useCallback((file: string) => { download(`/designs/${designId}/${file}`, file).catch(fail); }, [designId, fail]);
   const dockRef = useRef<DockviewApi | null>(null);
-  const resetLayout = useCallback(() => { if (dockRef.current) defaultLayout(dockRef.current); }, []);
+  const titlesRef = useRef("");
+  const resetLayout = useCallback(() => {
+    if (!dockRef.current) return;
+    defaultLayout(dockRef.current);
+    applyViewTitles(dockRef.current, titlesRef.current);
+  }, []);
 
   const canApprove = issued && can("design:approve") && saved.data?.status === "ok" && saved.data?.review_status === "draft";
   const exportHint = issued ? undefined : "Save the design first: reports are issued from a saved revision";
@@ -189,8 +202,12 @@ export function DesignWorkspacePage() {
       if (raw) { e.api.fromJSON(JSON.parse(raw)); restored = true; }
     } catch { restored = false; }
     if (!restored) defaultLayout(e.api);
+    applyViewTitles(e.api, titlesRef.current);
     e.api.onDidLayoutChange(() => { try { localStorage.setItem(key, JSON.stringify(e.api.toJSON())); } catch { /* layout not remembered */ } });
   }, [elementType]);
+
+  const viewTitles = result?.drawing?.views.map((v) => v.title).join("\n") ?? "";
+  useEffect(() => { titlesRef.current = viewTitles; applyViewTitles(dockRef.current, viewTitles); }, [viewTitles]);
 
   if (saved.error) return <div className="p-6 text-[var(--clp-bad)]" role="alert">{(saved.error as Error).message} <Link to="/projects">Back to projects</Link></div>;
   if (elements.isSuccess && elementType && !spec) return <div className="p-6 text-[var(--clp-bad)]" role="alert">This server has no designer for "{elementType}".</div>;

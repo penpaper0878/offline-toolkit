@@ -33,7 +33,7 @@ export type Primitive =
   | { t: "line"; x1: number; y1: number; x2: number; y2: number; layer: Layer }
   | { t: "polyline"; points: [number, number][]; closed: boolean; layer: Layer }
   | { t: "circle"; cx: number; cy: number; r: number; layer: Layer; filled: boolean }
-  | { t: "text"; x: number; y: number; text: string; h: number; anchor: "start" | "middle" | "end"; layer: Layer }
+  | { t: "text"; x: number; y: number; text: string; h: number; anchor: "start" | "middle" | "end"; layer: Layer; rot?: number }
   | { t: "dim"; x1: number; y1: number; x2: number; y2: number; offset: number; horizontal: boolean; text: string; h: number; layer: Layer }
   | { t: "leader"; x: number; y: number; tx: number; ty: number; text: string; h: number; layer: Layer };
 export interface DrawingView { id: string; title: string; scale_note: string; items: Primitive[]; bounds: [number, number, number, number] }
