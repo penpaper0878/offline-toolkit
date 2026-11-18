@@ -18,7 +18,7 @@ def design(client, team, project):
 
 def test_elements_registry_describes_the_beam(client, owner):
     elements = {e["type"]: e for e in client.get("/api/v1/structural/elements", headers=owner).json()}
-    assert set(elements) == {"beam", "column"}
+    assert list(elements) == ["beam", "column", "slab", "footing"]
     beam = elements["beam"]
     assert beam["type"] == "beam" and beam["code_basis"][0] == "IS 456:2000" and beam["limitations"]
     assert beam["defaults"]["clear_span_mm"] == 4000
@@ -185,3 +185,61 @@ def test_column_input_errors_come_back_by_field(client, owner):
     assert r.status_code == 422 and "wall" in r.json()["error"]["message"]
     r = client.post("/api/v1/structural/column/calculate", headers=owner, json={"pu_kn": 0, "fck": 15})
     assert {d["field"] for d in r.json()["error"]["details"]} == {"pu_kn", "fck"}
+
+
+def _life_cycle(client, team, project, element_type, name, change):
+    """Calculate, save, revise, approve and export one element through the shared endpoints."""
+    r = client.post(f"/api/v1/projects/{project['id']}/designs", headers=team["engineer"], json={"element_type": element_type, "name": name, "inputs": {}})
+    assert r.status_code == 201, r.text
+    d = r.json()
+    assert d["element_type"] == element_type and d["status"] == "ok"
+    url = f"/api/v1/designs/{d['id']}"
+    revised = client.put(url, headers=team["engineer"], json={"inputs": {**d["inputs"], **change}}).json()
+    assert revised["revision"] == 1
+    assert client.post(f"{url}/approve", headers=team["reviewer"]).json()["review_status"] == "approved"
+    pdf = client.get(f"{url}/report.pdf", headers=team["viewer"])
+    assert pdf.content.startswith(b"%PDF-") and f'filename="{element_type}_{name}_R1_report.pdf"' in pdf.headers["content-disposition"]
+    wb = openpyxl.load_workbook(io.BytesIO(client.get(f"{url}/bbs.xlsx", headers=team["viewer"]).content))
+    doc = ezdxf.read(io.StringIO(client.get(f"{url}/drawing.dxf", headers=team["viewer"]).content.decode()))
+    assert not doc.audit().errors
+    return d, revised, wb, doc
+
+
+def test_slab_goes_through_the_same_life_cycle(client, team, project):
+    elements = {e["type"]: e for e in client.get("/api/v1/structural/elements", headers=team["viewer"]).json()}
+    slab = elements["slab"]
+    assert slab["title"] == "RCC slab" and slab["defaults"]["span_x_mm"] == 3300 and any("Table 26" in x for x in slab["limitations"])
+    props = slab["input_schema"]["properties"]
+    assert props["long_edge_1"]["group"] and props["span_y_mm"]["unit"] == "mm"
+
+    calc = client.post("/api/v1/structural/slab/calculate", headers=team["viewer"], json={}).json()
+    assert calc["key_results"][0]["value"] == "Two-way, Table 26 case 4" and calc["data"]["case"] == 4
+    assert [v["id"] for v in calc["drawing"]["views"]] == ["plan", "elevation"]
+    one_way = client.post("/api/v1/structural/slab/calculate", headers=team["viewer"], json={"span_y_mm": 7000}).json()
+    assert one_way["data"]["one_way"] and one_way["key_results"][0]["value"] == "One-way"
+    bad = client.post("/api/v1/structural/slab/calculate", headers=team["viewer"], json={"span_x_mm": 5000, "span_y_mm": 4000})
+    assert bad.status_code == 422
+
+    d, revised, wb, doc = _life_cycle(client, team, project, "slab", "S1", {"live_load_kn_m2": 4.0})
+    assert revised["result"]["data"]["wu"] > d["result"]["data"]["wu"]
+    assert wb["BBS"]["B8"].value.startswith("Short span bottom, middle strip")
+    assert {"CLP-REBAR", "CLP-SUPPORT"} <= {layer.dxf.name for layer in doc.layers}
+
+
+def test_footing_goes_through_the_same_life_cycle(client, team, project):
+    elements = {e["type"]: e for e in client.get("/api/v1/structural/elements", headers=team["viewer"]).json()}
+    ft = elements["footing"]
+    assert ft["title"] == "RCC isolated footing" and ft["defaults"]["p_service_kn"] == 800 and ft["defaults"]["length_mm"] is None
+
+    calc = client.post("/api/v1/structural/footing/calculate", headers=team["viewer"], json={}).json()
+    assert calc["key_results"][0]["value"] == "2200 x 2050 x 450" and calc["reinforcement"]["along_l"]["label"] == "8-T20 @ 270"
+    r = client.post("/api/v1/structural/footing/calculate", headers=team["viewer"], json={"length_mm": 2000})
+    assert r.status_code == 422 and "both" in r.json()["error"]["message"].lower()
+
+    d, revised, wb, doc = _life_cycle(client, team, project, "footing", "F1", {"p_service_kn": 1000})
+    assert revised["result"]["data"]["L"] > d["result"]["data"]["L"]
+    assert wb["BBS"]["B8"].value.startswith("Bars along L, bottom, T20")
+    assert "CLP-CONCRETE" in {layer.dxf.name for layer in doc.layers}
+
+    s = client.get("/api/v1/dashboard/summary", headers=team["viewer"]).json()
+    assert s["designs"]["by_type"] == {"footing": 1}

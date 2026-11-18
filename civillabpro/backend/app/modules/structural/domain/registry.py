@@ -14,7 +14,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from app.modules.structural.domain import beam, column
+from app.modules.structural.domain import beam, column, footing, slab
 
 
 @dataclass(frozen=True)
@@ -60,6 +60,38 @@ ELEMENTS: dict[str, ElementSpec] = {
             "Effective length from Table 28 or an entered factor; the frame stability charts of Annex E are not used.",
             "Additional moments are applied about the slender axes only.",
             "One lift per design. Ductile detailing to IS 13920 is not applied.",
+        ),
+    ),
+    slab.ELEMENT_TYPE: ElementSpec(
+        type=slab.ELEMENT_TYPE,
+        title="RCC slab",
+        description="Solid slab panel, one-way or two-way by its spans and edges: Annex D coefficients, flexure, shear, deflection, corner torsion steel.",
+        engine_version=slab.ENGINE_VERSION,
+        code_basis=slab.CODE_BASIS,
+        input_model=slab.SlabInput,
+        design=slab.design_slab,
+        limitations=(
+            "One rectangular panel under uniform load; supports are beams or walls on all four edges.",
+            "Continuous one-way panels use Tables 12 and 13, which assume three or more nearly equal spans.",
+            "Unequal support moments of adjacent two-way panels are not redistributed (Annex D).",
+            "One bar size for the panel; no flat slabs, ribbed slabs, openings or concentrated loads.",
+            "Table 26 coefficients are still to be compared with the printed code (see the code register).",
+        ),
+    ),
+    footing.ELEMENT_TYPE: ElementSpec(
+        type=footing.ELEMENT_TYPE,
+        title="RCC isolated footing",
+        description="Rectangular pad of uniform depth under one column: size from the bearing pressure, depth from bending and shear, central band steel.",
+        engine_version=footing.ENGINE_VERSION,
+        code_basis=footing.CODE_BASIS,
+        input_model=footing.FootingInput,
+        design=footing.design_footing,
+        limitations=(
+            "Uniform depth; sloped and stepped footings are not covered.",
+            "Service loads and moments from the column, with an allowance for own weight; one load case.",
+            "The largest factored pressure is used over the whole footing, which is on the safe side with moments.",
+            "Safe bearing pressure from the soil investigation; settlement is not checked.",
+            "Combined, strap and pile footings are separate elements (backlog).",
         ),
     ),
 }

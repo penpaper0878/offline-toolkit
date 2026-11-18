@@ -1,5 +1,6 @@
-// End-to-end walkthrough in a real browser: register, create a project, design a beam, save,
-// download the report / schedule / drawing, switch theme, search, use the calculator, reload.
+// End-to-end walkthrough in a real browser: register, create a project, design a beam, a column, a slab
+// and a footing, save, download each report / schedule / drawing, switch theme, search, use the calculator,
+// reload.
 //
 //   1. start the API and the web client (see README.md)
 //   2. node e2e/walkthrough.js <folder for screenshots> [base URL, default http://127.0.0.1:5173]
@@ -73,7 +74,7 @@ const BASE = process.argv[3] || process.env.BASE || 'http://127.0.0.1:5173';
   await shot('06-checks');
   await page.getByText('Bar schedule', { exact: true }).first().click();
   await page.waitForTimeout(300);
-  await page.getByText('Elevation', { exact: true }).first().click();
+  await page.getByText('Longitudinal section', { exact: true }).first().click();
   await page.waitForTimeout(400);
   await shot('07-bbs-elevation');
 
@@ -88,7 +89,7 @@ const BASE = process.argv[3] || process.env.BASE || 'http://127.0.0.1:5173';
   await page.keyboard.press('Alt+t');
   await page.waitForTimeout(400);
   await page.getByText('Calculation', { exact: true }).first().click();
-  await page.getByText('Section', { exact: true }).first().click();
+  await page.getByText('Section A-A', { exact: true }).first().click();
   await page.waitForTimeout(300);
   await shot('09-dark-workspace');
   await page.keyboard.press('Control+k');
@@ -129,6 +130,32 @@ const BASE = process.argv[3] || process.env.BASE || 'http://127.0.0.1:5173';
   await shot('c3-column-charts-light');
   await page.keyboard.press('Alt+t');
   await page.waitForTimeout(300);
+
+  // Slab and footing: the drawing tabs follow the element's views (a plan first, then a section).
+  for (const el of [
+    { name: 'slab', link: /New RCC slab/, key: 'Two-way, Table 26 case 4', second: 'Section across the short span' },
+    { name: 'footing', link: /New RCC isolated footing/, key: '2200 x 2050 x 450', second: 'Section along L' },
+  ]) {
+    step(el.name);
+    await page.locator('[data-ribbon="project"]').click();
+    await page.getByRole('link', { name: el.link }).click();
+    await page.getByText(el.key).first().waitFor({ timeout: 15000 });
+    await page.getByText('Plan', { exact: true }).first().waitFor({ timeout: 10000 });
+    await page.waitForTimeout(500);
+    await shot(`${el.name}-1-plan`);
+    await page.keyboard.press('Control+s');
+    await page.waitForURL('**/designs/*', { timeout: 10000 });
+    await page.getByText(/saved/i).first().waitFor();
+    for (const [id, ext] of [['pdf', '.pdf'], ['xlsx', '.xlsx'], ['dxf', '.dxf']]) {
+      const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), page.locator(`[data-ribbon="${id}"]`).click()]);
+      await dl.saveAs(`${out}/export-${el.name}${ext}`);
+      console.log('download', dl.suggestedFilename(), require('fs').statSync(`${out}/export-${el.name}${ext}`).size);
+    }
+    await page.getByText(el.second, { exact: true }).first().click();
+    await page.getByText('Bar schedule', { exact: true }).first().click();
+    await page.waitForTimeout(500);
+    await shot(`${el.name}-2-section-bbs`);
+  }
 
   step('dashboard with data');
   await page.keyboard.press('Alt+1');
