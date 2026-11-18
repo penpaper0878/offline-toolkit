@@ -173,3 +173,58 @@ def test_stirrup_spacing_expressions():
     asv = 2 * math.pi * 8**2 / 4
     assert is456.stirrup_spacing_for_shear(50e3, 415, asv, 400) == pytest.approx(0.87 * 415 * asv * 400 / 50e3)
     assert is456.stirrup_spacing_minimum_steel(415, asv, 230) == pytest.approx(394.5, abs=0.1)
+
+
+# ------------------------------------------------------------------ flanged sections (Cl. 23.1.2, Annex G-2, Fig. 6)
+
+
+def test_effective_flange_width_rules_and_cap():
+    l0, bw, df = 6000.0, 300.0, 120.0
+    assert is456.effective_flange_width("T", l0, bw, df, 5000, False) == pytest.approx(l0 / 6 + bw + 6 * df)
+    assert is456.effective_flange_width("L", l0, bw, df, 5000, False) == pytest.approx(l0 / 12 + bw + 3 * df)
+    assert is456.effective_flange_width("T", l0, bw, df, 1200, True) == pytest.approx(l0 / (l0 / 1200 + 4) + bw)
+    assert is456.effective_flange_width("L", l0, bw, df, 1200, True) == pytest.approx(0.5 * l0 / (l0 / 1200 + 4) + bw)
+    assert is456.effective_flange_width("T", l0, bw, df, 1500, False) == 1500  # never more than the width available
+
+
+def test_flange_depth_yf():
+    assert is456.flange_depth_yf(300, 120) == 120  # 120 <= 3/7 x 300
+    assert is456.flange_depth_yf(200, 120) == pytest.approx(0.15 * 200 + 0.65 * 120)
+    assert is456.flange_depth_yf(7 * 120 / 3, 120) == pytest.approx(120)  # the two rules meet at Df = 3/7 xu
+
+
+def test_flanged_compression_is_continuous_at_the_flange_underside():
+    c_below = is456.flanged_concrete(25, 1500, 300, 120, 500, 120 - 1e-9)[0]
+    c_above = is456.flanged_concrete(25, 1500, 300, 120, 500, 120 + 1e-9)[0]
+    assert c_above == pytest.approx(c_below, rel=1e-6)  # y_f = 0.8 Df at xu = Df, so 0.45 x 0.8 = 0.36
+
+
+def test_design_flanged_reduces_to_known_cases():
+    # neutral axis in the flange: the rectangle b_f x d of G-1.1(b)
+    r = is456.design_flanged(300e6, 25, 415, 1500, 300, 120, 550, 50)
+    assert r.na_in_flange and r.ast_req == pytest.approx(is456.design_rectangular(300e6, 25, 415, 1500, 550, 50).ast_req)
+    # web as wide as the flange: the stress block of a rectangle (G-1.1(b) differs by its rounding only)
+    for mu in (250e6, 400e6):
+        a, b = is456.design_flanged(mu, 25, 500, 300, 300, 120, 550, 50), is456.design_rectangular(mu, 25, 500, 300, 550, 50)
+        assert a.ast_req == pytest.approx(b.ast_req, rel=5e-3) and a.asc_req == pytest.approx(b.asc_req, rel=5e-3)
+    # neutral axis in the web: the steel balances the G-2.2 compression at the x_u that carries M_u
+    r = is456.design_flanged(330e6, 25, 500, 750, 250, 100, 450, 50)
+    assert not r.na_in_flange and 100 < r.xu < is456.xu_max_ratio(500) * 450
+    c, m = is456.flanged_concrete(25, 750, 250, 100, 450, r.xu)
+    assert m == pytest.approx(330e6, rel=1e-6) and r.ast_req == pytest.approx(c / (0.87 * 500))
+    # above the flanged limiting moment: compression steel for the excess
+    r = is456.design_flanged(800e6, 30, 500, 900, 300, 100, 520, 60)
+    assert r.doubly and r.asc_req > 0 and r.mu_lim == pytest.approx(is456.limiting_moment_flanged(30, 500, 900, 300, 100, 520))
+
+
+def test_flanged_capacity_round_trip():
+    for mu in (150e6, 330e6):
+        r = is456.design_flanged(mu, 25, 500, 750, 250, 100, 450, 50)
+        cap = is456.moment_capacity_flanged(25, 500, 750, 250, 100, 450, r.ast_req, 0.0, 50)
+        assert not cap.limited and cap.mu == pytest.approx(mu, rel=4e-3)
+
+
+def test_fig_6_reduction_factor():
+    f = is456.flanged_reduction_factor
+    assert f(0.1) == 0.8 and f(0.3) == 0.8 and f(1.0) == pytest.approx(1.0)
+    assert f(0.65) == pytest.approx(0.9) and f(2.0) == pytest.approx(1.0)

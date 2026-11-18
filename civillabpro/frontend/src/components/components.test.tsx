@@ -60,6 +60,13 @@ describe("property grid", () => {
     expect(validateAll(PROPS, values)).toEqual({ dead: "Not less than 0." });
   });
 
+  it("shows a row whose condition lists several values when any of them is chosen", () => {
+    const flange = { title: "Flange thickness", type: "number", group: "Geometry", show_if: { section: ["t_beam", "l_beam"] } };
+    expect(isVisible(flange, { section: "t_beam" })).toBe(true);
+    expect(isVisible(flange, { section: "l_beam" })).toBe(true);
+    expect(isVisible(flange, { section: "rectangular" })).toBe(false);
+  });
+
   it("renders groups, units and conditional rows, and reports edits", () => {
     const onChange = vi.fn();
     render(<PropertyGrid properties={PROPS} values={{ mode: "loads", width_mm: 230, cover: null, dead: 12, mu: null, self: true }} errors={{ width_mm: "Not less than 150." }} onChange={onChange} />);

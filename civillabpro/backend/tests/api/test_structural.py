@@ -243,3 +243,15 @@ def test_footing_goes_through_the_same_life_cycle(client, team, project):
 
     s = client.get("/api/v1/dashboard/summary", headers=team["viewer"]).json()
     assert s["designs"]["by_type"] == {"footing": 1}
+
+
+def test_flanged_beam_through_the_same_endpoint(client, owner):
+    props = {e["type"]: e for e in client.get("/api/v1/structural/elements", headers=owner).json()}["beam"]["input_schema"]["properties"]
+    assert props["flange_width_mm"]["show_if"] == {"section": ["t_beam", "l_beam"]}
+    r = client.post("/api/v1/structural/beam/calculate", headers=owner,
+                    json={"section": "t_beam", "width_mm": 300, "depth_mm": 550, "flange_thickness_mm": 120, "flange_width_mm": 3000,
+                          "clear_span_mm": 6000, "support_width_mm": 300, "dead_load_kn_m": 30, "live_load_kn_m": 15})
+    res = r.json()
+    assert r.status_code == 200 and res["status"] == "ok" and res["data"]["bf"] == 2070 and res["data"]["na_in_flange"]
+    r = client.post("/api/v1/structural/beam/calculate", headers=owner, json={"section": "l_beam", "flange_width_mm": 200})
+    assert r.status_code == 422 and "more than the web width" in r.json()["error"]["message"]

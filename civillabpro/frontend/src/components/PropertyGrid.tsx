@@ -11,7 +11,9 @@ function core(p: SchemaProp): SchemaProp {
   return p.anyOf?.find((o) => o.type !== "null") ?? p;
 }
 export const isOptional = (p: SchemaProp) => !!p.anyOf?.some((o) => o.type === "null");
-export const isVisible = (p: SchemaProp, values: Values) => !p.show_if || Object.entries(p.show_if).every(([k, v]) => values[k] === v);
+// A row shows when every condition holds; a condition is one value or a list of allowed values.
+export const isVisible = (p: SchemaProp, values: Values) =>
+  !p.show_if || Object.entries(p.show_if).every(([k, v]) => (Array.isArray(v) ? v.includes(values[k]) : values[k] === v));
 
 /** Client-side check against the limits the schema declares; the server remains the authority. */
 export function validateField(p: SchemaProp, value: unknown): string | null {

@@ -1,11 +1,15 @@
 """Rectangular reinforced concrete beam to IS 456:2000 (limit state method).
 
-Scope of version 1.0: simply supported beams and cantilevers of rectangular
-section under a uniformly distributed load, or under factored forces from an
-external analysis (with optional torsion). The engine selects the bars, checks
-flexure, shear, torsion, deflection (span/depth), lateral stability and
-detailing rules, and returns a calculation sheet in which every line cites its
-clause.
+Scope: simply supported beams and cantilevers of rectangular, T or L section
+under a uniformly distributed load, or under factored forces from an external
+analysis (with optional torsion). The engine selects the bars, checks flexure,
+shear, torsion, deflection (span/depth), lateral stability and detailing rules,
+and returns a calculation sheet in which every line cites its clause.
+
+Flanged sections (version 1.1): the effective width of Cl. 23.1.2, flexure by
+Annex G-2 when the flange is in compression (a rectangle of the web width when
+it is in tension, as over a cantilever's support), shear on the web (Cl. 40.1),
+Fig. 6 for deflection, and the self-weight of the rib below the slab.
 
 Worked example (the defaults): 230 x 450 beam, 4.0 m clear span on 230 mm
 supports, M25 / Fe 500, moderate exposure, DL 12 kN/m + LL 8 kN/m. Expected:
@@ -23,11 +27,12 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.engineering import is456
+from app.engineering.is456 import FlangeKind, FlexureDesign, MomentCapacity
 from app.engineering.rebar import MAIN_BAR_DIAMETERS, BarGroup, bar_area
 from app.engineering.trace import CalcSheet
 
 ELEMENT_TYPE = "beam"
-ENGINE_VERSION = "1.0.0"
+ENGINE_VERSION = "1.1.0"
 CODE_BASIS = ("IS 456:2000", "SP 16:1980", "IS 2502:1963")
 REF = is456.CODE
 
@@ -46,6 +51,8 @@ def _f(default: Any, title: str, group: str, unit: str = "", show_if: dict[str, 
 
 
 _LOADS, _FORCES = {"mode": "loads"}, {"mode": "forces"}
+_FLANGED: dict[str, Any] = {"section": ["t_beam", "l_beam"]}
+SECTION_LABELS = {"rectangular": "Rectangular", "t_beam": "T-beam (slab on both sides)", "l_beam": "L-beam (slab on one side)"}
 
 
 class BeamInput(BaseModel):
@@ -58,8 +65,15 @@ class BeamInput(BaseModel):
                           labels={"simply_supported": "Simply supported", "cantilever": "Cantilever"})
     clear_span_mm: float = _f(4000, "Clear span", "Geometry", "mm", ge=300, le=30000, description="Clear projection for a cantilever")
     support_width_mm: float = _f(230, "Support width", "Geometry", "mm", ge=100, le=2000, description="Along the span, each support")
-    width_mm: float = _f(230, "Width b", "Geometry", "mm", ge=150, le=2000)
-    depth_mm: float = _f(450, "Overall depth D", "Geometry", "mm", ge=150, le=3000)
+    section: Literal["rectangular", "t_beam", "l_beam"] = _f("rectangular", "Section", "Geometry", labels=SECTION_LABELS)
+    width_mm: float = _f(230, "Width b", "Geometry", "mm", ge=150, le=2000, description="The web width b_w of a T or L beam")
+    depth_mm: float = _f(450, "Overall depth D", "Geometry", "mm", ge=150, le=3000, description="Including the slab for a T or L beam")
+    flange_thickness_mm: float = _f(120, "Flange thickness D_f", "Geometry", "mm", _FLANGED, ge=50, le=500, description="The slab thickness")
+    flange_width_mm: float = _f(3000, "Flange width available", "Geometry", "mm", _FLANGED, ge=150, le=20000,
+                                description="T-beam: spacing of the beams; L-beam: web plus half the clear distance to the next beam")
+    isolated_flange: bool = _f(False, "Isolated beam", "Geometry", "", _FLANGED, description="The flange is not part of a continuous slab (Cl. 23.1.2(c), (d))")
+    l0_mm: float | None = _f(None, "Distance between points of zero moment l_0", "Geometry", "mm", _FLANGED, gt=0, le=60000,
+                             description="Blank: the effective span (Cl. 23.1.2); about 0.7 l for continuous beams")
 
     fck: Literal[20, 25, 30, 35, 40, 45, 50, 55] = _f(25, "Concrete grade", "Materials", "N/mm2", labels={str(g): f"M{g}" for g in is456.CONCRETE_GRADES})
     fy: Literal[250, 415, 500, 550] = _f(500, "Main steel", "Materials", "N/mm2", labels={str(g): f"Fe {g}" for g in is456.STEEL_GRADES})
@@ -86,6 +100,11 @@ class BeamInput(BaseModel):
 
     @model_validator(mode="after")
     def _consistent(self) -> BeamInput:
+        if self.section != "rectangular":
+            if self.flange_thickness_mm > self.depth_mm - 100:
+                raise ValueError("The flange must be at least 100 mm thinner than the overall depth of the beam.")
+            if self.flange_width_mm <= self.width_mm:
+                raise ValueError("The flange width available must be more than the web width.")
         if self.mode == "forces":
             if self.mu_knm is None or self.vu_kn is None:
                 raise ValueError("Enter the factored moment and shear, or switch to load input.")
@@ -132,7 +151,8 @@ def compute_forces(inp: BeamInput, d: float) -> Forces:
     lc, sw, b, D = inp.clear_span_mm, inp.support_width_mm, inp.width_mm, inp.depth_mm
     cantilever = inp.support == "cantilever"
     l_eff = lc + d / 2.0 if cantilever else min(lc + d, lc + sw)
-    w_self = inp.unit_weight_kn_m3 * b * D * 1e-6 if inp.include_self_weight and inp.mode == "loads" else 0.0
+    rib = D - inp.flange_thickness_mm if inp.section != "rectangular" else D  # a flanged beam's slab is part of the dead load
+    w_self = inp.unit_weight_kn_m3 * b * rib * 1e-6 if inp.include_self_weight and inp.mode == "loads" else 0.0
     if inp.mode == "loads":
         w = inp.dead_load_kn_m + w_self + inp.live_load_kn_m
         wu = inp.load_factor * w
@@ -153,6 +173,41 @@ def compute_forces(inp: BeamInput, d: float) -> Forces:
     me1 = mu + mt
     me2 = mt - mu if mt > mu else 0.0  # Cl. 41.4.2.1
     return Forces(l_eff, w_self, w, wu, mu, vu_face, vu, tu, ve, mt, me1, me2)
+
+
+@dataclass(frozen=True)
+class Flange:
+    kind: FlangeKind
+    df: float  # mm
+    b_actual: float  # mm, width available
+    l0: float  # mm, distance between points of zero moment
+    bf: float  # mm, effective width (Cl. 23.1.2)
+    in_compression: bool  # True for sagging (simply supported); a cantilever's flange is in tension
+
+
+def flange_of(inp: BeamInput, l_eff: float) -> Flange | None:
+    """The flange of a T or L beam for an effective span; None for a rectangular beam."""
+    if inp.section == "rectangular":
+        return None
+    kind: FlangeKind = "T" if inp.section == "t_beam" else "L"
+    l0 = float(inp.l0_mm) if inp.l0_mm else l_eff
+    bf = is456.effective_flange_width(kind, l0, inp.width_mm, inp.flange_thickness_mm, inp.flange_width_mm, inp.isolated_flange)
+    return Flange(kind, inp.flange_thickness_mm, inp.flange_width_mm, l0, bf, inp.support != "cantilever")
+
+
+def flexure_design(inp: BeamInput, fl: Flange | None, md: float, d: float, d_c: float) -> FlexureDesign:
+    """Annex G-2 with the flange in compression, otherwise a rectangle of the (web) width (Annex G-1)."""
+    fck, fy, b = float(inp.fck), float(inp.fy), inp.width_mm
+    if fl is not None and fl.in_compression:
+        return is456.design_flanged(md, fck, fy, fl.bf, b, fl.df, d, d_c)
+    return is456.design_rectangular(md, fck, fy, b, d, d_c)
+
+
+def flexure_capacity(inp: BeamInput, fl: Flange | None, d: float, ast: float, asc: float, d_c: float) -> MomentCapacity:
+    fck, fy, b = float(inp.fck), float(inp.fy), inp.width_mm
+    if fl is not None and fl.in_compression:
+        return is456.moment_capacity_flanged(fck, fy, fl.bf, b, fl.df, d, ast, asc, d_c)
+    return is456.moment_capacity(fck, fy, b, d, ast, asc, d_c)
 
 
 def _tension_candidates(inp: BeamInput, cover: float) -> list[tuple[BarGroup, float, float, float]]:
@@ -220,6 +275,7 @@ def select_bars(inp: BeamInput, cover: float) -> tuple[Arrangement, Forces] | No
         if d <= 0:
             continue
         f = compute_forces(inp, d)
+        fl = flange_of(inp, f.l_eff)
         md, m2 = f.me1 * 1e6, f.me2 * 1e6
         if ten.area > as_max or ten.area < is456.min_tension_steel(b, d, fy):
             continue
@@ -229,10 +285,10 @@ def select_bars(inp: BeamInput, cover: float) -> tuple[Arrangement, Forces] | No
             d_c = cover + dst + oth.dia / 2.0
             if oth.area > as_max or d - d_c <= 0:
                 continue
-            fl = is456.design_rectangular(md, fck, fy, b, d, d_c)
-            if ten.area < fl.ast_req or oth.area < fl.asc_req:
+            fd = flexure_design(inp, fl, md, d, d_c)
+            if ten.area < fd.ast_req or oth.area < fd.asc_req:
                 continue
-            cap = is456.moment_capacity(fck, fy, b, d, ten.area, oth.area, d_c)
+            cap = flexure_capacity(inp, fl, d, ten.area, oth.area, d_c)
             if cap.limited or cap.mu < md:
                 continue
             if m2 > 0:
@@ -296,10 +352,17 @@ def design_beam(inp: BeamInput) -> dict[str, Any]:
     arr, forces = selected
     d, d_c, ten, oth = arr.d, arr.d_c, arr.tension, arr.other
     md = forces.me1 * 1e6
+    flg = flange_of(inp, forces.l_eff)
+    bw_sym = "b_w" if flg else "b"
 
     # ---------------------------------------------------------- section and forces
     sheet.section("2. Section and effective depth")
-    sheet.step("Input", "Width and overall depth", "b x D", "", f"{_n(b, 0)} x {_n(D, 0)}", "mm")
+    if flg:
+        sheet.step("Input", f"{SECTION_LABELS[inp.section]}: web width, overall depth, flange thickness", "b_w x D, D_f", "",
+                   f"{_n(b, 0)} x {_n(D, 0)}, {_n(flg.df, 0)}", "mm")
+        _flange_steps(sheet, inp, flg, forces.l_eff)
+    else:
+        sheet.step("Input", "Width and overall depth", "b x D", "", f"{_n(b, 0)} x {_n(D, 0)}", "mm")
     sheet.step(f"{REF}, Table 16", "Cover to stirrups", "c", "", cover, "mm", 0)
     if len(ten.layers) == 1:
         sheet.step("Geometry", f"Effective depth to the {face_t} steel", "d = D - c - d_st - d_b/2",
@@ -314,13 +377,23 @@ def design_beam(inp: BeamInput) -> dict[str, Any]:
 
     # ------------------------------------------------------------------- flexure
     sheet.section("4. Flexure")
-    fl = is456.design_rectangular(md, fck, fy, b, d, d_c)
+    fl = flexure_design(inp, flg, md, d, d_c)
+    flanged_comp = flg is not None and flg.in_compression
     xr = is456.xu_max_ratio(fy)
     sheet.step(f"{REF}, Cl. 38.1(f)", "Limiting neutral-axis depth", "x_u,max = d x 0.0035 / (0.0055 + 0.87 f_y/E_s)", f"{_n(xr, 3)} x {_n(d, 1)}", fl.xu_max, "mm", 1)
-    sheet.step(f"{REF}, Annex G-1.1(c)", "Limiting moment of resistance", "M_u,lim = 0.36 f_ck b x_u,max (d - 0.42 x_u,max)",
-               f"0.36 x {_n(fck, 0)} x {_n(b, 0)} x {_n(fl.xu_max, 1)} x ({_n(d, 1)} - 0.42 x {_n(fl.xu_max, 1)})",
-               fl.mu_lim / 1e6, "kN m")
-    if not fl.doubly:
+    if flanged_comp:
+        assert flg is not None
+        _flanged_flexure_steps(sheet, flg, fl, md, fck, fy, b, d)
+    else:
+        if flg is not None:
+            sheet.step(f"{REF}, Annex G-1", "The flange is on the tension face (hogging): the section acts as a rectangle of the web width",
+                       "b = b_w", "", b, "mm", 0)
+        sheet.step(f"{REF}, Annex G-1.1(c)", "Limiting moment of resistance", "M_u,lim = 0.36 f_ck b x_u,max (d - 0.42 x_u,max)",
+                   f"0.36 x {_n(fck, 0)} x {_n(b, 0)} x {_n(fl.xu_max, 1)} x ({_n(d, 1)} - 0.42 x {_n(fl.xu_max, 1)})",
+                   fl.mu_lim / 1e6, "kN m")
+    if flanged_comp:
+        pass  # steel steps written by _flanged_flexure_steps
+    elif not fl.doubly:
         sheet.step(f"{REF}, Annex G-1.1(b)", "Singly reinforced: steel required",
                    "A_st = 0.5 (f_ck/f_y) [1 - sqrt(1 - 4.6 M_u / (f_ck b d^2))] b d",
                    f"0.5 x ({_n(fck, 0)}/{_n(fy, 0)}) x [1 - sqrt(1 - 4.6 x {_n(md / 1e6)} x 10^6 / ({_n(fck, 0)} x {_n(b, 0)} x {_n(d, 1)}^2))] x {_n(b, 0)} x {_n(d, 1)}",
@@ -341,15 +414,16 @@ def design_beam(inp: BeamInput) -> dict[str, Any]:
                    fl.ast_req, "mm2", 0)
     ast_min = is456.min_tension_steel(b, d, fy)
     as_max = is456.max_steel(b, D)
-    sheet.step(f"{REF}, Cl. 26.5.1.1(a)", "Minimum tension steel", "A_s,min = 0.85 b d / f_y",
-               f"0.85 x {_n(b, 0)} x {_n(d, 1)} / {_n(fy, 0)}", ast_min, "mm2", 0)
+    sheet.step(f"{REF}, Cl. 26.5.1.1(a)", "Minimum tension steel" + (" (web width for a flanged beam)" if flg else ""),
+               f"A_s,min = 0.85 {bw_sym} d / f_y", f"0.85 x {_n(b, 0)} x {_n(d, 1)} / {_n(fy, 0)}", ast_min, "mm2", 0)
     sheet.step("Selected", f"{face_t.capitalize()} bars provided", "", ten.label(), ten.area, "mm2", 0)
     sheet.step("Selected", f"{face_o.capitalize()} bars provided", "", oth.label(), oth.area, "mm2", 0)
     sheet.check("ast", f"{REF}, Annex G", "Tension steel provided", "A_st,req", max(fl.ast_req, ast_min), "<=", "A_st,prov", ten.area, "mm2", 0)
     if fl.doubly:
         sheet.check("asc", f"{REF}, Annex G-1.2", "Compression steel provided", "A_sc,req", fl.asc_req, "<=", "A_sc,prov", oth.area, "mm2", 0)
-    sheet.check("ast_max", f"{REF}, Cl. 26.5.1.1(b)", "Maximum tension steel (0.04 b D)", "A_st,prov", ten.area, "<=", "0.04 b D", as_max, "mm2", 0)
-    cap = is456.moment_capacity(fck, fy, b, d, ten.area, oth.area, d_c)
+    sheet.check("ast_max", f"{REF}, Cl. 26.5.1.1(b)", f"Maximum tension steel (0.04 {bw_sym} D)", "A_st,prov", ten.area, "<=", f"0.04 {bw_sym} D",
+                as_max, "mm2", 0)
+    cap = flexure_capacity(inp, flg, d, ten.area, oth.area, d_c)
     sheet.step(f"{REF}, Cl. 38.1", "Neutral-axis depth with the bars provided (equilibrium, compression steel stress from its strain)",
                "x_u", "", cap.xu, "mm", 1)
     sheet.check("ductility", f"{REF}, Cl. 38.1(f)", "Section under-reinforced as detailed", "x_u", cap.xu, "<=", "x_u,max", fl.xu_max, "mm", 1)
@@ -378,9 +452,9 @@ def design_beam(inp: BeamInput) -> dict[str, Any]:
         sheet.step(f"{REF}, Cl. 41.3.1", "Equivalent nominal shear stress", "tau_ve = V_e / (b d)",
                    f"{_n(v_design)} x 10^3 / ({_n(b, 0)} x {_n(d, 1)})", tau_v, "N/mm2", 3)
     else:
-        sheet.step(f"{REF}, Cl. 40.1", "Nominal shear stress", "tau_v = V_u / (b d)",
+        sheet.step(f"{REF}, Cl. 40.1", "Nominal shear stress" + (" on the web" if flg else ""), f"tau_v = V_u / ({bw_sym} d)",
                    f"{_n(v_design)} x 10^3 / ({_n(b, 0)} x {_n(d, 1)})", tau_v, "N/mm2", 3)
-    sheet.step(f"{REF}, Table 19", "Tension steel at the section", "p_t = 100 A_st / (b d)",
+    sheet.step(f"{REF}, Table 19", "Tension steel at the section", f"p_t = 100 A_st / ({bw_sym} d)",
                f"100 x {_n(ten.area, 0)} / ({_n(b, 0)} x {_n(d, 1)})", pt, "%", 3)
     sheet.step(f"{REF}, Table 19", "Design shear strength of concrete (interpolated)", "tau_c", "", tc, "N/mm2", 3)
     sheet.check("tau_max", f"{REF}, Table 20", "Maximum shear stress", "tau_v", tau_v, "<=", "tau_c,max", tc_max, "N/mm2", 3)
@@ -445,20 +519,30 @@ def design_beam(inp: BeamInput) -> dict[str, Any]:
     le_m = forces.l_eff / 1000.0
     span_factor = 10.0 / le_m if (le_m > 10.0 and not cantilever) else 1.0
     fs = is456.service_steel_stress(fy, fl.ast_req, ten.area)
-    kt = is456.tension_modification_factor(fs, pt)
-    pc = 100.0 * oth.area / (b * d) if fl.doubly else 0.0
+    b_defl = flg.bf if flanged_comp and flg else b  # Cl. 23.2.1(e): steel percentages on b_f d for flanged beams
+    pt_defl = 100.0 * ten.area / (b_defl * d)
+    kt = is456.tension_modification_factor(fs, pt_defl)
+    pc = 100.0 * oth.area / (b_defl * d) if fl.doubly else 0.0
     kc = is456.compression_modification_factor(pc)
-    allow = basic * span_factor * kt * kc
+    kf = is456.flanged_reduction_factor(b / flg.bf) if flg else 1.0
+    allow = basic * span_factor * kt * kc * kf
     sheet.step(f"{REF}, Cl. 23.2.1(a)", f"Basic span to effective depth ratio ({inp.support.replace('_', ' ')})", "", "", basic, "", 0)
     if span_factor != 1.0:
         sheet.step(f"{REF}, Cl. 23.2.1(b)", "Reduction for spans above 10 m", "10 / l", f"10 / {_n(le_m)}", span_factor, "", 3)
     sheet.step(f"{REF}, Fig. 4", "Steel stress at service", "f_s = 0.58 f_y A_st,req / A_st,prov",
                f"0.58 x {_n(fy, 0)} x {_n(fl.ast_req, 0)} / {_n(ten.area, 0)}", fs, "N/mm2", 1)
+    if flg:
+        sheet.step(f"{REF}, Cl. 23.2.1(e)", "Tension steel for Fig. 4 and 5" + (" on the effective flange width" if flanged_comp else
+                   " on the web (the flange is in tension, on the safe side)"), f"p_t = 100 A_st / ({'b_f' if flanged_comp else 'b_w'} d)",
+                   f"100 x {_n(ten.area, 0)} / ({_n(b_defl, 0)} x {_n(d, 1)})", pt_defl, "%", 3)
     sheet.step(f"{REF}, Fig. 4", "Modification factor for tension steel", "k_t = 1 / (0.225 + 0.00322 f_s + 0.625 log10 p_t) <= 2",
-               f"1 / (0.225 + 0.00322 x {_n(fs, 1)} + 0.625 x log10 {_n(pt, 3)})", kt, "", 3)
+               f"1 / (0.225 + 0.00322 x {_n(fs, 1)} + 0.625 x log10 {_n(pt_defl, 3)})", kt, "", 3)
     sheet.step(f"{REF}, Fig. 5", "Modification factor for compression steel"
                + ("" if fl.doubly else " (taken as 1.0: the hanger bars are not counted)"),
                "k_c = 1 + p_c / (3 + p_c) <= 1.5", f"p_c = {_n(pc, 3)} %", kc, "", 3)
+    if flg:
+        sheet.step(f"{REF}, Cl. 23.2.1(e), Fig. 6", "Reduction factor for flanged beams: 0.8 up to b_w/b_f = 0.3, then linear to 1.0",
+                   "k_f", f"b_w/b_f = {_n(b, 0)}/{_n(flg.bf, 0)} = {_n(b / flg.bf, 3)}", kf, "", 3)
     sheet.check("deflection", f"{REF}, Cl. 23.2.1", "Span to effective depth ratio", "l/d", forces.l_eff / d, "<=", "allowable", allow, "", 2)
     if cantilever and le_m > 10.0:
         sheet.flag("error", "Cantilever longer than 10 m: the span/depth rule does not apply; calculate the deflection (Cl. 23.2.1(b)).",
@@ -482,8 +566,10 @@ def design_beam(inp: BeamInput) -> dict[str, Any]:
         sheet.check("lateral", f"{REF}, Cl. 23.3(b)", "Lateral stability: clear projection not above 25 b or 100 b^2/d",
                     "l", inp.clear_span_mm, "<=", "limit", ls_lim, "mm", 0)
     else:
-        ls_lim = min(60.0 * b, 250.0 * b * b / d)
-        sheet.check("lateral", f"{REF}, Cl. 23.3(a)", "Lateral stability: clear span not above 60 b or 250 b^2/d",
+        bc = flg.bf if flanged_comp and flg else b  # breadth of the compression face
+        ls_lim = min(60.0 * bc, 250.0 * bc * bc / d)
+        sheet.check("lateral", f"{REF}, Cl. 23.3(a)", "Lateral stability: clear span not above 60 b or 250 b^2/d"
+                    + (" (b: the flange, which is the compression face)" if flanged_comp else ""),
                     "l", inp.clear_span_mm, "<=", "limit", ls_lim, "mm", 0)
 
     side = beam_detailing.side_face_bars(inp, cover, ten, oth, torsion=forces.tu > 0)
@@ -502,6 +588,7 @@ def design_beam(inp: BeamInput) -> dict[str, Any]:
         "side_face": side,
         "cover": cover,
         "layer_gap": arr.layer_gap,
+        "section": {"kind": inp.section, "bw": b, "D": D} | ({"df": flg.df, "bf": round(flg.bf, 1), "b_actual": flg.b_actual} if flg else {}),
     }
     anch = {"ld_tension": ld_t, "ld_other": ld_o, "other_in_compression": fl.doubly}
     bbs = beam_detailing.bar_schedule(inp, cover, reinforcement, anch, sheet)
@@ -513,6 +600,14 @@ def design_beam(inp: BeamInput) -> dict[str, Any]:
                            "both are on the safe side.")
     if fl.doubly:
         sheet.flag("info", "The section is doubly reinforced. A deeper section usually costs less steel.")
+    if flg:
+        sheet.flag("info", "Where the slab spans parallel to this beam, provide transverse bars over the beam, at least 60 percent of the "
+                           "slab's mid-span steel, so that the slab acts as the flange.", f"{REF}, Cl. 23.1.1(b)")
+        if inp.mode == "loads" and inp.include_self_weight:
+            sheet.flag("info", "Self-weight is the rib below the slab; the slab's own weight belongs in the dead load entered.")
+        if not flg.in_compression:
+            sheet.flag("info", "The flange is in tension at the support of a cantilever, so it adds no strength; the web is designed "
+                               "as a rectangle.")
 
     checks = sheet.checks()
     utils = [c.util for c in checks if c.util is not None]
@@ -520,6 +615,7 @@ def design_beam(inp: BeamInput) -> dict[str, Any]:
     key_results = [
         {"label": "Design moment", "sym": "M_u", "value": round(md / 1e6, 2), "unit": "kN m", "dp": 2},
         {"label": "Design shear", "sym": "V_u", "value": round(v_design, 2), "unit": "kN", "dp": 2},
+        *([{"label": "Effective flange width", "sym": "b_f", "value": round(flg.bf, 0), "unit": "mm", "dp": 0}] if flg else []),
         {"label": "Tension steel required", "sym": "A_st,req", "value": round(max(fl.ast_req, ast_min), 0), "unit": "mm2", "dp": 0},
         {"label": f"{face_t.capitalize()} bars", "sym": "", "value": ten.label(), "unit": "", "dp": 0},
         {"label": f"{face_o.capitalize()} bars", "sym": "", "value": oth.label(), "unit": "", "dp": 0},
@@ -550,6 +646,8 @@ def design_beam(inp: BeamInput) -> dict[str, Any]:
             "sv_allow": round(sv_allow, 2), "sv": sv, "sv_governing": governing,
             "span_depth": round(forces.l_eff / d, 4), "span_depth_allow": round(allow, 4), "fs": round(fs, 3), "kt": round(kt, 5), "kc": round(kc, 5),
             "ld_tension": round(ld_t, 1),
+            "section": inp.section, "bf": round(flg.bf, 2) if flg else None, "l0": round(flg.l0, 1) if flg else None,
+            "na_in_flange": fl.na_in_flange, "pt_defl": round(pt_defl, 5), "kf": round(kf, 5),
         },
         "reinforcement": reinforcement,
         "sheet": sheet.to_dict(),
@@ -568,7 +666,11 @@ def _forces_section(sheet: CalcSheet, inp: BeamInput, f: Forces, d: float, canti
         sheet.step(f"{REF}, Cl. 22.2(a)", "Effective span: clear span + d, or centre to centre of supports, whichever is less",
                    "l = min(l_c + d, l_c + w_s)", f"min({_n(lc, 0)} + {_n(d, 1)}, {_n(lc, 0)} + {_n(sw, 0)})", f.l_eff, "mm", 0)
     if inp.mode == "loads":
-        if inp.include_self_weight:
+        if inp.include_self_weight and inp.section != "rectangular":
+            sheet.step("IS 875 (Part 1):1987", "Self-weight of the rib below the slab", "w_sw = gamma b_w (D - D_f)",
+                       f"{_n(inp.unit_weight_kn_m3, 0)} x {_n(inp.width_mm / 1000, 3)} x ({_n(inp.depth_mm / 1000, 3)} - "
+                       f"{_n(inp.flange_thickness_mm / 1000, 3)})", f.w_self, "kN/m", 3)
+        elif inp.include_self_weight:
             sheet.step("IS 875 (Part 1):1987", "Self-weight", "w_sw = gamma b D",
                        f"{_n(inp.unit_weight_kn_m3, 0)} x {_n(inp.width_mm / 1000, 3)} x {_n(inp.depth_mm / 1000, 3)}", f.w_self, "kN/m", 3)
         sheet.step("Input", "Characteristic load", "w = DL + w_sw + LL",
@@ -595,6 +697,74 @@ def _forces_section(sheet: CalcSheet, inp: BeamInput, f: Forces, d: float, canti
             sheet.step(f"{REF}, Cl. 41.4.2", "Equivalent bending moment", "M_e1 = M_u + M_t", f"{_n(f.mu)} + {_n(f.mt)}", f.me1, "kN m")
             if f.me2 > 0:
                 sheet.step(f"{REF}, Cl. 41.4.2.1", "Moment on the opposite face", "M_e2 = M_t - M_u", f"{_n(f.mt)} - {_n(f.mu)}", f.me2, "kN m")
+
+
+_WIDTH_RULE = {
+    ("T", False): ("Cl. 23.1.2(a)", "b_f = l_0/6 + b_w + 6 D_f"),
+    ("L", False): ("Cl. 23.1.2(b)", "b_f = l_0/12 + b_w + 3 D_f"),
+    ("T", True): ("Cl. 23.1.2(c)", "b_f = l_0/(l_0/b + 4) + b_w"),
+    ("L", True): ("Cl. 23.1.2(d)", "b_f = 0.5 l_0/(l_0/b + 4) + b_w"),
+}
+
+
+def _flange_steps(sheet: CalcSheet, inp: BeamInput, flg: Flange, l_eff: float) -> None:
+    bw, df, b_act, l0 = inp.width_mm, flg.df, flg.b_actual, flg.l0
+    if inp.l0_mm:
+        sheet.step("Input", "Distance between points of zero moment", "l_0", "", l0, "mm", 0)
+    else:
+        sheet.step(f"{REF}, Cl. 23.1.2", "Distance between points of zero moment: the effective span"
+                   + (" (the flange is in tension; used only for Fig. 6)" if not flg.in_compression else ""), "l_0 = l", "", l0, "mm", 0)
+    clause, eq = _WIDTH_RULE[(flg.kind, inp.isolated_flange)]
+    if inp.isolated_flange:
+        k = 1.0 if flg.kind == "T" else 0.5
+        raw = k * l0 / (l0 / b_act + 4.0) + bw
+        sub = f"{'' if k == 1 else '0.5 x '}{_n(l0, 0)}/({_n(l0, 0)}/{_n(b_act, 0)} + 4) + {_n(bw, 0)}"
+    elif flg.kind == "T":
+        raw, sub = l0 / 6.0 + bw + 6.0 * df, f"{_n(l0, 0)}/6 + {_n(bw, 0)} + 6 x {_n(df, 0)}"
+    else:
+        raw, sub = l0 / 12.0 + bw + 3.0 * df, f"{_n(l0, 0)}/12 + {_n(bw, 0)} + 3 x {_n(df, 0)}"
+    sheet.step(f"{REF}, {clause}", "Effective width of the flange", eq, sub, raw, "mm", 0)
+    sheet.step(f"{REF}, Cl. 23.1.2", "Not more than the width available", "b_f = min(b_f, b)", f"min({_n(raw, 0)}, {_n(b_act, 0)})", flg.bf, "mm", 0)
+
+
+def _flanged_flexure_steps(sheet: CalcSheet, flg: Flange, fl: FlexureDesign, md: float, fck: float, fy: float, bw: float, d: float) -> None:
+    bf, df = flg.bf, flg.df
+    mu_f = 0.36 * fck * bf * df * (d - 0.42 * df)
+    xm = fl.xu_max
+    yf_m = is456.flange_depth_yf(xm, df)
+    if df >= xm:
+        sheet.step(f"{REF}, Annex G-2.1", "D_f is not less than x_u,max: the neutral axis stays in the flange; a rectangle b_f wide",
+                   "M_u,lim = 0.36 f_ck b_f x_u,max (d - 0.42 x_u,max)", "", fl.mu_lim / 1e6, "kN m")
+    else:
+        g = "G-2.2.1" if yf_m >= df - 1e-9 else "G-2.2.2"
+        sub_yf = "" if g == "G-2.2.1" else f"y_f = 0.15 x {_n(xm, 1)} + 0.65 x {_n(df, 0)} = {_n(yf_m, 1)}; "
+        sheet.step(f"{REF}, Annex {g}", "Limiting moment of the flanged section (y_f = D_f while D_f <= 3/7 x_u,max, else 0.15 x_u + 0.65 D_f)",
+                   "M_u,lim = 0.36 f_ck b_w x_u,max (d - 0.42 x_u,max) + 0.45 f_ck (b_f - b_w) y_f (d - y_f/2)",
+                   f"{sub_yf}0.36 x {_n(fck, 0)} x {_n(bw, 0)} x {_n(xm, 1)} x ({_n(d, 1)} - 0.42 x {_n(xm, 1)}) + 0.45 x {_n(fck, 0)} x "
+                   f"({_n(bf, 0)} - {_n(bw, 0)}) x {_n(yf_m, 1)} x ({_n(d, 1)} - {_n(yf_m, 1)}/2)", fl.mu_lim / 1e6, "kN m")
+        sheet.step(f"{REF}, Annex G-2.1", "Moment with the neutral axis at the underside of the flange", "M_u,f = 0.36 f_ck b_f D_f (d - 0.42 D_f)",
+                   f"0.36 x {_n(fck, 0)} x {_n(bf, 0)} x {_n(df, 0)} x ({_n(d, 1)} - 0.42 x {_n(df, 0)})", mu_f / 1e6, "kN m")
+    if fl.doubly:
+        sheet.step(f"{REF}, Annex G-2.2", "M_u exceeds M_u,lim: doubly reinforced. Steel balancing the concrete at x_u,max",
+                   "A_st1 = C(x_u,max) / (0.87 f_y)", "", fl.ast_lim, "mm2", 0)
+        sheet.step(f"{REF}, Cl. 38.1(b)", "Strain in the compression steel", "eps_sc = 0.0035 (1 - d'/x_u,max)", "", fl.eps_sc, "", 5)
+        sheet.step(f"{REF}, Fig. 23", "Stress in the compression steel at that strain", "f_sc", "", fl.fsc, "N/mm2", 1)
+        sheet.step("SP 16:1980, Cl. 2.3.2", "Compression steel required (concrete displaced deducted, f_cc = 0.446 f_ck)",
+                   "A_sc = (M_u - M_u,lim) / [(f_sc - f_cc)(d - d')]", "", fl.asc_req, "mm2", 0)
+        sheet.step(f"{REF}, Annex G-1.2", "Tension steel required", "A_st = A_st1 + A_sc (f_sc - f_cc) / (0.87 f_y)", "", fl.ast_req, "mm2", 0)
+    elif fl.na_in_flange:
+        sheet.step(f"{REF}, Annex G-2.1", "M_u <= M_u,f: the neutral axis lies in the flange; singly reinforced rectangle b_f x d",
+                   "A_st = 0.5 (f_ck/f_y) [1 - sqrt(1 - 4.6 M_u / (f_ck b_f d^2))] b_f d",
+                   f"0.5 x ({_n(fck, 0)}/{_n(fy, 0)}) x [1 - sqrt(1 - 4.6 x {_n(md / 1e6)} x 10^6 / ({_n(fck, 0)} x {_n(bf, 0)} x {_n(d, 1)}^2))] "
+                   f"x {_n(bf, 0)} x {_n(d, 1)}", fl.ast_req, "mm2", 0)
+        sheet.step(f"{REF}, Annex G-2.1", "Neutral-axis depth, within the flange", "x_u = 0.87 f_y A_st / (0.36 f_ck b_f)", "", fl.xu, "mm", 1)
+    else:
+        yf = is456.flange_depth_yf(fl.xu, df)
+        sheet.step(f"{REF}, Annex G-2.2", "M_u,f < M_u <= M_u,lim: the neutral axis lies in the web; x_u from the G-2.2 moment with x_u for x_u,max",
+                   "M_u = 0.36 f_ck b_w x_u (d - 0.42 x_u) + 0.45 f_ck (b_f - b_w) y_f (d - y_f/2)", f"y_f = {_n(yf, 1)} mm", fl.xu, "mm", 1)
+        sheet.step(f"{REF}, Annex G-2.2", "Tension steel balancing the compression", "A_st = [0.36 f_ck b_w x_u + 0.45 f_ck (b_f - b_w) y_f] / (0.87 f_y)",
+                   f"[0.36 x {_n(fck, 0)} x {_n(bw, 0)} x {_n(fl.xu, 1)} + 0.45 x {_n(fck, 0)} x ({_n(bf, 0)} - {_n(bw, 0)}) x {_n(yf, 1)}] / "
+                   f"(0.87 x {_n(fy, 0)})", fl.ast_req, "mm2", 0)
 
 
 def _stopped(inp: BeamInput, sheet: CalcSheet, message: str) -> dict[str, Any]:

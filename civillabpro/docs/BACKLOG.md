@@ -3,7 +3,7 @@
 Ordered within each epic. IDs are stable: refer to them in commits and in [PROJECT_MEMORY.md](PROJECT_MEMORY.md).
 State: **done**, **next** (the item to start with), **ready** (can be started), **later** (needs something before it).
 
-## Done (versions 0.1 to 0.3)
+## Done (versions 0.1 to 0.4)
 
 | ID | Item |
 |---|---|
@@ -35,6 +35,8 @@ State: **done**, **next** (the item to start with), **ready** (can be started), 
 | STR-012 | Two-way slab, corners held down (Table 26) or free (Table 27), torsion steel (0.3.0) |
 | STR-013 | Isolated footing: plan, depth, one-way and punching shear, central band, anchorage, bearing (0.3.0) |
 | UI-006 | Drawing tabs follow each element's views; vertical text in drawings (0.3.0) |
+| STR-014 | Beam engine 1.1.0: flanged sections (T and L), Annex G-2, Fig. 6, rib quantities and drawing (0.4.0) |
+| UI-007 | Conditional property rows on a list of values (`show_if` with several values) (0.4.0) |
 
 ## Epic STR: structural design
 
@@ -44,8 +46,7 @@ State: **done**, **next** (the item to start with), **ready** (can be started), 
 | STR-033 | Slab: unequal support moments of adjacent panels (Annex D-1.1 distribution) | ready | needs a panel group: several slabs sharing edges |
 | STR-034 | Footing: sloped and stepped footings | ready | Cl. 34.1.2, 34.4 frustum already in place |
 | STR-035 | Footing: pressure distribution with moments for bending (instead of the uniform maximum) | ready | lighter footings under large moments |
-| STR-014 | Beam: flanged sections (T and L) | **next** | Cl. 23.1, Annex G-2; the last phase 1 items are STR-014 to STR-017 |
-| STR-015 | Beam: continuous spans by Table 12 and 13 coefficients | ready | Cl. 22.5 |
+| STR-015 | Beam: continuous spans by Table 12 and 13 coefficients | **next** | Cl. 22.5; the last phase 1 items are STR-015 to STR-017 |
 | STR-016 | Beam: bar curtailment and stirrup zones | ready | Cl. 26.2.3; cuts steel on long spans |
 | STR-017 | Beam: anchorage check at simple supports | ready | Cl. 26.2.3.3(c), Ld <= 1.3 M1/V + L0 |
 | STR-018 | Beam: calculated deflection and crack width | later | Annex C, Annex F |

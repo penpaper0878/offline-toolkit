@@ -33,13 +33,13 @@ ELEMENTS: dict[str, ElementSpec] = {
     beam.ELEMENT_TYPE: ElementSpec(
         type=beam.ELEMENT_TYPE,
         title="RCC beam",
-        description="Rectangular simply supported or cantilever beam: flexure, shear, torsion, deflection and detailing.",
+        description="Rectangular, T or L beam, simply supported or cantilever: flexure, shear, torsion, deflection and detailing.",
         engine_version=beam.ENGINE_VERSION,
         code_basis=beam.CODE_BASIS,
         input_model=beam.BeamInput,
         design=beam.design_beam,
         limitations=(
-            "Rectangular sections only: flanged (T and L) beams are not yet covered.",
+            "T and L beams take the slab as the flange (Cl. 23.1.2); the slab's own reinforcement is designed with the slab.",
             "Uniformly distributed load, or factored forces from an external analysis. Continuous beams by force input.",
             "No curtailment of bars and one stirrup spacing along the span.",
             "Deflection by the span/depth rule of Cl. 23.2.1; no calculated deflection or crack width.",

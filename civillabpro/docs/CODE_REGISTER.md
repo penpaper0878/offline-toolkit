@@ -12,7 +12,7 @@ Status last checked: 16 November 2026. Column clauses added 17 November 2026; sl
 | Status | Current. Reaffirmed 2021. |
 | Amendments | Nos. 1 to 6. Amendment No. 6 is dated April 2024 (published August 2024); the excerpt consulted changes Cl. 5.1 (cement references, including composite cement to IS 16415) and deletes Cl. 17.5 in favour of a load test under Cl. 17.6. None of the clauses listed below is touched by that excerpt. |
 | Revision | A fifth revision ("Structural concrete") has been in draft; secondary sources report it was circulated for comment in 2025 and was still being processed in early 2026. IS 456:2000 remains the enforceable standard. Review this entry when the revision is published. |
-| Used by | beam engine 1.0.0, column engine 1.0.0, slab engine 1.0.0, footing engine 1.0.0 |
+| Used by | beam engine 1.1.0, column engine 1.0.0, slab engine 1.0.0, footing engine 1.0.0 |
 
 ### Clauses taken
 
@@ -63,6 +63,38 @@ The values below were transcribed from the 2000 text as commonly published. Each
 * Cl. 26.2.1.1 bond stresses for M20 to M40 (test: the familiar multiples 47d, 40d, 57d, 45d).
 * Whether Amendments 1 to 5 alter any clause in the table above. Their text was not read when this entry was written; Table 16 and Table 5 (durability) are the first to confirm.
 * Cl. 23.3 limits (60 b or 250 b^2/d; 25 b or 100 b^2/d).
+
+### Beam engine 1.1.0: flanged sections (T and L)
+
+The code text was not read (as for the column); the effective-width formulas, Annex G-2 and the 60 percent rule of Cl. 23.1.1 were corroborated by secondary sources.
+
+| Clause | Subject | Where |
+|---|---|---|
+| Cl. 23.1.1(b) | transverse reinforcement over the beam when the slab spans parallel to it | flag |
+| Cl. 23.1.2(a) to (d) | effective width of T, L, isolated T and isolated L flanges, not more than the width available | `is456.effective_flange_width` |
+| Annex G-2.1 | neutral axis in the flange: a rectangle b_f wide | `is456.design_flanged` |
+| Annex G-2.2, G-2.2.1, G-2.2.2 | neutral axis in the web: web rectangle plus outstands at 0.45 f_ck over y_f; x_u for x_u,max below the limit | `is456.flanged_concrete`, `design_flanged`, `moment_capacity_flanged` |
+| Cl. 23.2.1(e), Fig. 6 | span/depth reduction for flanged beams; percentages on b_f d | `is456.flanged_reduction_factor`, beam deflection section |
+| Cl. 40.1 | shear on the web width | beam shear section |
+| Cl. 26.5.1.1 | minimum and maximum steel on the web width | beam flexure section |
+| Cl. 23.3 | lateral stability with b the breadth of the compression face (the flange) | beam check `lateral` |
+
+### Beam engine: flanged interpretations
+
+42. **y_f in the web range.** y_f = min(0.15 x_u + 0.65 D_f, D_f) is used for every neutral axis below the flange. It equals D_f exactly when D_f <= 3/7 x_u, the condition the code states as D_f/d <= 0.2 at x_u,max. With x_u below x_u,max (G-2.2 lets x_u replace x_u,max) the literal G-2.2.1 would keep D_f even where the flange reaches below the uniform part of the stress block; using y_f there is on the safe side and keeps the compression continuous at x_u = D_f (0.45 x 0.8 = 0.36). Same reading as Pillai and Menon.
+43. **Neutral axis in the flange** when M_u <= 0.36 f_ck b_f D_f (d - 0.42 D_f), or when D_f >= x_u,max; then G-1.1(b) with b = b_f.
+44. **Compression steel in a flanged section** carries M_u - M_u,lim with M_u,lim from G-2.2 at x_u,max, as in G-1.2 (concrete displaced deducted, interpretation 3).
+45. **l_0** is the effective span unless entered; for continuous beams the user enters it (about 0.7 l, Cl. 23.1.2 note).
+46. **Flange in tension** (a cantilever's support): the web is designed as a rectangle; Fig. 6 still reduces the span/depth ratio, with p_t on b_w d (on the safe side).
+47. **Self-weight** of a flanged beam is the rib below the slab, b_w (D - D_f); the slab is part of the dead load entered. Quantities measure the rib, and an L-beam's outer face is formed to the full depth.
+48. **Maximum steel** 0.04 b_w D (Cl. 26.5.1.1(b) printed as 0.04 b D).
+
+### Beam engine: flanged, to cross-check against a printed copy
+
+* Fig. 6: the curve's end points (0.8 up to b_w/b_f = 0.3, linear to 1.0). One handbook tabulates 0.82 at 0.3 and 0.80 at 0.1, which no straight line through those points matches; BS 8110 Table 3.9, from which the figure appears to derive, gives 0.8 up to 0.3 with linear interpolation.
+* Cl. 23.1.2(c), (d): the isolated-beam expressions, and whether b is the actual flange width (as used).
+* Cl. 23.1.1(b): the extent of the transverse bars (the corroborating sources give the 60 percent but not the extent).
+* Annex G-2.2: the wording that lets x_u replace x_u,max.
 
 ### Column engine 1.0.0: clauses taken
 
@@ -221,6 +253,12 @@ Column clauses (secondary sources; the code text was not read):
 * Transverse reinforcement rules: https://civilengineeringweb.com/?p=3349, https://www.scribd.com/document/700539417/Columns
 * Biaxial bending and P_uz: https://www.scribd.com/document/130508541/m10l26, https://infralens.in/term/biaxial-bending
 * Effective length: https://infralens.in/handbook/effective-length-factors (one page there labels theoretical factors as Table 28: not relied on)
+
+Flanged beam clauses (secondary sources; the code text was not read):
+
+* Effective width and Annex G-2: https://engineeringhulk.com/civil/rcc-design/t-beam-l-beam/, https://limitstatelessons.blogspot.com/2015/09/Effective-flange-width-of-T-beams-and-L-beams.html, https://limitstatelessons.blogspot.com/2015/09/chapter-9-cont3.html, https://rcet.org.in/uploads/academics/rohini_65680000162.pdf, https://www.scribd.com/doc/316351967/m5l10
+* Fig. 6 (conflicting): https://infralens.in/handbook/slab-span-depth-ratios
+* Cl. 23.1.1: https://es.scribd.com/document/236237374/FLANGED-BEAMS, https://limitstatelessons.blogspot.com/2015/10/Deflection-control-preliminary-dimensions-of-flanged-beams-T-beams.html
 
 Slab and footing clauses (secondary sources; the code text was not read):
 

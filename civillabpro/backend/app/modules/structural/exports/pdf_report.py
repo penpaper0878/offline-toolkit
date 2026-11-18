@@ -317,7 +317,7 @@ def _input_rows(schema: dict[str, Any], inputs: dict[str, Any]) -> list[tuple[st
     groups: dict[str, list[list[Any]]] = {}
     for key, prop in schema.get("properties", {}).items():
         show_if = prop.get("show_if")
-        if show_if and any(inputs.get(k) != v for k, v in show_if.items()):
+        if show_if and any((inputs.get(k) not in v) if isinstance(v, list) else inputs.get(k) != v for k, v in show_if.items()):
             continue
         value = inputs.get(key)
         labels = prop.get("labels") or {}

@@ -165,8 +165,14 @@ def quantities(inp: BeamInput, bbs: dict[str, Any]) -> dict[str, Any]:
     lc, sw, b, D = inp.clear_span_mm, inp.support_width_mm, inp.width_mm, inp.depth_mm
     cantilever = inp.support == "cantilever"
     length = lc + (sw if cantilever else 2.0 * sw)
-    concrete = b * D * length * 1e-9
-    formwork = (b + 2.0 * D) * lc * 1e-6 + (b * D * 1e-6 if cantilever else 0.0)
+    flanged = inp.section != "rectangular"
+    rib = D - inp.flange_thickness_mm if flanged else D  # a flanged beam is measured below the slab
+    concrete = b * rib * length * 1e-9
+    if inp.section == "l_beam":  # the outer face of an edge beam is formed to the full depth
+        sides, side_text = rib + D, "the inner side below the slab and the outer side to the full depth"
+    else:
+        sides, side_text = 2.0 * rib, "both sides" + (" below the slab" if flanged else "")
+    formwork = (b + sides) * lc * 1e-6 + (b * rib * 1e-6 if cantilever else 0.0)
     steel = bbs["total_weight_kg"]
     return {
         "length_m": round(length / 1000.0, 3),
@@ -175,8 +181,9 @@ def quantities(inp: BeamInput, bbs: dict[str, Any]) -> dict[str, Any]:
         "steel_kg": round(steel, 1),
         "steel_kg_per_m3": round(steel / concrete, 1) if concrete > 0 else None,
         "basis": [
-            "Concrete measured over the bearings (clear span plus the supports).",
-            "Formwork: soffit and both sides over the clear span" + (", plus the free end." if cantilever else "."),
+            "Concrete measured over the bearings (clear span plus the supports)"
+            + ("; the rib below the slab only, the slab being measured with the slab." if flanged else "."),
+            f"Formwork: soffit and {side_text} over the clear span" + (", plus the free end." if cantilever else "."),
             "Steel from the bar bending schedule.",
         ],
     }
@@ -198,8 +205,27 @@ def drawing(inp: BeamInput, cover: float, reinf: dict[str, Any], bbs: dict[str, 
 
     # ------------------------------------------------------------ cross-section
     sec = model.view("section", "Section A-A", "to scale")
-    th = max(b, D) / 20.0
-    sec.rect(0, 0, b, D, "concrete")
+    shape = reinf.get("section") or {"kind": "rectangular"}
+    flanged = shape["kind"] != "rectangular"
+    tee = shape["kind"] == "t_beam"
+    e_l = e_r = 0.0  # drawn flange outstands, left and right
+    if flanged:
+        df = shape["df"]
+        full = (shape["bf"] - b) / (2.0 if tee else 1.0)
+        e = min(full, max(1.2 * b, 300.0))  # a stub of the flange, broken off when it is wider
+        e_l, e_r = e, (e if tee else 0.0)
+    th = max(b + e_l + e_r, D) / 20.0
+    if not flanged:
+        sec.rect(0, 0, b, D, "concrete")
+    else:
+        def brk(x: float, out: float) -> list[tuple[float, float]]:  # a break line up the end of the flange
+            y0 = D - df
+            return [(x, y0 + 0.30 * df), (x + out * 0.12 * df, y0 + 0.42 * df), (x - out * 0.12 * df, y0 + 0.58 * df), (x, y0 + 0.70 * df)]
+        pts = [(-e_l, D), (b + e_r, D)]
+        if tee:  # down the right-hand break, then in to the web
+            pts += list(reversed(brk(b + e_r, 1.0))) + [(b + e_r, D - df), (b, D - df)]
+        pts += [(b, 0), (0, 0), (0, D - df), (-e_l, D - df)] + brk(-e_l, -1.0)
+        sec.polyline(pts, closed=True, layer="concrete")
     o = cover + dst / 2.0
     r = 2.0 * dst
     sec.polyline(
@@ -236,14 +262,19 @@ def drawing(inp: BeamInput, cover: float, reinf: dict[str, Any], bbs: dict[str, 
             sec.circle(xs, y, side["dia"] / 2.0, "rebar")
             sec.circle(b - xs, y, side["dia"] / 2.0, "rebar")
     sec.dim(0, 0, b, 0, -2.2 * th, f"{b:.0f}", th)
-    sec.dim(0, 0, 0, D, -2.2 * th, f"{D:.0f}", th)
-    lx = b + 1.5 * th
+    if flanged:  # chained: the rib on the web face, the flange at its end; the overall depth in the caption
+        sec.dim(0, 0, 0, D - df, -1.2 * th, f"{D - df:.0f}", th)
+        sec.dim(-e_l, D - df, -e_l, D, -1.2 * th, f"{df:.0f}", th)
+        sec.text((b + e_r - e_l) / 2.0, D + 0.8 * th, f"Effective flange width b_f = {shape['bf']:.0f}", 0.8 * th, "middle")
+    else:
+        sec.dim(0, 0, 0, D, -2.2 * th, f"{D:.0f}", th)
+    lx = b + e_r + 1.5 * th
     sec.leader(b - cover - dst - top["dia"] / 2.0, D - cover - dst - top["dia"] / 2.0, lx, D - th, top["label"], th)
     sec.leader(b - o, D / 2.0, lx, D / 2.0, st["label"], th)
     if side:
         sec.leader(b - cover - dst - side["dia"] / 2.0, D * 0.36, lx, D * 0.30, side["label"], th)
     sec.leader(b - cover - dst - bot["dia"] / 2.0, cover + dst + bot["dia"] / 2.0, lx, 0.2 * th, bot["label"], th)
-    sec.text(b / 2.0, -5.2 * th, f"Cover {cover:.0f} mm to stirrups", 0.8 * th, "middle")
+    sec.text(b / 2.0, -5.2 * th, (f"Overall depth {D:.0f} mm; c" if flanged else "C") + f"over {cover:.0f} mm to stirrups", 0.8 * th, "middle")
 
     # ---------------------------------------------------------------- elevation
     elev = model.view("elevation", "Longitudinal section", "to scale")
@@ -256,6 +287,8 @@ def drawing(inp: BeamInput, cover: float, reinf: dict[str, Any], bbs: dict[str, 
     if cantilever:
         elev.rect(0, -0.75 * D, sw, 2.5 * D, "support")
         elev.polyline([(sw, 0), (total, 0), (total, D), (sw, D)], closed=False, layer="concrete")
+        if flanged:
+            elev.line(sw, D - df, total, D - df, "centerline")
         x_end = total - cover
         elev.line(cover, y_t, x_end, y_t, "rebar")
         if leg:
@@ -269,6 +302,8 @@ def drawing(inp: BeamInput, cover: float, reinf: dict[str, Any], bbs: dict[str, 
         elev.rect(0, -sh, sw, sh, "support")
         elev.rect(total - sw, -sh, sw, sh, "support")
         elev.rect(0, 0, total, D, "concrete")
+        if flanged:
+            elev.line(0, D - df, total, D - df, "centerline")  # soffit of the slab beside the web
         elev.line(cover, y_b, total - cover, y_b, "rebar")
         if leg:
             elev.line(cover, y_b, cover, y_b + leg, "rebar")
@@ -292,6 +327,7 @@ def drawing(inp: BeamInput, cover: float, reinf: dict[str, Any], bbs: dict[str, 
     model.notes = [
         f"Concrete M{inp.fck}; main bars Fe {inp.fy}; stirrups Fe {inp.fy_stirrup}.",
         f"Nominal cover {cover:.0f} mm to stirrups ({inp.exposure.replace('_', ' ')} exposure).",
+        *(["The flange is the slab, cast with the beam; its bars are the slab's. Dashed line in the elevation: slab soffit."] if flanged else []),
         "All dimensions in millimetres. Do not scale from the drawing.",
     ]
     return model.to_dict()

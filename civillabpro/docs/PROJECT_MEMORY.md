@@ -16,7 +16,7 @@ Version 0.3.0. Phase 1's exit criterion is met: beam, column, slab and isolated 
 |---|---|
 | Platform core (identity, roles, audit, projects) | built, tested on SQLite and PostgreSQL 16 |
 | Shell and client | built, walked through in a browser in light and dark |
-| Structural: beam engine 1.0.0 | built, independent hand check passing |
+| Structural: beam engine 1.1.0 (rectangular, T, L) | built, independent hand check passing; Fig. 6 and Cl. 23.1.2(c), (d) to compare with the code |
 | Structural: column engine 1.0.0 | built, independent hand check passing; code text not yet compared (see the code register) |
 | Structural: slab engine 1.0.0 (one-way, two-way) | built, independent hand check passing; Table 26 rows and Annex D extents to compare with the code |
 | Structural: isolated footing engine 1.0.0 | built, independent hand check passing; Cl. 34 wording to compare with the code |
@@ -31,7 +31,7 @@ Test counts at 0.3.0: backend 256 (216 engineering, architecture and hand checks
 ## NEXT STEPS
 
 1. **STR-009, blocked: compare the column, slab and footing clauses with the code text** (the three "To cross-check" lists in the code register). It needs the user: either approval of a direct download of the public copy, or the pages pasted into the session. Do not work around a declined download. Fix anything that differs and re-run every hand check.
-2. **STR-014 flanged beams**, then STR-015 continuous beams by Tables 12 and 13 (the coefficients are already in `is456_slabs.py`), STR-016 curtailment and stirrup zones, STR-017 anchorage at simple supports. These close phase 1.
+2. **STR-015 continuous beams by Tables 12 and 13** (the coefficients are already in `is456_slabs.py`; the support section is a rectangle of the web width because the flange is in tension there, which `flexure_design` already handles), then STR-016 curtailment and stirrup zones, STR-017 anchorage at simple supports. These close phase 1 and make release 0.4.0; `docs/modules/04-beam-extensions.md` grows with each.
 3. PLAT-010 desktop shell, then phase 2 (STR-020 combined and strap footing; estimation; standards library).
 
 ## Decisions (do not reopen without a reason recorded here)
@@ -62,6 +62,8 @@ Test counts at 0.3.0: backend 256 (216 engineering, architecture and hand checks
 | D22 | The workspace's two drawing panels show an element's first and second views and take their titles; panel ids stay fixed | plans for slabs and footings, sections for members, and saved layouts keep working |
 | D23 | Footing bars: straight at any depth before bent ends; an automatic plan grows to anchor the bars rather than stopping | site practice prefers straight bars; a stop for a small, lightly loaded footing told the user nothing useful |
 | D24 | Top bars over a support shared with the next panel are scheduled whole with the panel being designed, and the schedule says so | one schedule per design, no half bars; the adjacent panel leaves them out |
+| D25 | Flanged beams are an option of the beam element (`section`), not a separate element; flexure dispatches on whether the flange is in compression | one engine, one hand check and one schedule for every beam; continuous beams need both cases in one design |
+| D26 | `show_if` may list several values | the flange rows serve both T and L sections without duplicating fields |
 
 Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not here.
 
@@ -99,6 +101,14 @@ Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not her
 * Library versions at 0.1.0 are recent majors (React 19, MUI 9, Vite 8, Tailwind 4, TypeScript 7, dockview-react 8, recharts 3, FastAPI 0.16x, SQLAlchemy 2.1). Check the installed typings before assuming an older API.
 
 ## Log
+
+### 0.4.0 in progress (18 November 2026): STR-014 flanged beams
+
+* Built: flanged-section rules in the kernel (`is456.py`: effective width, Annex G-2 compression, design and capacity, Fig. 6); beam engine 1.1.0 with `section` (rectangular, T, L) and the flange inputs; rib self-weight and quantities; section drawing with the flange and chained depth dimensions; `show_if` with a list of values (grid and PDF). Details in `docs/modules/04-beam-extensions.md`.
+* Worked example: T-beam 300 x 550, slab 120, beams at 3 m, 6 m clear span, M25 / Fe 500, DL 30 + LL 15 kN/m: b_f 2070, axis in the flange, A_st,req 1732 mm2, 9-T16, 15 of 15 checks.
+* Hand check: 8 flanged cases added (axis in flange and web, y_f < D_f, isolated T and L, doubly reinforced, entered l_0, cantilever with the flange in tension); 501 values over 25 cases agree.
+* Code text: not read. Fig. 6 is the item most worth comparing (one secondary source tabulates different points).
+* A comparison I first wrote into the module note (the rectangle needing about 4 percent more steel) was wrong; measured, it is 18 percent, and the note now gives the measured figures.
 
 ### 0.3.0 (18 November 2026): RCC slab and isolated footing
 
