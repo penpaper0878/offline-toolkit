@@ -3,7 +3,7 @@
 Ordered within each epic. IDs are stable: refer to them in commits and in [PROJECT_MEMORY.md](PROJECT_MEMORY.md).
 State: **done**, **next** (the item to start with), **ready** (can be started), **later** (needs something before it).
 
-## Done in version 0.1
+## Done (versions 0.1 to 0.3)
 
 | ID | Item |
 |---|---|
@@ -30,22 +30,27 @@ State: **done**, **next** (the item to start with), **ready** (can be started), 
 | STR-010 | Column engine 1.0.0: slenderness, minimum eccentricity, additional moments, biaxial bending, ties (0.2.0) |
 | ENG-004 | Section analysis kernel `rc_section` (0.2.0) |
 | UI-005 | Charts in the result contract, the workspace and the PDF (0.2.0) |
+| ENG-005 | Slab rules kernel `is456_slabs`: Tables 12, 13, 26, 27, Annex D, slab shear factor (0.3.0) |
+| STR-011 | One-way slab: simply supported and continuous strips (0.3.0) |
+| STR-012 | Two-way slab, corners held down (Table 26) or free (Table 27), torsion steel (0.3.0) |
+| STR-013 | Isolated footing: plan, depth, one-way and punching shear, central band, anchorage, bearing (0.3.0) |
+| UI-006 | Drawing tabs follow each element's views; vertical text in drawings (0.3.0) |
 
 ## Epic STR: structural design
 
 | ID | Item | State | Notes |
 |---|---|---|---|
-| STR-009 | Compare the column clauses with the printed code | **next** | the cross-check list in CODE_REGISTER.md; needs the code text |
-| STR-011 | One-way slab | **next after STR-009** | Cl. 22, 23.2, 24, 26.5.2 |
-| STR-012 | Two-way slab, restrained and simply supported | ready | Annex D coefficients; torsion steel at corners |
-| STR-013 | Isolated footing | ready | Cl. 34; one-way and punching shear; needs safe bearing capacity input |
-| STR-014 | Beam: flanged sections (T and L) | ready | Cl. 23.1, Annex G-2 |
+| STR-009 | Compare the column, slab and footing clauses with the printed code | **blocked** | the three cross-check lists in CODE_REGISTER.md; needs the code text (a download the user approves, or pasted pages) |
+| STR-033 | Slab: unequal support moments of adjacent panels (Annex D-1.1 distribution) | ready | needs a panel group: several slabs sharing edges |
+| STR-034 | Footing: sloped and stepped footings | ready | Cl. 34.1.2, 34.4 frustum already in place |
+| STR-035 | Footing: pressure distribution with moments for bending (instead of the uniform maximum) | ready | lighter footings under large moments |
+| STR-014 | Beam: flanged sections (T and L) | **next** | Cl. 23.1, Annex G-2; the last phase 1 items are STR-014 to STR-017 |
 | STR-015 | Beam: continuous spans by Table 12 and 13 coefficients | ready | Cl. 22.5 |
 | STR-016 | Beam: bar curtailment and stirrup zones | ready | Cl. 26.2.3; cuts steel on long spans |
 | STR-017 | Beam: anchorage check at simple supports | ready | Cl. 26.2.3.3(c), Ld <= 1.3 M1/V + L0 |
 | STR-018 | Beam: calculated deflection and crack width | later | Annex C, Annex F |
 | STR-019 | Ductile detailing | later | IS 13920:2016; needs frame context |
-| STR-020 | Combined and strap footing | later | after STR-013 |
+| STR-020 | Combined and strap footing | ready | phase 2; reuses the footing's shear, band and anchorage rules |
 | STR-021 | Pile cap | later | truss and bending methods |
 | STR-022 | Staircase | later | |
 | STR-023 | Retaining wall (cantilever, counterfort) | later | stability and structural design |

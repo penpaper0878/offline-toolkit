@@ -1,6 +1,6 @@
 # CivilLabPro OS: software architecture
 
-Status: version 0.2 (platform core and two structural engines, beam and column, are built; see [ROADMAP.md](ROADMAP.md)).
+Status: version 0.3 (platform core and four structural engines, beam, column, slab and isolated footing, are built; see [ROADMAP.md](ROADMAP.md)).
 This document describes the whole platform. Sections say which parts exist today and which are designed but not yet built.
 
 ## 1. What the system is
@@ -106,15 +106,17 @@ Contexts talk through application services and IDs, never through each other's t
 
 The column (0.2.0) was the first test of this claim: it added a domain module, its detailing, a hand check and a registry entry. The one shared change it needed, charts, was made to the contract, so every later element can use it.
 
+The slab and the footing (0.3.0) were the second test. Each was a domain module, its detailing, a hand check and a registry entry; the slab's tables went into a kernel module (`is456_slabs.py`) that the footing reuses for minimum steel. The shared changes were small and general: the workspace's two drawing tabs now show an element's first and second views and take their titles (a plan for slabs and footings, a section for members), and the drawing model gained vertical text.
+
 Adding a column, slab or footing is therefore: a domain module, a hand check, a registry entry. No endpoint, migration, exporter or screen. The same pattern is the template for the water, sewerage and highway engines.
 
 ## 4. The engineering kernel
 
-`app/engineering/` is the part that must be right. It has four pieces.
+`app/engineering/` is the part that must be right. It has these pieces.
 
 **Calculation sheet** (`trace.py`). Engines do not return numbers; they return a sheet: sections of *steps* (reference, description, symbolic equation, substituted numbers, value, unit) and *checks* (demand, operator, capacity, verdict, utilisation), plus *flags* for the designer. The screen, the PDF and the tests all read this one structure, so they cannot disagree.
 
-**Code rules** (`is456.py`, later `is3370.py`, `irc37.py`, `cpheeo.py` and so on). One function per clause, named for what it computes, with the clause in its docstring. Tables are transcribed once and cross-checked by tests against a second source where one exists (Table 19 against the SP 16 closed form; the steel curve against SP 16 Table F).
+**Code rules** (`is456.py` and `is456_slabs.py`, later `is3370.py`, `irc37.py`, `cpheeo.py` and so on). One function per clause, named for what it computes, with the clause in its docstring. Tables are transcribed once and cross-checked by tests against a second source where one exists (Table 19 against the SP 16 closed form; the steel curve against SP 16 Table F; Table 27 generated from its Rankine-Grashoff expressions and compared with the printed values).
 
 **Drawing model** (`drawing.py`). A drawing is a list of primitives in millimetres. The canvas renders it as SVG, the exporter writes it as DXF with real DIMENSION entities, the report embeds it. One description, three outputs.
 
@@ -260,13 +262,13 @@ civillabpro/
     app/
       main.py                    assembles routers; optional client serving
       core/                      config, database, security, errors, dependencies
-      engineering/               trace, is456, rebar, drawing, rc_section   (pure)
+      engineering/               trace, is456, is456_slabs, rebar, drawing, rc_section   (pure)
       assets/fonts/              report fonts
       modules/
         identity/                models, schemas, permissions, service, router
         projects/                models, schemas, service, router
         structural/
-          domain/                beam, column and their detailing, registry   (pure)
+          domain/                beam, column, slab, footing and their detailing, registry   (pure)
           exports/               pdf_report, bbs_xlsx, dxf
           models, schemas, service, router
         dashboard/               router (read models, search)

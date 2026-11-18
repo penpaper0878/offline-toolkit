@@ -101,7 +101,7 @@ One row per designed member, whatever its type.
 | id | uuid PK | |
 | org_id | uuid FK | indexed |
 | project_id | uuid FK | indexed; index (project_id, element_type); cascade |
-| element_type | varchar(40) | key in the element registry (`beam`) |
+| element_type | varchar(40) | key in the element registry (`beam`, `column`, `slab`, `footing`) |
 | name | varchar(120) | member mark |
 | status | varchar(12) | ok, not_ok, stopped |
 | review_status | varchar(12) | draft, approved |

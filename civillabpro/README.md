@@ -2,14 +2,16 @@
 
 An Indian civil engineering operating system: design to Indian Standards, estimation, laboratory, GIS and project control in one application, for the web, as a PWA and (planned) as a desktop install.
 
-**Version 0.2.0.** The platform core and two structural engines are built and tested. The remaining modules are designed and scheduled; see the roadmap.
+**Version 0.3.0.** The platform core and four structural engines (beam, column, slab, isolated footing) are built and tested. The remaining modules are designed and scheduled; see the roadmap.
 
 | Module | State |
 |---|---|
 | Dashboard, projects, users and roles | built |
 | Structural design: RCC beam to IS 456:2000 | built (engine 1.0.0) |
 | Structural design: RCC column to IS 456:2000 | built (engine 1.0.0); clauses still to be compared with the printed code |
-| Structural design: slab, footing and others | next |
+| Structural design: RCC slab (one-way, two-way) to IS 456:2000 | built (engine 1.0.0); Table 26 rows still to be compared with the printed code |
+| Structural design: RCC isolated footing to IS 456:2000 | built (engine 1.0.0) |
+| Structural design: beam extensions, combined footing, staircase, retaining wall and others | next, then phase 2 |
 | Estimation, standards library, water, sewerage, highway, laboratory, GIS, project management, AI assistant | designed, not started |
 
 ## What works today
@@ -18,6 +20,8 @@ An Indian civil engineering operating system: design to Indian Standards, estima
 * Projects.
 * Beam design: flexure, shear, torsion, deflection and detailing checks, each line with its clause and each limit with a verdict.
 * Column design: effective length, slenderness, minimum eccentricity, additional moments, biaxial bending by strain compatibility, ties and cross-ties, with interaction diagrams.
+* Slab design: one panel by its spans and the condition of its four edges; one-way strips (simply supported or Tables 12 and 13) or two-way panels (Table 26 held down, Table 27 free), flexure, shear, deflection, corner torsion steel, top and bottom steel with Annex D extents.
+* Isolated footing design: plan size from the bearing pressure with moments both ways, depth from bending, one-way and punching shear, central band steel, development length (with end bends where needed), bearing at the column base.
 * Bar bending schedule, quantities and a to-scale drawing from the same calculation.
 * Calculation report (PDF), bar schedule (Excel), drawing (DXF).
 * Revisions, and approval by a second engineer.
@@ -37,12 +41,18 @@ Column workspace with its interaction diagrams:
 
 ![Column interaction diagrams](docs/screenshots/column-charts.png)
 
+| Two-way slab panel | Isolated footing |
+|---|---|
+| ![Slab plan](docs/screenshots/slab-plan.png) | ![Footing plan](docs/screenshots/footing-plan.png) |
+
 Sample output of the worked examples, produced by the running application:
 
 | Element | Report | Bar schedule | Drawing |
 |---|---|---|---|
 | Beam B1 | [PDF](docs/samples/beam_B1_R0_report.pdf) | [Excel](docs/samples/beam_B1_R0_bbs.xlsx) | [DXF](docs/samples/beam_B1_R0.dxf) |
 | Column C1 | [PDF](docs/samples/column_C1_R0_report.pdf) | [Excel](docs/samples/column_C1_R0_bbs.xlsx) | [DXF](docs/samples/column_C1_R0.dxf) |
+| Slab S1 | [PDF](docs/samples/slab_S1_R0_report.pdf) | [Excel](docs/samples/slab_S1_R0_bbs.xlsx) | [DXF](docs/samples/slab_S1_R0.dxf) |
+| Footing F1 | [PDF](docs/samples/footing_F1_R0_report.pdf) | [Excel](docs/samples/footing_F1_R0_bbs.xlsx) | [DXF](docs/samples/footing_F1_R0.dxf) |
 
 ## Run it
 
@@ -62,14 +72,15 @@ npm ci
 npm run dev                              # http://127.0.0.1:5173
 ```
 
-Create an organisation on the sign-in screen, add a project, then choose **New RCC beam** or **New RCC column**.
+Create an organisation on the sign-in screen, add a project, then choose **New RCC beam**, **New RCC column**, **New RCC slab** or **New RCC isolated footing**.
 
 SQLite is the default database and needs nothing installed. For PostgreSQL set `CLP_DATABASE_URL` (see `backend/.env.example`). To run the API and the built client as one process: `npm run build` in `frontend`, then start the API with `CLP_STATIC_DIR=../frontend/dist`. Containers: see `deploy/docker-compose.yml`.
 
 ## Check it
 
 ```bash
-cd backend  && ruff check app tests alembic && pytest && python tests/handcheck/check_beam.py && python tests/handcheck/check_column.py
+cd backend  && ruff check app tests alembic && pytest     # pytest runs every hand check in tests/handcheck/ too
+for f in tests/handcheck/check_*.py; do python "$f"; done   # the same hand checks, with their reports
 cd frontend && npm run typecheck && npm test && npm run build
 node e2e/walkthrough.js <folder for screenshots>      # both servers running
 ```
@@ -86,6 +97,7 @@ node e2e/walkthrough.js <folder for screenshots>      # both servers running
 | [docs/CODE_REGISTER.md](docs/CODE_REGISTER.md) | codes used, clauses taken, interpretations, items to cross-check |
 | [docs/modules/01-platform-core-and-beam.md](docs/modules/01-platform-core-and-beam.md) | 0.1.0: platform core and beam: endpoints, engineering logic, validation, tests, deployment |
 | [docs/modules/02-rcc-column.md](docs/modules/02-rcc-column.md) | 0.2.0: column: engineering logic, validation, tests |
+| [docs/modules/03-slab-and-footing.md](docs/modules/03-slab-and-footing.md) | 0.3.0: slab and isolated footing: engineering logic, validation, tests |
 
 ## A note on engineering use
 

@@ -2,7 +2,7 @@
 
 The standards the engines implement: their status, the clauses taken, every place where the text was interpreted, and what still has to be cross-checked against a printed copy. An engine is not released until its codes are entered here.
 
-Status last checked: 16 November 2026. Column clauses added 17 November 2026.
+Status last checked: 16 November 2026. Column clauses added 17 November 2026; slab and footing clauses 18 November 2026.
 
 ## IS 456:2000, Plain and reinforced concrete: code of practice (fourth revision)
 
@@ -12,7 +12,7 @@ Status last checked: 16 November 2026. Column clauses added 17 November 2026.
 | Status | Current. Reaffirmed 2021. |
 | Amendments | Nos. 1 to 6. Amendment No. 6 is dated April 2024 (published August 2024); the excerpt consulted changes Cl. 5.1 (cement references, including composite cement to IS 16415) and deletes Cl. 17.5 in favour of a load test under Cl. 17.6. None of the clauses listed below is touched by that excerpt. |
 | Revision | A fifth revision ("Structural concrete") has been in draft; secondary sources report it was circulated for comment in 2025 and was still being processed in early 2026. IS 456:2000 remains the enforceable standard. Review this entry when the revision is published. |
-| Used by | beam engine 1.0.0, column engine 1.0.0 |
+| Used by | beam engine 1.0.0, column engine 1.0.0, slab engine 1.0.0, footing engine 1.0.0 |
 
 ### Clauses taken
 
@@ -115,6 +115,83 @@ The values below were transcribed from the 2000 text as commonly published. Each
 * Cl. 39.3: the condition for using the axial formula.
 * Whether Amendments 1 to 6 change any of the clauses above.
 
+### Slab engine 1.0.0: clauses taken
+
+The code text was not read for the slab either (same reason as the column). Table 27 was verified by derivation; the other values are as commonly published and the corroborated ones are listed under "Sources consulted".
+
+| Clause | Subject | Where |
+|---|---|---|
+| Cl. 22.2 | effective span: clear span plus d, not more than centre to centre of supports | `slab._plan` |
+| Cl. 22.5.1, Table 12, Table 13 | moment and shear coefficients for continuous one-way strips | `is456_slabs.TABLE_12`, `TABLE_13` |
+| Cl. 22.6.2.1 | shear at d from the face of the support | `slab._plan` |
+| Cl. 23.2.1, Fig. 4 | span to effective depth with the tension steel factor | slab check `deflection` |
+| Cl. 24.1, note 2 | span to overall depth for two-way slabs (l_x up to 3.5 m, imposed load up to 3 kN/m2) | `two_way_span_depth_note2` |
+| Cl. 24.4, Annex D-1.1, Table 26 | two-way panels with corners held down | `TABLE_26`, `case_26`, `coefficients_26` |
+| Annex D-2, Table 27 | simply supported panels with corners free to lift | `rankine_grashoff`, `TABLE_27_X`, `TABLE_27_Y` |
+| Annex D-1.2 to D-1.7 | middle and edge strips; moments to the middle strips; bottom and top steel extents; top steel at discontinuous edges; edge strip steel | `slab_detailing` |
+| Annex D-1.8 to D-1.10 | torsion steel at corners: 3/4 of the mid-span steel over l_x/5; half where one edge is continuous; none where both are | `slab._plan`, `TORSION_*` |
+| Annex D-1.11 | one-way when l_y/l_x is more than 2 | `slab._plan` |
+| Cl. 26.3.3(b) | spacing: main bars 3d or 300 mm; distribution bars 5d or 450 mm | `max_spacing_main`, `max_spacing_distribution` |
+| Cl. 26.5.2.1, 26.5.2.2 | minimum steel 0.15 / 0.12 percent; bar not larger than D/8 | `min_steel`, `max_bar_diameter` |
+| Cl. 40.2.1.1 | k for solid slabs by overall depth (1.30 at 150 mm or less to 1.00 at 300 mm or more) | `shear_factor_k` |
+| Cl. 40.2.3.1 | nominal shear in slabs not more than half of Table 20 | slab check `shear_max` |
+
+### Slab engine: interpretations
+
+24. **Table 27 by formula.** Generated from alpha_x = r^4 / (8 (1 + r^4)) and alpha_y = r^2 / (8 (1 + r^4)) and rounded to three decimals; a test compares the result with the printed values for r up to 2.
+25. **Table 26 case from the edges.** The case follows from the number of discontinuous long and short edges (`case_26`); with three discontinuous edges, cases 7 and 8 are told apart by which edge is continuous. Linear interpolation in l_y/l_x; the end values beyond 1.0 and 2.0.
+26. **Table 27 is used only** when all four edges are discontinuous and the corners are free. A panel with any continuous edge, or held-down corners, uses Table 26. Corners free with a continuous edge are designed as held down, and the sheet says so.
+27. **One-way continuous strips.** An end span (one long edge discontinuous) takes the end-span coefficients of Table 12; an interior span the interior-span ones (1/16 dead, 1/12 imposed). The support moment is the "support next to the end support" value (1/10, 1/9) for both, the larger of the two support rows; shear is the next-to-end value for the side of the support concerned. Tables 12 and 13 assume three or more nearly equal spans (Cl. 22.5.1); the registry entry says so.
+28. **Shear in two-way panels.** A strip spanning the short way: V_u = w_u (l_x/2 - d) per metre, on the safe side of the load-sharing of Table 26.
+29. **Deflection.** Note 2 of Cl. 24.1 is used where it applies (Fe 415 or mild steel, two-way, l_x up to 3.5 m, imposed load up to 3 kN/m2). Otherwise Cl. 23.2.1 on the short span: basic 20 when both long edges are discontinuous, 26 when either is continuous.
+30. **Top steel over continuous edges** extends 0.3 l on each side of the support, where l is the span in the bars' direction (l_x for bars over the long edges). The code lets half the bars stop at 0.15 l; all bars are scheduled to 0.3 l. Bars over a shared support are scheduled whole with this panel: the adjacent panel's schedule must leave them out (the schedule notes say so).
+31. **Top steel at discontinuous edges** is half the mid-span steel, 0.1 l into the span, an L-bar down into the support (Annex D-1.6, applied whatever the restraint the support gives).
+32. **Bottom bars** run the full span to the far face of the supports less cover, more than the 0.25 l / 0.15 l of Annex D-1.4 asks.
+33. **Torsion steel** is detailed as four mats per corner (top and bottom, both ways) of l_x/5; half the area at corners with one continuous edge. Distribution bars under top bars are at the minimum steel.
+34. **One bar size per panel**: the smallest that gives spacings of at least 100 mm everywhere (75 mm if none does).
+
+### Slab engine: to cross-check against a printed copy
+
+* Table 26: every row other than those corroborated (case 1 both rows; case 2 negative; case 7 positive; case 9; the first four values of case 5 positive and the first six of case 6 positive). Tests hold the structure (rising with l_y/l_x; negative over positive between 1.27 and 1.40; a negative coefficient exactly where an edge is continuous) and the hand check enters the table independently.
+* Table 13: no secondary source reproduced all eight values.
+* Annex D-1.4 to D-1.6: the 0.25 l / 0.15 l bottom extents, the 0.15 l / 0.3 l top extents and the 0.1 l at discontinuous edges; whether l is the span in the bars' direction (interpretation 30).
+* Cl. 24.1, note 2: the values 35 and 40 and the factor 0.8 for Fe 415.
+
+### Footing engine 1.0.0: clauses taken
+
+As for the slab, the code text was not read; Cl. 34.1.2, 34.3.1, 34.4 and 26.4.2.2 were corroborated by secondary sources.
+
+| Clause | Subject | Where |
+|---|---|---|
+| Cl. 26.4.2.2 | cover in footings at least 50 mm | `effective_cover`, check `cover` |
+| Cl. 34.1.2 | thickness at the edge at least 150 mm on soil | check `edge` |
+| Cl. 34.2.3.1, 34.2.3.2 | bending moment at the face of the column, over the whole width | `trial` |
+| Cl. 34.2.4.1(a), Table 19 | one-way shear at d from the face | `trial`, checks `shear_L`, `shear_B` |
+| Cl. 34.2.4.1(b), Cl. 31.6 | punching at d/2; k_s tau_c with k_s = 0.5 + beta_c not more than 1 and tau_c = 0.25 sqrt(f_ck) | `trial`, check `punching` |
+| Cl. 34.2.4.3, Cl. 26.2.1 | development length within the projection | `trial` (`ok_anchorage`) |
+| Cl. 26.2.2.1(b) | anchorage value of a 90 degree bend: 8 diameters | `BEND_90_VALUE` |
+| Cl. 34.3.1(a), (b) | steel uniform across the width; in the short direction 2/(beta + 1) of it in the central band | `bars_short_direction`, check `band` |
+| Cl. 34.4 | bearing 0.45 f_ck sqrt(A_1/A_2), not more than twice; A_1 within a 1 in 2 frustum | check `bearing` |
+| Cl. 34.4.3 | column bars or dowels at least 0.5 percent of the column area | step `dowels` |
+| Cl. 26.5.2.1 | minimum steel in each direction, as for slabs | `trial` |
+
+### Footing engine: interpretations
+
+35. **Pressure for design.** The largest factored pressure, from the column load and moments only (own weight acts against its own reaction), is applied uniformly over the whole footing for bending and shear. On the safe side with moments; the sheet says so.
+36. **Plan size** with equal projections from the column faces, in 25 mm steps of projection and 50 mm steps of plan, smallest that keeps the service pressure within the safe bearing pressure and the least pressure not negative. The own weight is an entered percentage of the column load.
+37. **Development length.** Straight bars at any depth are preferred; bars with a 90 degree bend at each end (anchorage value 8 diameters, leg 12 diameters) are used only when no straight bar develops within the projection at any depth. When even 10 mm bars with bends cannot develop, an automatically sized plan grows in 50 mm steps until they can (a flag gives the bearing size and the larger one); an entered plan stops with that remedy.
+38. **One-way shear** uses tau_c of Table 19 without the slab factor k of Cl. 40.2.1.1, on the safe side.
+39. **Bearing area A_1.** The lower base of the largest frustum similar to the column, wholly within the footing, sides 1 vertical to 2 horizontal: each side grows by at most 2 D. sqrt(A_1/A_2) is then min(L/D_c, B/b_c, 1 + 4 D / max(b_c, D_c), 2).
+40. **Central band.** When the band spacing already covers the whole length (nearly square footings), the bars are spread uniformly; otherwise band and outer parts have their own spacings.
+41. **Cover** at least 50 mm whatever Table 16 gives for the exposure (larger values from Table 16 govern, 75 mm for extreme).
+
+### Footing engine: to cross-check against a printed copy
+
+* Cl. 34.2.4.3 wording on development length at the face and the use of bends.
+* Cl. 34.4 wording on A_1 for footings of uniform depth (the frustum is printed for sloped and stepped footings).
+* Cl. 31.6.3.1: k_s and 0.25 sqrt(f_ck).
+* Whether Amendments 1 to 6 change any of the clauses above.
+
 ## SP 16:1980, Design aids for reinforced concrete to IS 456:1978
 
 Handbook, not a code; still the standard reference for IS 456:2000 flexure and shear aids. Used for: Table A (steel stress at strain, in both hand checks), Table E (limiting moment factors, in tests), Table F (compression steel stress, in tests), Cl. 2.3.2 (doubly reinforced sections), Cl. 4.1 (closed form behind Table 19, in tests and the hand check).
@@ -144,6 +221,13 @@ Column clauses (secondary sources; the code text was not read):
 * Transverse reinforcement rules: https://civilengineeringweb.com/?p=3349, https://www.scribd.com/document/700539417/Columns
 * Biaxial bending and P_uz: https://www.scribd.com/document/130508541/m10l26, https://infralens.in/term/biaxial-bending
 * Effective length: https://infralens.in/handbook/effective-length-factors (one page there labels theoretical factors as Table 28: not relied on)
+
+Slab and footing clauses (secondary sources; the code text was not read):
+
+* Tables 26 and 27 and Annex D: https://archive.nptel.ac.in/content/storage2/courses/105105104/pdf/m8l19.pdf, https://limitstatelessons.blogspot.com/2015/04/chapter-17-cont7-coefficients-from-code.html, https://www.ktunotes.in/wp-content/uploads/2018/05/DCS-M5-Ktunotes.in_.pdf, https://engineeringhulk.com/civil/rcc-design/two-way-slab/, https://theconstructor.org/structural-engg/design-example-two-way-continuous-slab/239998/
+* Tables 12 and 13: https://limitstatelessons.blogspot.com/2015/08/chapter-7-cont3-analysis-of-continuous.html, https://engineeringhulk.com/civil/rcc-design/formulas/
+* Cl. 40.2.1.1 (k) and Annex D-1.8: https://cec.nic.in/webpath/curriculum/Module/Arch/Paper16/31/downloads/summary.pdf, https://engineeringhulk.com/civil/rcc-design/one-way-slab/
+* Footings, Cl. 34: https://theconstructor.org/structural-engg/design-reinforced-concrete-footings/7325/, https://engineeringhulk.com/civil/rcc-design/isolated-footing/, https://www.ideastatica.com/support-center/support-center-knowledge-base/check-of-concrete-block-according-to-is
 
 IS 456 status:
 

@@ -10,7 +10,7 @@ It lives in `civillabpro/` of the `offline-toolkit` repository. The rest of that
 
 ## Current status
 
-Version 0.2.0. Phase 1 in progress: beam and column built; slabs and footing next.
+Version 0.3.0. Phase 1's exit criterion is met: beam, column, slab and isolated footing are designed, hand-checked and issued from one workspace. Open in phase 1: the beam extensions (STR-014 to STR-017) and the comparison of clauses with the printed code (STR-009, blocked).
 
 | Area | State |
 |---|---|
@@ -18,20 +18,21 @@ Version 0.2.0. Phase 1 in progress: beam and column built; slabs and footing nex
 | Shell and client | built, walked through in a browser in light and dark |
 | Structural: beam engine 1.0.0 | built, independent hand check passing |
 | Structural: column engine 1.0.0 | built, independent hand check passing; code text not yet compared (see the code register) |
+| Structural: slab engine 1.0.0 (one-way, two-way) | built, independent hand check passing; Table 26 rows and Annex D extents to compare with the code |
+| Structural: isolated footing engine 1.0.0 | built, independent hand check passing; Cl. 34 wording to compare with the code |
 | Exports: PDF, Excel, DXF | built, reviewed page by page |
 | Deployment | single-process mode verified; Dockerfile and compose file written, compose validated, image not built (no Docker daemon in the build session) |
 | Desktop shell (Electron) | not started (PLAT-010) |
 | Modules 3 to 11 | designed in ARCHITECTURE.md and DATABASE_SCHEMA.md, not started |
 | Cloud environment | personal environment `offline-toolkit` (allows law.resource.org; setup script installs the venv, npm packages and PostGIS). The script is unproven until a fresh session starts on it. |
 
-Test counts at 0.2.0: backend 178 (140 engineering, architecture and hand checks; 38 API, one of them PostgreSQL-only); frontend 18; hand checks: beam 360 values over 18 cases, column 506 values over 18 cases, 2 stop states each; browser walkthrough with beam and column, 0 console errors.
+Test counts at 0.3.0: backend 256 (216 engineering, architecture and hand checks; 40 API, one of them PostgreSQL-only; the API suite also passed on PostgreSQL 16 with PostGIS); frontend 18; hand checks: beam 334 values over 17 cases, column 471 over 17, slab 379 over 18, footing 384 over 16, with 1 or 2 stop states each; browser walkthrough with beam, column, slab and footing, 0 console errors.
 
 ## NEXT STEPS
 
-1. **Compare the column clauses with the code text** (the "To cross-check" list in the code register). Reading law.resource.org needs either the environment's network (now allowed) plus approval of a direct download, or the user pasting the pages. Fix anything that differs and re-run both hand checks.
-2. **STR-011 and STR-012 slabs**, then **STR-013 isolated footing** (the footing can use `rc_section` for column-to-footing checks). Same loop: codes, engine, hand check, tests, registry entry.
-3. Beam extensions STR-014 to STR-017.
-4. PLAT-010 desktop shell.
+1. **STR-009, blocked: compare the column, slab and footing clauses with the code text** (the three "To cross-check" lists in the code register). It needs the user: either approval of a direct download of the public copy, or the pages pasted into the session. Do not work around a declined download. Fix anything that differs and re-run every hand check.
+2. **STR-014 flanged beams**, then STR-015 continuous beams by Tables 12 and 13 (the coefficients are already in `is456_slabs.py`), STR-016 curtailment and stirrup zones, STR-017 anchorage at simple supports. These close phase 1.
+3. PLAT-010 desktop shell, then phase 2 (STR-020 combined and strap footing; estimation; standards library).
 
 ## Decisions (do not reopen without a reason recorded here)
 
@@ -57,6 +58,10 @@ Test counts at 0.2.0: backend 178 (140 engineering, architecture and hand checks
 | D18 | Column bars are chosen by least steel per metre including ties and cross-ties, each arrangement judged with its own P_b, P_uz and k | main steel alone picks many small bars that cost more ties |
 | D19 | The workspace validates the debounced values it sends, not only the values on screen | a pause on an invalid entry otherwise sent a stale request |
 | D20 | Titles and notes render in prose mode (no " x " to "×", no "sqrt" to "√"); formulas in maths mode | "about the x axis" printed as "about the × axis" |
+| D21 | Slab tables live in the kernel (`is456_slabs.py`); Table 27 is generated from its expressions, not transcribed | one copy for slabs, footings, tanks and continuous beams; a derived table cannot carry a typing slip |
+| D22 | The workspace's two drawing panels show an element's first and second views and take their titles; panel ids stay fixed | plans for slabs and footings, sections for members, and saved layouts keep working |
+| D23 | Footing bars: straight at any depth before bent ends; an automatic plan grows to anchor the bars rather than stopping | site practice prefers straight bars; a stop for a small, lightly loaded footing told the user nothing useful |
+| D24 | Top bars over a support shared with the next panel are scheduled whole with the panel being designed, and the schedule says so | one schedule per design, no half bars; the adjacent panel leaves them out |
 
 Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not here.
 
@@ -94,6 +99,14 @@ Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not her
 * Library versions at 0.1.0 are recent majors (React 19, MUI 9, Vite 8, Tailwind 4, TypeScript 7, dockview-react 8, recharts 3, FastAPI 0.16x, SQLAlchemy 2.1). Check the installed typings before assuming an older API.
 
 ## Log
+
+### 0.3.0 (18 November 2026): RCC slab and isolated footing
+
+* Built: `is456_slabs` kernel (Tables 12, 13, 26, 27, Annex D, k); slab engine 1.0.0 with detailing (one-way and two-way, edge strips, top bars, torsion mats, distribution bars); footing engine 1.0.0 with detailing (plan, depth, one-way and punching shear, central band, anchorage with bends, plan growth for anchorage, bearing with the 1 in 2 frustum, dowels); two registry entries; drawing tabs that follow the element's views; vertical text in drawings (screen, PDF, DXF); slab and footing legs in the walkthrough and in the API tests. Details in `docs/modules/03-slab-and-footing.md`.
+* Worked examples: slab 3.3 x 4.5 m corner panel, D 150, M25 / Fe 415: Table 26 case 4, M_x+ 7.36 kN m/m, T8 at 270 both ways, T8 at 200 and 280 top, 140.9 kg, 25 of 25 checks. Footing 300 x 450 column, 800 kN, 200 kN/m2: 2200 x 2050 x 450, 8-T20 at 270 and 290, punching 0.915 against 1.25 N/mm2, 79.9 kg, 16 of 16 checks.
+* Code text: still not read (same reason as 0.2.0). Table 27 verified by derivation; Table 26 by structure tests, a double-entry hand check and the rows secondary sources reproduce. The code register lists the rest.
+* Found and fixed during the build: footing moments 1000 times too small (a unit slip, caught by the hand check); outer parts of the short-direction steel narrower than a practical spacing (now spread uniformly); T25 chosen although it could not develop in the projection (anchorage added to the selection); short projections stopping the design (bent ends); bent ends chosen over straight bars at a greater depth (straight first); small footings on strong soil stopping (plan growth); the bearing area ignoring the footing depth (the frustum); slab top steel over short edges using the short-span depth; distribution bars sized for the longer edge in both directions; rule steps printing 0; the slab's short-edge labels over the l_x dimension (vertical text); a uniform spread labelled as a band; slab and footing plans missing from the workspace (the panel looked for a view named "section").
+* Version 0.3.0 (backend and client).
 
 ### 0.2.0 (17 November 2026): RCC column
 
