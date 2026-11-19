@@ -1,12 +1,12 @@
 # Release note 0.4.0 (in progress): beam extensions STR-014 to STR-017
 
-The items that close phase 1, built one at a time on the existing beam engine. Each is a change to the beam's domain module, its detailing, its hand check and its tests; none needs a new endpoint, table, migration or screen. This note grows with each item.
+The items that close phase 1, built one at a time. STR-014 extends the beam element; STR-015 adds a continuous beam element on the registry, reusing the beam's section routines. None needs a new endpoint, table, migration or screen. This note grows with each item.
 
 | Item | State | Beam engine |
 |---|---|---|
 | STR-014 flanged sections (T and L) | done | 1.1.0 |
-| STR-015 continuous beams by Tables 12 and 13 | next | |
-| STR-016 curtailment and stirrup zones | planned | |
+| STR-015 continuous beams by Tables 12 and 13 | done | continuous beam 1.0.0 (new element) |
+| STR-016 curtailment and stirrup zones | next | |
 | STR-017 anchorage at simple supports | planned | |
 
 ## STR-014: flanged sections (T and L)
@@ -67,3 +67,61 @@ The same beam designed as a rectangle 300 x 550 (full-depth self-weight, no flan
 | `tests/handcheck/check_beam.py` | 8 new cases | effective width recomputed; x_u from the closed-form root of the G-2.2.1 quadratic, or false position where y_f < D_f (engine: bisection); Fig. 6 from its two lines; 501 values over 25 cases agree |
 | `tests/api/test_structural.py` | 1 new | a T-beam through the generic endpoint; the list condition in the schema; an invalid flange width |
 | `frontend/src/components/components.test.tsx` | 1 new | a row shown for any of several values |
+
+## STR-015: continuous beams by Tables 12 and 13
+
+### 1. Requirements and the decision behind the element
+
+**Goal.** Design a beam continuous over three or more spans by the coefficients IS 456 provides for it (Cl. 22.5.1), and issue one calculation, one schedule and one drawing for the whole beam.
+
+**Why a new element and not a "continuous" option of the beam.** Tables 12 and 13 describe a whole beam: an end span, the support next to it, interior spans and interior supports. Designed one span at a time, the top bars over a shared support would either be scheduled twice (once by each span) or stop at the face of the support without development. One design of the whole beam has one set of bars over each support, centred on it. The element reuses the beam's section routines (bar candidates, flexure of rectangles and flanges, the flange steps), so the engineering is shared.
+
+**In scope.** 3 to 12 equal spans; rectangular, T or L section; dead and imposed load; effective spans of Cl. 22.2(b); moments and shears of Tables 12 and 13; four design sections; shear per span type; deflection per span type; extents of the top bars; hangers lapped with them; schedule, quantities and drawing for the whole beam.
+
+**Out of scope.** Unequal spans beyond 15 percent, point loads, frames (use the beam with forces from an analysis); curtailment of the bottom bars and stirrup zones (STR-016); torsion.
+
+### 2. Architecture
+
+| Layer | Addition |
+|---|---|
+| Engineering kernel | `continuous.py`: three-moment equation (tridiagonal), the load arrangements of Cl. 22.4.1, points of inflection, moment envelope |
+| Structural domain | `continuous_beam.py` (inputs, spans, coefficients, section selection, sheet), `continuous_beam_detailing.py` (layout of top bars and hangers, schedule, quantities, drawing); one registry entry |
+| Beam modules | section helpers made public (`tension_candidates`, `other_candidates`, `practical_spacing`, `flange_steps`, `flanged_flexure_steps`); the cross-section drawing extracted to `beam_detailing.cross_section` so two sections can share a view |
+| Report | the quantities heading is kept with its table |
+
+### 3. Engineering logic
+
+| Step | Rule | Reference |
+|---|---|---|
+| Spans | narrow supports (w_s <= l_c/12 and 600 mm): min(l_c + d, l_c + w_s); wide: end l_c + min(d/2, w_s/2), interior l_c | Cl. 22.2(b) |
+| Moments | end span (w_d/12 + w_l/10) l^2; support B (w_d/10 + w_l/9), averaged over the two spans; interior span (w_d/16 + w_l/12) l^2; support C (w_d/12 + w_l/9) l^2 | Table 12 |
+| Shears | A (0.40, 0.45); B outer (0.60, 0.60), inner (0.55, 0.60); C (0.50, 0.60), times the load on the span; at d from the face | Table 13, Cl. 22.6.2.1 |
+| Mid-span | bottom steel, least steel; T or L flange with l_0 = 0.7 l | Annex G, G-2, Cl. 23.1.2 |
+| Supports | top steel on the web; the lighter adjacent bottom bars as compression steel | Annex G-1 |
+| Deflection | basic 26 with k_t, k_c, Fig. 6 | Cl. 23.2.1 |
+| Top bar extents | furthest point of inflection over the arrangements of Cl. 22.4.1 (elastic analysis), then the greatest of d, 12 phi, l_c/16; at least L_d | Cl. 22.4.1, 26.2.3.4 |
+| Layout | hangers lap with the support bars in compression; support bars that meet lap at mid-span in tension, with the hogging there checked | Cl. 26.2.5.1 |
+
+Worked example (the defaults): four spans of 5.0 m clear on 300 mm supports, 300 x 500, M25 / Fe 500, DL 25 + LL 15 kN/m plus self-weight. w_d = 43.125, w_l = 22.5 kN/m; l = 5300 mm (narrow supports); M_1 164.15, M_B 191.36, M_2 128.38, M_C 171.17 kN m. Bars: end spans 5-T16, interior spans 4-T16, over B 6-T16, over C 10-T12 (6 + 4); stirrups T8 at 150 (end spans) and 175 (interior). Points of inflection 1282 mm (B into the end span), 1870 (B into span 2) and 1393 (C) from the faces; the top bars over B run 1736 mm into the end span; in the interior spans the bars from B and C meet and lap at mid-span (each 2888 mm from its face), where the alternate-span arrangement still gives 36.4 kN m hogging against 181.4 kN m for the lapped 10-T12. Span/depth 11.7 against 24.9 and 28.0. 37 of 37 checks; 388.6 kg of steel for the whole beam, 3.23 m3 of concrete.
+
+My first version placed the inflection with the Table 12 support moments at both ends of a span carrying dead load alone. Both peaks need that span loaded, so the case cannot occur, and it ran the top bars through every interior span (473.6 kg). The elastic analysis of the real arrangements replaced it before anything was committed.
+
+### 4. Validation and stops
+
+| Input | Rule |
+|---|---|
+| Spans | 3 to 12 |
+| Clear span | 1 to 20 m; support width 100 to 2000 mm |
+| Section | as the beam (flange at least 100 mm thinner than D, wider than the web) |
+| Loads | some load, or the self-weight |
+
+Stops: effective span less than 2.5 D (a continuous deep beam, Cl. 29); no bars within Cl. 26.5.1 for a span; no top bars for a support with the bottom bars as compression steel.
+
+### 5. Tests
+
+| Suite | Tests | Proves |
+|---|---|---|
+| `tests/unit/test_continuous.py` | 6 | two spans (-wL^2/8, inflection at L/4); three spans (0.1, 0.05, 1/15 and 1/60 coefficients); the three-moment equation for unequal spans; the arrangements; hogging throughout an unloaded middle span; the envelope brackets every arrangement |
+| `tests/unit/test_continuous_beam.py` | 18 | the worked example to Tables 12 and 13; three spans without C; Cl. 22.2(b); compression steel at a support and its continuation; Cl. 26.2.3.4 extents; the mid-span lap and its check; hanger laps; schedule counts for 3, 4 and 7 spans; T-beam with 0.7 l and supports on the web; drawing; validation; stops; references; a sweep of 108 beams |
+| `tests/handcheck/check_continuous_beam.py` | 37 base results, 368 values over 12 cases, 2 stops | Tables 12 and 13 typed again; flexure by stress-block bisection and the G-2.2.1 quadratic; SP 16 Table A; tau_c closed form; points of inflection by Hardy Cross moment distribution and a scan with bisection (they agree with the engine's three-moment solution to 0.1 mm) |
+| `tests/api/test_structural.py` | 1 new, 1 changed | the element in the registry, calculate, save, revise, approve and the three exports |

@@ -403,10 +403,10 @@ def build_pdf(meta: dict[str, str], inputs: dict[str, Any], input_schema: dict[s
 
     q = result.get("quantities")
     if q:
-        s.append(Paragraph("Quantities", H2))
         rows = [["Item", "Quantity", "Unit"], ["Concrete", f"{q['concrete_m3']:.3f}", Paragraph(fx("m3"), BODY)], ["Formwork", f"{q['formwork_m2']:.2f}", Paragraph(fx("m2"), BODY)],
                 ["Reinforcement", f"{q['steel_kg']:.1f}", "kg"], ["Steel per volume of concrete", fmt(q["steel_kg_per_m3"], 1), Paragraph(fx("kg/m3"), BODY)]]
-        s.append(KeepTogether([_table(rows, [width * 0.45, width * 0.35, width * 0.20])] + [Paragraph(html.escape(b), SMALL) for b in q["basis"]]))
+        s.append(KeepTogether([Paragraph("Quantities", H2), _table(rows, [width * 0.45, width * 0.35, width * 0.20])]  # heading kept with its table
+                              + [Paragraph(html.escape(b), SMALL) for b in q["basis"]]))
 
     charts = result.get("charts") or []
     for i, chart in enumerate(charts):

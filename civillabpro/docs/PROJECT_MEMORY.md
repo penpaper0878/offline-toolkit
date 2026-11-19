@@ -17,6 +17,7 @@ Version 0.3.0. Phase 1's exit criterion is met: beam, column, slab and isolated 
 | Platform core (identity, roles, audit, projects) | built, tested on SQLite and PostgreSQL 16 |
 | Shell and client | built, walked through in a browser in light and dark |
 | Structural: beam engine 1.1.0 (rectangular, T, L) | built, independent hand check passing; Fig. 6 and Cl. 23.1.2(c), (d) to compare with the code |
+| Structural: continuous beam engine 1.0.0 (new element) | built, independent hand check passing; Table 13 and Cl. 22.2(b), 22.4.1, 26.2.3.4 to compare with the code |
 | Structural: column engine 1.0.0 | built, independent hand check passing; code text not yet compared (see the code register) |
 | Structural: slab engine 1.0.0 (one-way, two-way) | built, independent hand check passing; Table 26 rows and Annex D extents to compare with the code |
 | Structural: isolated footing engine 1.0.0 | built, independent hand check passing; Cl. 34 wording to compare with the code |
@@ -31,7 +32,7 @@ Test counts at 0.3.0: backend 256 (216 engineering, architecture and hand checks
 ## NEXT STEPS
 
 1. **STR-009, blocked: compare the column, slab and footing clauses with the code text** (the three "To cross-check" lists in the code register). It needs the user: either approval of a direct download of the public copy, or the pages pasted into the session. Do not work around a declined download. Fix anything that differs and re-run every hand check.
-2. **STR-015 continuous beams by Tables 12 and 13** (the coefficients are already in `is456_slabs.py`; the support section is a rectangle of the web width because the flange is in tension there, which `flexure_design` already handles), then STR-016 curtailment and stirrup zones, STR-017 anchorage at simple supports. These close phase 1 and make release 0.4.0; `docs/modules/04-beam-extensions.md` grows with each.
+2. **STR-016 curtailment and stirrup zones** for both beam elements: theoretical cut-off from the moment diagram (simple beam: the parabola; continuous beam: `continuous.envelope` scaled to the Table 12 values, or the envelope itself, to be decided and recorded), Cl. 26.2.3.1 to 26.2.3.4, and stirrup zones from the shear diagram. Then STR-017 anchorage at simple supports (Cl. 26.2.3.3(c)). These close phase 1 and make release 0.4.0; `docs/modules/04-beam-extensions.md` grows with each.
 3. PLAT-010 desktop shell, then phase 2 (STR-020 combined and strap footing; estimation; standards library).
 
 ## Decisions (do not reopen without a reason recorded here)
@@ -64,6 +65,8 @@ Test counts at 0.3.0: backend 256 (216 engineering, architecture and hand checks
 | D24 | Top bars over a support shared with the next panel are scheduled whole with the panel being designed, and the schedule says so | one schedule per design, no half bars; the adjacent panel leaves them out |
 | D25 | Flanged beams are an option of the beam element (`section`), not a separate element; flexure dispatches on whether the flange is in compression | one engine, one hand check and one schedule for every beam; continuous beams need both cases in one design |
 | D26 | `show_if` may list several values | the flange rows serve both T and L sections without duplicating fields |
+| D27 | A continuous beam is its own element designed whole (3 to 12 equal spans), reusing the beam's section routines | per-span designs would schedule the bars over a shared support twice or leave them undeveloped |
+| D28 | Design moments of continuous beams from Table 12; points of inflection from an elastic analysis of the Cl. 22.4.1 arrangements | the coefficients give no moment diagram; combining Table 12 peaks with a span carrying dead load alone is not a real case and over-extends the bars |
 
 Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not here.
 
@@ -101,6 +104,14 @@ Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not her
 * Library versions at 0.1.0 are recent majors (React 19, MUI 9, Vite 8, Tailwind 4, TypeScript 7, dockview-react 8, recharts 3, FastAPI 0.16x, SQLAlchemy 2.1). Check the installed typings before assuming an older API.
 
 ## Log
+
+### 0.4.0 in progress (19 November 2026): STR-015 continuous beams
+
+* Built: `engineering/continuous.py` (three-moment equation, Cl. 22.4.1 arrangements, points of inflection, envelope); continuous beam element 1.0.0 (`continuous_beam.py`, `continuous_beam_detailing.py`, registry entry): Cl. 22.2(b) spans, Tables 12 and 13, four design sections, shear and deflection per span type, top bars to the elastic points of inflection plus Cl. 26.2.3.4, hangers lapped in compression, bars that meet lapped at mid-span with a check, schedule and quantities for the whole beam, elevation and two sections. Beam helpers made public and the cross-section drawing extracted for reuse (beam drawing output unchanged, verified). Quantities heading kept with its table in the PDF.
+* Worked example: 4 spans of 5 m, 300 x 500, M25 / Fe 500, DL 25 + LL 15: 5-T16 / 4-T16 bottom, 6-T16 over B, 10-T12 over C, 37 of 37 checks, 388.6 kg.
+* Hand check: 368 values over 12 cases; the points of inflection by Hardy Cross agree with the engine's three-moment solution to 0.1 mm.
+* Found and fixed before committing: the first placing of the points of inflection (Table 12 peaks at both ends of a span carrying dead load alone) is not a real load case and ran the top bars through every interior span; support bars that met kept their full extents and doubled the steel (now lapped at mid-span); a dimension showed the distance to the drawing's break instead of the bars' extent; one hand-check case was set up too heavy for two-legged T8 stirrups (the engine rightly reported it Not OK).
+* The session's worker restarted mid-way; the working tree was intact and the work resumed from it.
 
 ### 0.4.0 in progress (18 November 2026): STR-014 flanged beams
 

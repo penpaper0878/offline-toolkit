@@ -7,7 +7,8 @@ An Indian civil engineering operating system: design to Indian Standards, estima
 | Module | State |
 |---|---|
 | Dashboard, projects, users and roles | built |
-| Structural design: RCC beam to IS 456:2000 | built (engine 1.0.0) |
+| Structural design: RCC beam (rectangular, T, L) to IS 456:2000 | built (engine 1.1.0) |
+| Structural design: RCC continuous beam (Tables 12 and 13) | built (engine 1.0.0) |
 | Structural design: RCC column to IS 456:2000 | built (engine 1.0.0); clauses still to be compared with the printed code |
 | Structural design: RCC slab (one-way, two-way) to IS 456:2000 | built (engine 1.0.0); Table 26 rows still to be compared with the printed code |
 | Structural design: RCC isolated footing to IS 456:2000 | built (engine 1.0.0) |

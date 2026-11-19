@@ -14,7 +14,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from app.modules.structural.domain import beam, column, footing, slab
+from app.modules.structural.domain import beam, column, continuous_beam, footing, slab
 
 
 @dataclass(frozen=True)
@@ -44,6 +44,24 @@ ELEMENTS: dict[str, ElementSpec] = {
             "No curtailment of bars and one stirrup spacing along the span.",
             "Deflection by the span/depth rule of Cl. 23.2.1; no calculated deflection or crack width.",
             "Ductile detailing to IS 13920 is not applied.",
+        ),
+    ),
+    continuous_beam.ELEMENT_TYPE: ElementSpec(
+        type=continuous_beam.ELEMENT_TYPE,
+        title="RCC continuous beam",
+        description="Beam over three or more equal spans by the coefficients of Tables 12 and 13: span and support sections, shear, "
+                    "deflection, extents of the top bars, schedule for the whole beam.",
+        engine_version=continuous_beam.ENGINE_VERSION,
+        code_basis=continuous_beam.CODE_BASIS,
+        input_model=continuous_beam.ContinuousBeamInput,
+        design=continuous_beam.design_continuous_beam,
+        limitations=(
+            "Three or more spans of one clear span (enter the longest where they differ by up to 15 percent) and one section; "
+            "uniform dead and imposed load on every span (Cl. 22.5.1).",
+            "No redistribution of moments with the coefficients (Cl. 22.5.1). For other spans or loads, design each span as a beam "
+            "with the forces of an analysis.",
+            "Top bars over the supports run to the extent of the hogging envelope; bottom bars are not curtailed.",
+            "Torsion and ductile detailing to IS 13920 are not covered.",
         ),
     ),
     column.ELEMENT_TYPE: ElementSpec(

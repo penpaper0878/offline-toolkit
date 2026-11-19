@@ -122,6 +122,8 @@ Adding a column, slab or footing is therefore: a domain module, a hand check, a 
 
 **Reinforcement data** (`rebar.py`). Bar sizes, areas, unit masses.
 
+**Continuous beam analysis** (`continuous.py`). The three-moment equation for a beam on knife-edge supports, the arrangements of imposed load of Cl. 22.4.1, points of inflection and the moment envelope. The continuous beam uses it to place the ends of its top bars; its design moments stay those of Table 12.
+
 **Section analysis** (`rc_section.py`). A rectangular section under axial load and bending by strain compatibility (Cl. 39.1): the Fig. 21 block integrated in closed form for any neutral-axis depth, bars on the Fig. 23 curves, the capacity at an axial load, the balanced state and the interaction curve. Used by the column; footings, walls and pile caps will use it.
 
 Rules for every engine:
@@ -262,13 +264,13 @@ civillabpro/
     app/
       main.py                    assembles routers; optional client serving
       core/                      config, database, security, errors, dependencies
-      engineering/               trace, is456, is456_slabs, rebar, drawing, rc_section   (pure)
+      engineering/               trace, is456, is456_slabs, continuous, rebar, drawing, rc_section   (pure)
       assets/fonts/              report fonts
       modules/
         identity/                models, schemas, permissions, service, router
         projects/                models, schemas, service, router
         structural/
-          domain/                beam, column, slab, footing and their detailing, registry   (pure)
+          domain/                beam, continuous_beam, column, slab, footing and their detailing, registry   (pure)
           exports/               pdf_report, bbs_xlsx, dxf
           models, schemas, service, router
         dashboard/               router (read models, search)

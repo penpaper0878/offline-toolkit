@@ -12,7 +12,7 @@ Status last checked: 16 November 2026. Column clauses added 17 November 2026; sl
 | Status | Current. Reaffirmed 2021. |
 | Amendments | Nos. 1 to 6. Amendment No. 6 is dated April 2024 (published August 2024); the excerpt consulted changes Cl. 5.1 (cement references, including composite cement to IS 16415) and deletes Cl. 17.5 in favour of a load test under Cl. 17.6. None of the clauses listed below is touched by that excerpt. |
 | Revision | A fifth revision ("Structural concrete") has been in draft; secondary sources report it was circulated for comment in 2025 and was still being processed in early 2026. IS 456:2000 remains the enforceable standard. Review this entry when the revision is published. |
-| Used by | beam engine 1.1.0, column engine 1.0.0, slab engine 1.0.0, footing engine 1.0.0 |
+| Used by | beam engine 1.1.0, continuous beam engine 1.0.0, column engine 1.0.0, slab engine 1.0.0, footing engine 1.0.0 |
 
 ### Clauses taken
 
@@ -95,6 +95,45 @@ The code text was not read (as for the column); the effective-width formulas, An
 * Cl. 23.1.2(c), (d): the isolated-beam expressions, and whether b is the actual flange width (as used).
 * Cl. 23.1.1(b): the extent of the transverse bars (the corroborating sources give the 60 percent but not the extent).
 * Annex G-2.2: the wording that lets x_u replace x_u,max.
+
+### Continuous beam engine 1.0.0: clauses taken
+
+The code text was not read. Table 12 and the end-support value of Table 13 were corroborated; the rest of Table 13 and the wording of Cl. 22.2(b), 22.4.1 and 26.2.3.4 are as commonly published.
+
+| Clause | Subject | Where |
+|---|---|---|
+| Cl. 22.2(b) | effective span of continuous beams: narrow supports as 22.2(a); wide supports: end span l_c + min(d/2, w_s/2), interior spans l_c | `continuous_beam.effective_spans` |
+| Cl. 22.4.1 | arrangements of imposed load: on adjacent spans, on alternate spans | `engineering/continuous.load_arrangements` |
+| Cl. 22.5.1, Table 12 | moments of continuous beams over three or more spans within 15 percent; average of the two values at a support between unequal spans; no redistribution | `span_moment`, `support_moment` |
+| Cl. 22.5.1, Table 13 | shears at the end support, either side of the support next to the end, and other interior supports | `support_shear` |
+| Cl. 22.6.2.1 | shear at d from the face | shear section |
+| Cl. 23.1.2, note | l_0 = 0.7 l for continuous beams | `make_flange` |
+| Cl. 23.2.1(a) | basic span/depth 26 for continuous beams | deflection section |
+| Cl. 26.2.3.3 | positive steel into the end supports (one third of L_d) | schedule |
+| Cl. 26.2.3.4 | negative steel beyond the point of inflection by the greatest of d, 12 phi, l_n/16 | extents of the top bars |
+| Cl. 26.2.5.1(c), (d) | laps in tension (L_d, at least 30 phi) and in compression (L_d,c, at least 24 phi) | `continuous_beam_detailing.layout` |
+| Cl. 29 | deep beams: a continuous beam with l/D below 2.5 stops | stop state |
+
+### Continuous beam engine: interpretations
+
+49. **One design for the whole beam.** Equal spans and one section; the end spans and the interior spans, the supports next to the ends (B) and the other interior supports (C) are designed separately. Spans that differ within 15 percent are entered as the longest, on the safe side.
+50. **Dead load fixed, imposed load not fixed** (the two columns of Tables 12 and 13), each factored by the entered load factor.
+51. **Table 13 shear** is taken at the face of the support and reduced to d from the face by (w_d + w_l) d (Cl. 22.6.2.1), as for the simple beam. Each span type takes the worse of its two ends, each with its own tension steel for tau_c (bottom steel at the end support, top steel at the interior supports).
+52. **Support sections** are rectangles of the web width (the flange is in tension) with the lighter of the two adjacent spans' bottom bars as compression steel; where it is needed, those bars continue past the far face of the support by the development length in compression.
+53. **Points of inflection** come from an elastic analysis (three-moment equation, knife-edge supports, the end supports free) of every arrangement of Cl. 22.4.1 (imposed load on all spans, on alternate spans, on each pair of adjacent spans); the design moments stay those of Table 12. The analysis runs between centre lines and the extents are set out from the faces.
+54. **All top bars over a support** run beyond the furthest point of inflection by the greatest of d, 12 phi and l_c/16, and at least L_d from the face; the code asks this of one third of them (Cl. 26.2.3.4). Partial curtailment is STR-016.
+55. **Support bars that meet** (no room for a hanger lapped at both ends) run to mid-span and lap there in tension; the hogging there under the elastic envelope is checked against the weaker of the two sets, their compression steel ignored. In an end span they run on to the end support instead.
+56. **Hangers** lap with the support bars in compression (they lie beyond the point of inflection).
+57. **The end spans** take the continuous basic ratio 26 (Cl. 23.2.1(a) lists only simply supported, continuous and cantilever).
+58. **Cl. 29** for continuous beams: deep when the effective span is less than 2.5 D (2.0 for a simple span).
+
+### Continuous beam engine: to cross-check against a printed copy
+
+* Table 13: every value except the 0.40 at the end support; whether the coefficient multiplies the total load on the effective or the clear span (the effective span is used).
+* Cl. 22.2(b): the 1/12 and 600 mm thresholds and the end-span rule.
+* Cl. 22.4.1: the two arrangements of imposed load.
+* Cl. 26.2.3.4: d, 12 phi, l_n/16, and the one third.
+* Cl. 29: 2.5 for continuous beams.
 
 ### Column engine 1.0.0: clauses taken
 
@@ -259,6 +298,11 @@ Flanged beam clauses (secondary sources; the code text was not read):
 * Effective width and Annex G-2: https://engineeringhulk.com/civil/rcc-design/t-beam-l-beam/, https://limitstatelessons.blogspot.com/2015/09/Effective-flange-width-of-T-beams-and-L-beams.html, https://limitstatelessons.blogspot.com/2015/09/chapter-9-cont3.html, https://rcet.org.in/uploads/academics/rohini_65680000162.pdf, https://www.scribd.com/doc/316351967/m5l10
 * Fig. 6 (conflicting): https://infralens.in/handbook/slab-span-depth-ratios
 * Cl. 23.1.1: https://es.scribd.com/document/236237374/FLANGED-BEAMS, https://limitstatelessons.blogspot.com/2015/10/Deflection-control-preliminary-dimensions-of-flanged-beams-T-beams.html
+
+Continuous beam clauses (secondary sources; the code text was not read):
+
+* Cl. 22.2(b): https://www.pcepurnia.org/wp-content/uploads/2020/03/lec14-1.pdf, https://www.scribd.com/document/439952155/lec14-pdf, https://ce-deepanshu.github.io/RCC-Design.github.io/Continous_Beam.html
+* Tables 12 and 13: https://limitstatelessons.blogspot.com/2015/08/chapter-7-cont3-analysis-of-continuous.html, https://cec.nic.in/webpath/curriculum/Module/Arch/Paper16/22/downloads/faq.pdf
 
 Slab and footing clauses (secondary sources; the code text was not read):
 

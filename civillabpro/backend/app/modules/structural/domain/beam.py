@@ -210,7 +210,7 @@ def flexure_capacity(inp: BeamInput, fl: Flange | None, d: float, ast: float, as
     return is456.moment_capacity(fck, fy, b, d, ast, asc, d_c)
 
 
-def _tension_candidates(inp: BeamInput, cover: float) -> list[tuple[BarGroup, float, float, float]]:
+def tension_candidates(inp: BeamInput, cover: float) -> list[tuple[BarGroup, float, float, float]]:
     """Bar groups that fit the tension face in one or two layers.
 
     Returns (group, depth of centroid from the face, clear spacing, layer gap).
@@ -241,7 +241,7 @@ def _tension_candidates(inp: BeamInput, cover: float) -> list[tuple[BarGroup, fl
     return out
 
 
-def _other_candidates(inp: BeamInput, cover: float) -> list[BarGroup]:
+def other_candidates(inp: BeamInput, cover: float) -> list[BarGroup]:
     """Single-layer bar groups for the face opposite the flexural tension face."""
     inner = inp.width_mm - 2.0 * (cover + inp.stirrup_dia_mm)
     n_min = 2 if inp.stirrup_legs == 2 else 4
@@ -265,10 +265,10 @@ def select_bars(inp: BeamInput, cover: float) -> tuple[Arrangement, Forces] | No
     b, D, fck, fy, dst = inp.width_mm, inp.depth_mm, inp.fck, inp.fy, inp.stirrup_dia_mm
     as_max = is456.max_steel(b, D)
     best: tuple[tuple[float, int, int], Arrangement, Forces] | None = None
-    others = sorted(_other_candidates(inp, cover), key=lambda g: g.area)
+    others = sorted(other_candidates(inp, cover), key=lambda g: g.area)
     if not others:
         return None
-    for ten, ybar, clear, gap in sorted(_tension_candidates(inp, cover), key=lambda c: c[0].area):
+    for ten, ybar, clear, gap in sorted(tension_candidates(inp, cover), key=lambda c: c[0].area):
         if best is not None and ten.area + others[0].area > best[0][0] + 1e-6:
             break  # candidates are in order of area: nothing lighter remains
         d = D - ybar
@@ -304,7 +304,7 @@ def select_bars(inp: BeamInput, cover: float) -> tuple[Arrangement, Forces] | No
     return (best[1], best[2]) if best else None
 
 
-def _practical_spacing(s: float) -> float:
+def practical_spacing(s: float) -> float:
     """Round a stirrup spacing down to what is set out on site: 25 mm steps from 100 mm, 5 mm steps below."""
     s = min(s, 300.0)
     return math.floor(s / 25.0 + 1e-9) * 25.0 if s >= 100.0 else math.floor(s / 5.0 + 1e-9) * 5.0
@@ -360,7 +360,7 @@ def design_beam(inp: BeamInput) -> dict[str, Any]:
     if flg:
         sheet.step("Input", f"{SECTION_LABELS[inp.section]}: web width, overall depth, flange thickness", "b_w x D, D_f", "",
                    f"{_n(b, 0)} x {_n(D, 0)}, {_n(flg.df, 0)}", "mm")
-        _flange_steps(sheet, inp, flg, forces.l_eff)
+        flange_steps(sheet, inp, flg, forces.l_eff)
     else:
         sheet.step("Input", "Width and overall depth", "b x D", "", f"{_n(b, 0)} x {_n(D, 0)}", "mm")
     sheet.step(f"{REF}, Table 16", "Cover to stirrups", "c", "", cover, "mm", 0)
@@ -383,7 +383,7 @@ def design_beam(inp: BeamInput) -> dict[str, Any]:
     sheet.step(f"{REF}, Cl. 38.1(f)", "Limiting neutral-axis depth", "x_u,max = d x 0.0035 / (0.0055 + 0.87 f_y/E_s)", f"{_n(xr, 3)} x {_n(d, 1)}", fl.xu_max, "mm", 1)
     if flanged_comp:
         assert flg is not None
-        _flanged_flexure_steps(sheet, flg, fl, md, fck, fy, b, d)
+        flanged_flexure_steps(sheet, flg, fl, md, fck, fy, b, d)
     else:
         if flg is not None:
             sheet.step(f"{REF}, Annex G-1", "The flange is on the tension face (hogging): the section acts as a rectangle of the web width",
@@ -392,7 +392,7 @@ def design_beam(inp: BeamInput) -> dict[str, Any]:
                    f"0.36 x {_n(fck, 0)} x {_n(b, 0)} x {_n(fl.xu_max, 1)} x ({_n(d, 1)} - 0.42 x {_n(fl.xu_max, 1)})",
                    fl.mu_lim / 1e6, "kN m")
     if flanged_comp:
-        pass  # steel steps written by _flanged_flexure_steps
+        pass  # steel steps written by flanged_flexure_steps
     elif not fl.doubly:
         sheet.step(f"{REF}, Annex G-1.1(b)", "Singly reinforced: steel required",
                    "A_st = 0.5 (f_ck/f_y) [1 - sqrt(1 - 4.6 M_u / (f_ck b d^2))] b d",
@@ -503,7 +503,7 @@ def design_beam(inp: BeamInput) -> dict[str, Any]:
 
     governing = min(limits, key=lambda k: limits[k])
     sv_allow = limits[governing]
-    sv = _practical_spacing(sv_allow)
+    sv = practical_spacing(sv_allow)
     sheet.step("Selected", f"Stirrups provided: {legs}-legged T{dst} (governed by {governing})", "s_v", "", sv, "mm", 0)
     sheet.check("sv", f"{REF}, Cl. 26.5.1.5 and 40.4", "Stirrup spacing provided", "s_v", sv, "<=", "s_v,allow", sv_allow, "mm", 0, ratio=False)
     sheet.check("sv_min", "Practice", "Stirrup spacing workable on site (75 mm or more)", "s_v", sv, ">=", "s_v,min", 75.0, "mm", 0, ratio=False)
@@ -707,10 +707,14 @@ _WIDTH_RULE = {
 }
 
 
-def _flange_steps(sheet: CalcSheet, inp: BeamInput, flg: Flange, l_eff: float) -> None:
+def flange_steps(sheet: CalcSheet, inp: Any, flg: Flange, l_eff: float, continuous: bool = False) -> None:
+    """Steps for l_0 and the effective flange width (Cl. 23.1.2). ``inp`` is any beam input with the flange fields."""
     bw, df, b_act, l0 = inp.width_mm, flg.df, flg.b_actual, flg.l0
     if inp.l0_mm:
         sheet.step("Input", "Distance between points of zero moment", "l_0", "", l0, "mm", 0)
+    elif continuous:
+        sheet.step(f"{REF}, Cl. 23.1.2, note", "Distance between points of zero moment: 0.7 times the effective span of a continuous beam",
+                   "l_0 = 0.7 l", f"0.7 x {_n(l_eff, 0)}", l0, "mm", 0)
     else:
         sheet.step(f"{REF}, Cl. 23.1.2", "Distance between points of zero moment: the effective span"
                    + (" (the flange is in tension; used only for Fig. 6)" if not flg.in_compression else ""), "l_0 = l", "", l0, "mm", 0)
@@ -727,7 +731,7 @@ def _flange_steps(sheet: CalcSheet, inp: BeamInput, flg: Flange, l_eff: float) -
     sheet.step(f"{REF}, Cl. 23.1.2", "Not more than the width available", "b_f = min(b_f, b)", f"min({_n(raw, 0)}, {_n(b_act, 0)})", flg.bf, "mm", 0)
 
 
-def _flanged_flexure_steps(sheet: CalcSheet, flg: Flange, fl: FlexureDesign, md: float, fck: float, fy: float, bw: float, d: float) -> None:
+def flanged_flexure_steps(sheet: CalcSheet, flg: Flange, fl: FlexureDesign, md: float, fck: float, fy: float, bw: float, d: float) -> None:
     bf, df = flg.bf, flg.df
     mu_f = 0.36 * fck * bf * df * (d - 0.42 * df)
     xm = fl.xu_max

@@ -189,6 +189,89 @@ def quantities(inp: BeamInput, bbs: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def cross_section(sec: Any, ox: float, b: float, D: float, cover: float, st: dict[str, Any], top: dict[str, Any], bot: dict[str, Any],
+                  gap_top: float = 0.0, gap_bot: float = 0.0, shape: dict[str, Any] | None = None, side: dict[str, Any] | None = None,
+                  inner_a: float | None = None, caption: str | None = None) -> tuple[float, float]:
+    """Draw one beam cross-section with the left face of the web at x = ox.
+
+    ``top`` and ``bot`` are bar groups (dia, layers, label); ``gap_*`` the clear gap between their layers; ``shape`` the
+    section (rectangular, or a T or L flange with df and bf). Returns the text height and the right-most x used.
+    """
+    shape = shape or {"kind": "rectangular"}
+    flanged = shape["kind"] != "rectangular"
+    tee = shape["kind"] == "t_beam"
+    dst = st["dia"]
+    e_l = e_r = 0.0  # drawn flange outstands, left and right
+    df = 0.0
+    if flanged:
+        df = shape["df"]
+        full = (shape["bf"] - b) / (2.0 if tee else 1.0)
+        e = min(full, max(1.2 * b, 300.0))  # a stub of the flange, broken off when it is wider
+        e_l, e_r = e, (e if tee else 0.0)
+    th = max(b + e_l + e_r, D) / 20.0
+    if not flanged:
+        sec.rect(ox, 0, b, D, "concrete")
+    else:
+        def brk(x: float, out: float) -> list[tuple[float, float]]:  # a break line up the end of the flange
+            y0 = D - df
+            return [(x, y0 + 0.30 * df), (x + out * 0.12 * df, y0 + 0.42 * df), (x - out * 0.12 * df, y0 + 0.58 * df), (x, y0 + 0.70 * df)]
+        pts = [(ox - e_l, D), (ox + b + e_r, D)]
+        if tee:  # down the right-hand break, then in to the web
+            pts += list(reversed(brk(ox + b + e_r, 1.0))) + [(ox + b + e_r, D - df), (ox + b, D - df)]
+        pts += [(ox + b, 0), (ox, 0), (ox, D - df), (ox - e_l, D - df)] + brk(ox - e_l, -1.0)
+        sec.polyline(pts, closed=True, layer="concrete")
+    o = cover + dst / 2.0
+    r = 2.0 * dst
+    sec.polyline(
+        [(ox + x, y) for x, y in ((o + r, o), (b - o - r, o), (b - o, o + r), (b - o, D - o - r), (b - o - r, D - o), (o + r, D - o),
+                                  (o, D - o - r), (o, o + r))],
+        closed=True, layer="stirrup",
+    )
+    if st["legs"] == 4 and inner_a:  # inner hoop around the middle bars
+        xi = (b - inner_a + dst) / 2.0
+        sec.polyline([(ox + xi, o), (ox + b - xi, o), (ox + b - xi, D - o), (ox + xi, D - o)], closed=True, layer="stirrup")
+    sec.line(ox + o + r, D - o, ox + o + r + 4 * dst, D - o - 4 * dst, "stirrup")  # 135 degree hooks
+    sec.line(ox + o, D - o - r, ox + o + 4 * dst, D - o - r - 4 * dst, "stirrup")
+
+    def face_bars(group: dict[str, Any], face: str, gap: float) -> None:
+        dia = group["dia"]
+        edge = cover + dst + dia / 2.0
+        for li, n in enumerate(group["layers"]):
+            off = edge + li * (dia + gap)
+            y = off if face == "bottom" else D - off
+            for x in _bar_xs(b, edge, n):
+                sec.circle(ox + x, y, dia / 2.0, "rebar")
+
+    face_bars(bot, "bottom", gap_bot)
+    face_bars(top, "top", gap_top)
+    if side:
+        y_lo = cover + dst + bot["dia"] / 2.0
+        y_hi = D - (cover + dst + top["dia"] / 2.0)
+        xs = cover + dst + side["dia"] / 2.0
+        for i in range(side["per_face"]):
+            y = y_lo + (i + 1) * (y_hi - y_lo) / (side["per_face"] + 1)
+            sec.circle(ox + xs, y, side["dia"] / 2.0, "rebar")
+            sec.circle(ox + b - xs, y, side["dia"] / 2.0, "rebar")
+    sec.dim(ox, 0, ox + b, 0, -2.2 * th, f"{b:.0f}", th)
+    if flanged:  # chained: the rib on the web face, the flange at its end; the overall depth in the caption
+        sec.dim(ox, 0, ox, D - df, -1.2 * th, f"{D - df:.0f}", th)
+        sec.dim(ox - e_l, D - df, ox - e_l, D, -1.2 * th, f"{df:.0f}", th)
+        sec.text(ox + (b + e_r - e_l) / 2.0, D + 0.8 * th, f"Effective flange width b_f = {shape['bf']:.0f}", 0.8 * th, "middle")
+    else:
+        sec.dim(ox, 0, ox, D, -2.2 * th, f"{D:.0f}", th)
+    lx = ox + b + e_r + 1.5 * th
+    sec.leader(ox + b - cover - dst - top["dia"] / 2.0, D - cover - dst - top["dia"] / 2.0, lx, D - th, top["label"], th)
+    sec.leader(ox + b - o, D / 2.0, lx, D / 2.0, st["label"], th)
+    if side:
+        sec.leader(ox + b - cover - dst - side["dia"] / 2.0, D * 0.36, lx, D * 0.30, side["label"], th)
+    sec.leader(ox + b - cover - dst - bot["dia"] / 2.0, cover + dst + bot["dia"] / 2.0, lx, 0.2 * th, bot["label"], th)
+    sec.text(ox + b / 2.0, -5.2 * th, (f"Overall depth {D:.0f} mm; c" if flanged else "C") + f"over {cover:.0f} mm to stirrups", 0.8 * th, "middle")
+    if caption:
+        sec.text(ox + b / 2.0, -6.8 * th, caption, th, "middle")
+    labels = max(len(top["label"]), len(st["label"]), len(bot["label"]), len(side["label"]) if side else 0)
+    return th, lx + 0.6 * th * labels
+
+
 def _bar_xs(b: float, edge: float, n: int) -> list[float]:
     if n == 1:
         return [b / 2.0]
@@ -207,74 +290,11 @@ def drawing(inp: BeamInput, cover: float, reinf: dict[str, Any], bbs: dict[str, 
     sec = model.view("section", "Section A-A", "to scale")
     shape = reinf.get("section") or {"kind": "rectangular"}
     flanged = shape["kind"] != "rectangular"
-    tee = shape["kind"] == "t_beam"
-    e_l = e_r = 0.0  # drawn flange outstands, left and right
-    if flanged:
-        df = shape["df"]
-        full = (shape["bf"] - b) / (2.0 if tee else 1.0)
-        e = min(full, max(1.2 * b, 300.0))  # a stub of the flange, broken off when it is wider
-        e_l, e_r = e, (e if tee else 0.0)
-    th = max(b + e_l + e_r, D) / 20.0
-    if not flanged:
-        sec.rect(0, 0, b, D, "concrete")
-    else:
-        def brk(x: float, out: float) -> list[tuple[float, float]]:  # a break line up the end of the flange
-            y0 = D - df
-            return [(x, y0 + 0.30 * df), (x + out * 0.12 * df, y0 + 0.42 * df), (x - out * 0.12 * df, y0 + 0.58 * df), (x, y0 + 0.70 * df)]
-        pts = [(-e_l, D), (b + e_r, D)]
-        if tee:  # down the right-hand break, then in to the web
-            pts += list(reversed(brk(b + e_r, 1.0))) + [(b + e_r, D - df), (b, D - df)]
-        pts += [(b, 0), (0, 0), (0, D - df), (-e_l, D - df)] + brk(-e_l, -1.0)
-        sec.polyline(pts, closed=True, layer="concrete")
-    o = cover + dst / 2.0
-    r = 2.0 * dst
-    sec.polyline(
-        [(o + r, o), (b - o - r, o), (b - o, o + r), (b - o, D - o - r), (b - o - r, D - o), (o + r, D - o), (o, D - o - r), (o, o + r)],
-        closed=True, layer="stirrup",
-    )
-    if st["legs"] == 4:  # inner hoop around the middle bars
-        inner = next((i for i in bbs["items"] if i["description"].startswith("Inner stirrups")), None)
-        if inner:
-            xi = (b - inner["dims"]["A"] + dst) / 2.0
-            sec.polyline([(xi, o), (b - xi, o), (b - xi, D - o), (xi, D - o)], closed=True, layer="stirrup")
-    sec.line(o + r, D - o, o + r + 4 * dst, D - o - 4 * dst, "stirrup")  # 135 degree hooks
-    sec.line(o, D - o - r, o + 4 * dst, D - o - r - 4 * dst, "stirrup")
-
-    def face_bars(group: dict[str, Any], face: str) -> None:
-        dia = group["dia"]
-        edge = cover + dst + dia / 2.0
-        gap = reinf["layer_gap"] if group is reinf[face_t] else 0.0
-        for li, n in enumerate(group["layers"]):
-            off = edge + li * (dia + gap)
-            y = off if face == "bottom" else D - off
-            for x in _bar_xs(b, edge, n):
-                sec.circle(x, y, dia / 2.0, "rebar")
-
-    face_bars(bot, "bottom")
-    face_bars(top, "top")
-    side = reinf.get("side_face")
-    if side:
-        y_lo = cover + dst + bot["dia"] / 2.0
-        y_hi = D - (cover + dst + top["dia"] / 2.0)
-        xs = cover + dst + side["dia"] / 2.0
-        for i in range(side["per_face"]):
-            y = y_lo + (i + 1) * (y_hi - y_lo) / (side["per_face"] + 1)
-            sec.circle(xs, y, side["dia"] / 2.0, "rebar")
-            sec.circle(b - xs, y, side["dia"] / 2.0, "rebar")
-    sec.dim(0, 0, b, 0, -2.2 * th, f"{b:.0f}", th)
-    if flanged:  # chained: the rib on the web face, the flange at its end; the overall depth in the caption
-        sec.dim(0, 0, 0, D - df, -1.2 * th, f"{D - df:.0f}", th)
-        sec.dim(-e_l, D - df, -e_l, D, -1.2 * th, f"{df:.0f}", th)
-        sec.text((b + e_r - e_l) / 2.0, D + 0.8 * th, f"Effective flange width b_f = {shape['bf']:.0f}", 0.8 * th, "middle")
-    else:
-        sec.dim(0, 0, 0, D, -2.2 * th, f"{D:.0f}", th)
-    lx = b + e_r + 1.5 * th
-    sec.leader(b - cover - dst - top["dia"] / 2.0, D - cover - dst - top["dia"] / 2.0, lx, D - th, top["label"], th)
-    sec.leader(b - o, D / 2.0, lx, D / 2.0, st["label"], th)
-    if side:
-        sec.leader(b - cover - dst - side["dia"] / 2.0, D * 0.36, lx, D * 0.30, side["label"], th)
-    sec.leader(b - cover - dst - bot["dia"] / 2.0, cover + dst + bot["dia"] / 2.0, lx, 0.2 * th, bot["label"], th)
-    sec.text(b / 2.0, -5.2 * th, (f"Overall depth {D:.0f} mm; c" if flanged else "C") + f"over {cover:.0f} mm to stirrups", 0.8 * th, "middle")
+    df = shape.get("df", 0.0)
+    inner = next((i for i in bbs["items"] if i["description"].startswith("Inner stirrups")), None)
+    gap_t = reinf["layer_gap"] if face_t == "top" else 0.0
+    gap_b = reinf["layer_gap"] if face_t == "bottom" else 0.0
+    cross_section(sec, 0.0, b, D, cover, st, top, bot, gap_t, gap_b, shape, reinf.get("side_face"), inner["dims"]["A"] if inner else None)
 
     # ---------------------------------------------------------------- elevation
     elev = model.view("elevation", "Longitudinal section", "to scale")

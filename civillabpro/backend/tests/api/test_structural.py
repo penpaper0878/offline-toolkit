@@ -18,7 +18,7 @@ def design(client, team, project):
 
 def test_elements_registry_describes_the_beam(client, owner):
     elements = {e["type"]: e for e in client.get("/api/v1/structural/elements", headers=owner).json()}
-    assert list(elements) == ["beam", "column", "slab", "footing"]
+    assert list(elements) == ["beam", "continuous_beam", "column", "slab", "footing"]
     beam = elements["beam"]
     assert beam["type"] == "beam" and beam["code_basis"][0] == "IS 456:2000" and beam["limitations"]
     assert beam["defaults"]["clear_span_mm"] == 4000
@@ -255,3 +255,18 @@ def test_flanged_beam_through_the_same_endpoint(client, owner):
     assert r.status_code == 200 and res["status"] == "ok" and res["data"]["bf"] == 2070 and res["data"]["na_in_flange"]
     r = client.post("/api/v1/structural/beam/calculate", headers=owner, json={"section": "l_beam", "flange_width_mm": 200})
     assert r.status_code == 422 and "more than the web width" in r.json()["error"]["message"]
+
+
+def test_continuous_beam_goes_through_the_same_life_cycle(client, team, project):
+    cb = {e["type"]: e for e in client.get("/api/v1/structural/elements", headers=team["viewer"]).json()}["continuous_beam"]
+    assert cb["title"] == "RCC continuous beam" and cb["defaults"]["spans"] == 4 and any("Cl. 22.5.1" in x for x in cb["limitations"])
+    calc = client.post("/api/v1/structural/continuous_beam/calculate", headers=team["viewer"], json={}).json()
+    assert calc["status"] == "ok" and calc["key_results"][2]["value"] == "5-T16"
+    assert [v["id"] for v in calc["drawing"]["views"]] == ["elevation", "sections"]
+    r = client.post("/api/v1/structural/continuous_beam/calculate", headers=team["viewer"], json={"spans": 2})
+    assert r.status_code == 422 and r.json()["error"]["details"][0]["field"] == "spans"
+
+    d, revised, wb, doc = _life_cycle(client, team, project, "continuous_beam", "CB1", {"live_load_kn_m": 20})
+    assert revised["result"]["data"]["m_b"] > d["result"]["data"]["m_b"]
+    assert wb["BBS"]["B8"].value.startswith("Bottom bars, end spans")
+    assert "CLP-REBAR" in {layer.dxf.name for layer in doc.layers}
