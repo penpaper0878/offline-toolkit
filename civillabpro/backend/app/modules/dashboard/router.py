@@ -20,7 +20,7 @@ router = APIRouter(tags=["dashboard"])
 
 
 @router.get("/dashboard/summary")
-def summary(user: User = Depends(require(P.PROJECT_READ)), db: Session = Depends(get_db)) -> dict[str, Any]:
+def summary(user: User = Depends(require(P.PROJECT_READ)), db: Session = Depends(get_db, scope="function")) -> dict[str, Any]:
     org = user.org_id
     by_project_status = dict(db.execute(select(Project.status, func.count()).where(Project.org_id == org).group_by(Project.status)).all())
     by_design_status = dict(db.execute(select(StructuralDesign.status, func.count()).where(StructuralDesign.org_id == org).group_by(StructuralDesign.status)).all())
@@ -62,7 +62,7 @@ def summary(user: User = Depends(require(P.PROJECT_READ)), db: Session = Depends
 
 @router.get("/search", summary="Search everywhere: projects and designs of the organisation")
 def search(q: str = Query(..., min_length=1, max_length=100), limit: int = Query(20, ge=1, le=50), user: User = Depends(require(P.PROJECT_READ)),
-           db: Session = Depends(get_db)) -> list[dict[str, Any]]:
+           db: Session = Depends(get_db, scope="function")) -> list[dict[str, Any]]:
     like = f"%{q.strip().lower()}%"
     hits: list[dict[str, Any]] = []
     projects = db.scalars(select(Project).where(Project.org_id == user.org_id, or_(func.lower(Project.name).like(like), func.lower(Project.code).like(like),

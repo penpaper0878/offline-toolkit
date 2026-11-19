@@ -37,6 +37,7 @@ State: **done**, **next** (the item to start with), **ready** (can be started), 
 | UI-006 | Drawing tabs follow each element's views; vertical text in drawings (0.3.0) |
 | STR-014 | Beam engine 1.1.0: flanged sections (T and L), Annex G-2, Fig. 6, rib quantities and drawing (0.4.0) |
 | UI-007 | Conditional property rows on a list of values (`show_if` with several values) (0.4.0) |
+| PLAT-019 | Database sessions end before the response is sent (`Depends(get_db, scope="function")`), with a test over every route: with FastAPI's default scope a write was committed after its success response, so an immediate read could miss it (a defect since 0.1.0, found by the desktop smoke test) (0.5.0) |
 | UI-008 | Table fields in the property grid: lists of records from the input schema, rows added and removed, validated cell by cell (0.5.0) |
 | STR-015 | Continuous beam 1.0.0: equal spans by Tables 12 and 13, elastic placing of the points of inflection, schedule for the whole beam (0.4.0) |
 | ENG-006 | Continuous beam analysis kernel `continuous.py` (three-moment equation, Cl. 22.4.1 arrangements, envelope) (0.4.0) |

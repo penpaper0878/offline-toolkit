@@ -72,6 +72,7 @@ Test counts at 0.4.0: backend 319 (277 engineering, architecture and hand checks
 | D30 | Cl. 26.2.3.2 is one shared function for both beams, trying (a), then (c), then (b) with closer stirrups; curtailment is skipped where it saves nothing | (a) alone rejected most practical cut-offs |
 | D31 | Unequal spans and point loads are a second method of the continuous beam element (`analysis`), with its own per-span engine and detailing beside the coefficient method's | one element and one workspace for continuous beams; the coefficient engine's outputs and hand check stay as released (porting it onto the per-span path is STR-043) |
 | D32 | Lists of records (spans, point loads) are table fields of the input schema: the server inlines their rows' schema, the grid edits them as tables, the report prints a line per row | the registry pattern carries any element's tabular input; no element-specific form code |
+| D34 | Every route takes its session as `Depends(get_db, scope="function")`; a test walks all routes | the commit, and any error it raises, must come before the client hears of success |
 | D33 | The redistribution entered is a maximum: a support whose section cannot meet Cl. 37.1.1(d) with it takes 5 percent less, recorded on the sheet | the designer's intent survives a section that cannot take all of it, instead of a stop |
 
 Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not here.

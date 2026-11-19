@@ -22,22 +22,22 @@ def _agent(request: Request) -> str:
 
 
 @auth.post("/register", response_model=TokenPair, status_code=status.HTTP_201_CREATED, summary="Create an organisation and its owner")
-def register(data: RegisterIn, request: Request, db: Session = Depends(get_db)) -> TokenPair:
+def register(data: RegisterIn, request: Request, db: Session = Depends(get_db, scope="function")) -> TokenPair:
     return service.register(db, data, _agent(request))
 
 
 @auth.post("/login", response_model=TokenPair, summary="OAuth2 password grant: username is the email")
-def login(request: Request, form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)) -> TokenPair:
+def login(request: Request, form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db, scope="function")) -> TokenPair:
     return service.login(db, form.username, form.password, _agent(request))
 
 
 @auth.post("/refresh", response_model=TokenPair, summary="Rotate the refresh token")
-def refresh(data: RefreshIn, request: Request, db: Session = Depends(get_db)) -> TokenPair:
+def refresh(data: RefreshIn, request: Request, db: Session = Depends(get_db, scope="function")) -> TokenPair:
     return service.refresh(db, data.refresh_token, _agent(request))
 
 
 @auth.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout(data: RefreshIn, db: Session = Depends(get_db)) -> None:
+def logout(data: RefreshIn, db: Session = Depends(get_db, scope="function")) -> None:
     service.logout(db, data.refresh_token)
 
 
@@ -48,22 +48,22 @@ def me(user: User = Depends(current_user)) -> MeOut:
 
 
 @auth.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
-def change_password(data: PasswordChange, user: User = Depends(current_user), db: Session = Depends(get_db)) -> None:
+def change_password(data: PasswordChange, user: User = Depends(current_user), db: Session = Depends(get_db, scope="function")) -> None:
     service.change_password(db, user, data.current_password, data.new_password)
 
 
 @users.get("", response_model=list[UserOut])
-def list_users(user: User = Depends(require(P.USER_MANAGE)), db: Session = Depends(get_db)) -> list[User]:
+def list_users(user: User = Depends(require(P.USER_MANAGE)), db: Session = Depends(get_db, scope="function")) -> list[User]:
     return service.list_users(db, user.org_id)
 
 
 @users.post("", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-def create_user(data: UserCreate, user: User = Depends(require(P.USER_MANAGE)), db: Session = Depends(get_db)) -> User:
+def create_user(data: UserCreate, user: User = Depends(require(P.USER_MANAGE)), db: Session = Depends(get_db, scope="function")) -> User:
     return service.create_user(db, user, data)
 
 
 @users.patch("/{user_id}", response_model=UserOut)
-def update_user(user_id: uuid.UUID, data: UserUpdate, user: User = Depends(require(P.USER_MANAGE)), db: Session = Depends(get_db)) -> User:
+def update_user(user_id: uuid.UUID, data: UserUpdate, user: User = Depends(require(P.USER_MANAGE)), db: Session = Depends(get_db, scope="function")) -> User:
     return service.update_user(db, user, user_id, data)
 
 
@@ -73,5 +73,5 @@ def roles(_: User = Depends(current_user)) -> list[dict[str, object]]:
 
 
 @users.get("/audit", response_model=list[AuditOut])
-def audit_log(limit: int = 50, user: User = Depends(require(P.AUDIT_READ)), db: Session = Depends(get_db)) -> list[object]:
+def audit_log(limit: int = 50, user: User = Depends(require(P.AUDIT_READ)), db: Session = Depends(get_db, scope="function")) -> list[object]:
     return list(service.recent_audit(db, user.org_id, min(max(limit, 1), 200)))

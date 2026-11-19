@@ -39,37 +39,37 @@ def calculate(element_type: str, inputs: dict[str, Any] = Body(...), _: User = D
 
 
 @router.get("/projects/{project_id}/designs", response_model=list[DesignSummary])
-def list_designs(project_id: uuid.UUID, user: User = Depends(require(P.DESIGN_READ)), db: Session = Depends(get_db)) -> list[StructuralDesign]:
+def list_designs(project_id: uuid.UUID, user: User = Depends(require(P.DESIGN_READ)), db: Session = Depends(get_db, scope="function")) -> list[StructuralDesign]:
     return service.list_designs(db, user.org_id, project_id)
 
 
 @router.post("/projects/{project_id}/designs", response_model=DesignOut, status_code=status.HTTP_201_CREATED)
-def save_design(project_id: uuid.UUID, data: DesignSave, user: User = Depends(require(P.DESIGN_WRITE)), db: Session = Depends(get_db)) -> StructuralDesign:
+def save_design(project_id: uuid.UUID, data: DesignSave, user: User = Depends(require(P.DESIGN_WRITE)), db: Session = Depends(get_db, scope="function")) -> StructuralDesign:
     return service.save_design(db, user, project_id, data)
 
 
 @router.get("/designs/{design_id}", response_model=DesignOut)
-def get_design(design_id: uuid.UUID, user: User = Depends(require(P.DESIGN_READ)), db: Session = Depends(get_db)) -> StructuralDesign:
+def get_design(design_id: uuid.UUID, user: User = Depends(require(P.DESIGN_READ)), db: Session = Depends(get_db, scope="function")) -> StructuralDesign:
     return service.get_design(db, user.org_id, design_id)
 
 
 @router.put("/designs/{design_id}", response_model=DesignOut, summary="Save new inputs as the next revision")
-def update_design(design_id: uuid.UUID, data: DesignUpdate, user: User = Depends(require(P.DESIGN_WRITE)), db: Session = Depends(get_db)) -> StructuralDesign:
+def update_design(design_id: uuid.UUID, data: DesignUpdate, user: User = Depends(require(P.DESIGN_WRITE)), db: Session = Depends(get_db, scope="function")) -> StructuralDesign:
     return service.update_design(db, user, design_id, data)
 
 
 @router.post("/designs/{design_id}/approve", response_model=DesignOut)
-def approve_design(design_id: uuid.UUID, user: User = Depends(require(P.DESIGN_APPROVE)), db: Session = Depends(get_db)) -> StructuralDesign:
+def approve_design(design_id: uuid.UUID, user: User = Depends(require(P.DESIGN_APPROVE)), db: Session = Depends(get_db, scope="function")) -> StructuralDesign:
     return service.approve_design(db, user, design_id)
 
 
 @router.delete("/designs/{design_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_design(design_id: uuid.UUID, user: User = Depends(require(P.DESIGN_DELETE)), db: Session = Depends(get_db)) -> None:
+def delete_design(design_id: uuid.UUID, user: User = Depends(require(P.DESIGN_DELETE)), db: Session = Depends(get_db, scope="function")) -> None:
     service.delete_design(db, user, design_id)
 
 
 @router.get("/designs/{design_id}/revisions", response_model=list[RevisionOut])
-def revisions(design_id: uuid.UUID, user: User = Depends(require(P.DESIGN_READ)), db: Session = Depends(get_db)) -> list[Any]:
+def revisions(design_id: uuid.UUID, user: User = Depends(require(P.DESIGN_READ)), db: Session = Depends(get_db, scope="function")) -> list[Any]:
     return list(service.list_revisions(db, user.org_id, design_id))
 
 
@@ -96,7 +96,7 @@ def _filename(design: StructuralDesign, suffix: str) -> str:
 
 
 @router.get("/designs/{design_id}/report.pdf", summary="Calculation report (PDF, A4)", response_class=Response)
-def report_pdf(design_id: uuid.UUID, user: User = Depends(require(P.DESIGN_READ)), db: Session = Depends(get_db)) -> Response:
+def report_pdf(design_id: uuid.UUID, user: User = Depends(require(P.DESIGN_READ)), db: Session = Depends(get_db, scope="function")) -> Response:
     design = service.get_design(db, user.org_id, design_id)
     schema = service.element_or_404(design.element_type).input_schema()
     pdf = build_pdf(_meta(db, user, design), design.inputs, schema, design.result)
@@ -104,7 +104,7 @@ def report_pdf(design_id: uuid.UUID, user: User = Depends(require(P.DESIGN_READ)
 
 
 @router.get("/designs/{design_id}/bbs.xlsx", summary="Bar bending schedule (Excel)", response_class=Response)
-def bbs_xlsx(design_id: uuid.UUID, user: User = Depends(require(P.DESIGN_READ)), db: Session = Depends(get_db)) -> Response:
+def bbs_xlsx(design_id: uuid.UUID, user: User = Depends(require(P.DESIGN_READ)), db: Session = Depends(get_db, scope="function")) -> Response:
     design = service.get_design(db, user.org_id, design_id)
     if not design.result.get("bbs"):
         raise Conflict("This design has no bar schedule: the calculation stopped before detailing.")
@@ -114,7 +114,7 @@ def bbs_xlsx(design_id: uuid.UUID, user: User = Depends(require(P.DESIGN_READ)),
 
 
 @router.get("/designs/{design_id}/drawing.dxf", summary="Reinforcement drawing (DXF, mm)", response_class=Response)
-def drawing_dxf(design_id: uuid.UUID, user: User = Depends(require(P.DESIGN_READ)), db: Session = Depends(get_db)) -> Response:
+def drawing_dxf(design_id: uuid.UUID, user: User = Depends(require(P.DESIGN_READ)), db: Session = Depends(get_db, scope="function")) -> Response:
     design = service.get_design(db, user.org_id, design_id)
     if not design.result.get("drawing"):
         raise Conflict("This design has no drawing: the calculation stopped before detailing.")

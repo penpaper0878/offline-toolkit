@@ -19,7 +19,7 @@ from app.modules.identity.permissions import P, has_permission
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
-def current_user(token: str | None = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+def current_user(token: str | None = Depends(oauth2_scheme), db: Session = Depends(get_db, scope="function")) -> User:
     if not token:
         raise Unauthorized("Sign in to continue.")
     try:

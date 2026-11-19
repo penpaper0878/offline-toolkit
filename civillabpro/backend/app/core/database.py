@@ -104,7 +104,12 @@ def get_engine() -> Engine:
 
 
 def get_db() -> Iterator[Session]:
-    """FastAPI dependency: one session per request, rolled back on error."""
+    """FastAPI dependency: one session per request, rolled back on error.
+
+    Declare it as ``Depends(get_db, scope="function")``: the session then ends with the path operation, before the response
+    is sent, so a write is committed (or its error raised) before the client hears of it. With FastAPI's default scope the
+    commit would run after the response, and a client reading straight away could miss its own write.
+    """
     if _session_factory is None:
         init_engine()
     assert _session_factory is not None
