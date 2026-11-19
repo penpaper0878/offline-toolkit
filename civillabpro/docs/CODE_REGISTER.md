@@ -12,7 +12,7 @@ Status last checked: 16 November 2026. Column clauses added 17 November 2026; sl
 | Status | Current. Reaffirmed 2021. |
 | Amendments | Nos. 1 to 6. Amendment No. 6 is dated April 2024 (published August 2024); the excerpt consulted changes Cl. 5.1 (cement references, including composite cement to IS 16415) and deletes Cl. 17.5 in favour of a load test under Cl. 17.6. None of the clauses listed below is touched by that excerpt. |
 | Revision | A fifth revision ("Structural concrete") has been in draft; secondary sources report it was circulated for comment in 2025 and was still being processed in early 2026. IS 456:2000 remains the enforceable standard. Review this entry when the revision is published. |
-| Used by | beam engine 1.3.0, continuous beam engine 1.2.0, column engine 1.0.0, slab engine 1.0.0, footing engine 1.0.0 |
+| Used by | beam engine 1.3.0, continuous beam engine 1.3.0, column engine 1.0.0, slab engine 1.0.0, footing engine 1.0.0 |
 
 ### Clauses taken
 
@@ -134,7 +134,7 @@ The code text was not read (as for the column); the effective-width formulas, An
 71. **M_1** is computed with all the bars that reach the point at f_d and the neutral axis from equilibrium, without the x_u,max limit ("assuming all reinforcement at the section to be stressed to f_d"); a compression flange counts where there is one, compression steel does not (on the safe side).
 72. **V** at a simple support is the shear at the face (the simple beam's w_u l_c/2, the continuous beam's Table 13 value at the end support); at a point of inflection, the scaled shear envelope there.
 73. **L_0** at a simple support is the bar beyond the centre of the support (w_s/2 - cover) plus 8 phi when the bar is bent up at its end. The 1.3 factor is taken at every simple support (the beam bears on a wall or column); not at points of inflection.
-74. **Enforced, not only checked.** The simple beam's bar selection rejects bars that fail the clause even with a bend; the schedule bends straight bars that need the bend's 8 phi; curtailment is withdrawn where the continuing bars alone would fail, in both beams. If nothing passes, the simple beam stops with that reason; the continuous beam reports Not OK with the remedy.
+74. **Enforced, not only checked.** Both beams' bar selection rejects bottom bars that fail the clause even with a bend (the continuous beam at its end supports and its points of inflection, with a 2 percent margin on the shears because the final check uses the spans of the bars chosen); the schedule bends straight bars that need the bend's 8 phi; curtailment is withdrawn where the continuing bars alone would fail. If nothing passes, the design stops with that reason.
 75. **Points of inflection of the bottom bars** in a continuous beam: where the greatest moment of the scaled envelope turns positive next to an interior support; the check uses the larger shear of the span sides concerned.
 
 ### Continuous beam engine 1.0.0: clauses taken

@@ -35,9 +35,11 @@ from app.engineering.rebar import BarGroup, bar_area
 from app.engineering.trace import CalcSheet
 from app.modules.structural.domain.beam import (
     _FLANGED,
+    BEND_90_ANCHORAGE,
     SECTION_LABELS,
     Flange,
     _f,
+    anchorage_ok,
     effective_cover,
     flange_steps,
     flanged_flexure_steps,
@@ -49,7 +51,7 @@ from app.modules.structural.domain.beam import (
 )
 
 ELEMENT_TYPE = "continuous_beam"
-ENGINE_VERSION = "1.2.0"
+ENGINE_VERSION = "1.3.0"
 CODE_BASIS = ("IS 456:2000", "SP 16:1980", "IS 2502:1963")
 REF = is456.CODE
 FIRST_STIRRUP_MM = 50.0
@@ -191,8 +193,39 @@ def make_flange(inp: ContinuousBeamInput, l_eff: float) -> Flange | None:
     return Flange(kind, inp.flange_thickness_mm, inp.flange_width_mm, l0, bf, True)
 
 
-def select_span(inp: ContinuousBeamInput, cover: float, kind: Literal["end", "interior"], wd: float, wl: float) -> SpanSection | None:
-    """Least steel at mid-span: bottom bars in one or two layers and top bars in one, each judged at its own depth."""
+def _anchorage_limits(inp: ContinuousBeamInput, d: float, wd: float, wl: float) -> dict[str, float]:
+    """Shears for Cl. 26.2.3.3(c) with the spans of an effective depth d: at the end support, and at the points of inflection, kN."""
+    from app.modules.structural.domain import continuous_curtailment as curtail
+
+    le, li, _ = effective_spans(inp, d)
+    n = inp.spans
+    mom = {"end": span_moment("end", wd, wl, le), "interior": span_moment("interior", wd, wl, li), "b": support_moment("B", wd, wl, le, li),
+           "c": support_moment("C", wd, wl, li, li) if n >= 4 else 0.0}
+    sh = {"A": support_shear("end_support", wd, wl, le), "B1": support_shear("next_to_end_outer", wd, wl, le),
+          "B2": support_shear("next_to_end_inner", wd, wl, li), "C": support_shear("interior_support", wd, wl, li) if n >= 4 else 0.0}
+    dg = curtail.diagrams(n, [le / 1000.0] + [li / 1000.0] * (n - 2) + [le / 1000.0], inp.clear_span_mm, wd, wl, mom, sh)
+    return {"A": sh["A"], "end": curtail.inflection_shear(dg, "end"), "interior": curtail.inflection_shear(dg, "interior")}
+
+
+def anchorable(inp: ContinuousBeamInput, kind: Literal["end", "interior"], g: BarGroup, d: float, flg: Flange | None, cover: float,
+               limits: dict[str, float]) -> bool:
+    """Cl. 26.2.3.3(c) for bottom bars: at the end support (1.3 M_1/V + L_0, a bend allowed) and at the points of inflection
+    (M_1/V + max(d, 12 phi)). The shears carry a 2 percent margin, as the final check uses the spans of the bars chosen."""
+    fck, fy = float(inp.fck), float(inp.fy)
+    bf = flg.bf if flg is not None else None
+    m1 = is456.moment_at_design_stress(fck, fy, inp.width_mm, d, g.area, bf, flg.df if flg is not None else 0.0) / 1e6
+    if kind == "end":
+        l0 = inp.support_width_mm / 2.0 - cover + BEND_90_ANCHORAGE * g.dia
+        if not anchorage_ok(g.dia, fck, fy, m1, 1.02 * limits["A"], l0, True)[0]:
+            return False
+    return anchorage_ok(g.dia, fck, fy, m1, 1.02 * limits[kind], max(d, 12.0 * g.dia), False)[0]
+
+
+def select_span(inp: ContinuousBeamInput, cover: float, kind: Literal["end", "interior"], wd: float, wl: float,
+                anchorage: bool = True) -> SpanSection | None:
+    """Least steel at mid-span: bottom bars in one or two layers and top bars in one, each judged at its own depth; bars that
+    could not be anchored at the end support or the points of inflection (Cl. 26.2.3.3(c)) are passed over."""
+    limits_cache: dict[float, dict[str, float]] = {}
     b, D, fy, dst = inp.width_mm, inp.depth_mm, float(inp.fy), inp.stirrup_dia_mm
     as_max = is456.max_steel(b, D)
     others = sorted(other_candidates(inp, cover), key=lambda g: g.area)
@@ -217,6 +250,10 @@ def select_span(inp: ContinuousBeamInput, cover: float, kind: Literal["end", "in
             cap = flexure_capacity(inp, flg, d, ten.area, oth.area, d_c)
             if cap.limited or cap.mu < mu * 1e6:
                 continue
+            if anchorage:
+                lim = limits_cache.get(round(d, 1)) or limits_cache.setdefault(round(d, 1), _anchorage_limits(inp, d, wd, wl))
+                if not anchorable(inp, kind, ten, d, flg, cover, lim):
+                    continue
             key = (round(ten.area + oth.area, 3), len(ten.layers), ten.count + oth.count)
             if best is None or key < best[0]:
                 best = (key, SpanSection(kind, ten, oth, d, d_c, ybar, clear, gap, l_eff, mu, flg, fl, cap))
@@ -278,6 +315,9 @@ def design_continuous_beam(inp: ContinuousBeamInput) -> dict[str, Any]:
     end = select_span(inp, cover, "end", wd, wl)
     inner = select_span(inp, cover, "interior", wd, wl)
     if end is None or inner is None:
+        if all(select_span(inp, cover, k, wd, wl, anchorage=False) for k in ("end", "interior")):
+            return _stopped(sheet, "The bottom bars that carry the span moments are too large to be anchored at the end supports or the points "
+                                   "of inflection (Cl. 26.2.3.3(c)): use a smaller bar size, wider supports or a deeper section.")
         return _stopped(sheet, "No arrangement of up to two layers of bars carries the span moment within the steel limits of "
                                "Cl. 26.5.1: increase the section, the concrete grade or the bar size.")
     comp_b = end if end.bottom.area <= inner.bottom.area else inner  # the lighter bottom bars reach support B from both sides

@@ -239,3 +239,15 @@ def test_anchorage_at_the_end_supports_and_points_of_inflection():
     m1 = t * (d - 0.42 * t / (0.36 * 25 * 300))
     l0 = 300 / 2 - r["reinforcement"]["cover"]
     assert end["rhs"] == pytest.approx(1.3 * m1 / (r["data"]["v_a"] * 1e3) + l0, rel=1e-4)
+
+
+def test_bar_selection_respects_anchorage():
+    # 3-T32 carry the end span's moment but cannot develop at the end supports; a fourth bar raises M_1 enough (Cl. 26.2.3.3(c))
+    kw = dict(support_width_mm=150, clear_span_mm=3000, depth_mm=450, dead_load_kn_m=60, live_load_kn_m=40, main_bar_dia_mm=32)
+    r = design_continuous_beam(ContinuousBeamInput(**kw))
+    assert r["reinforcement"]["end"]["bottom"]["label"] == "4-T32"
+    c = checks(r)
+    assert c["anchorage_end"]["ok"] and c["anchorage_inflection_end"]["ok"]
+    # where no arrangement can be anchored, the stop says so
+    r = design_continuous_beam(ContinuousBeamInput(**dict(kw, clear_span_mm=4500)))
+    assert r["status"] == "stopped" and "too large to be anchored" in r["stop_message"]

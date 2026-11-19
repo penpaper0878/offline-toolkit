@@ -56,11 +56,15 @@ CASES: list[tuple[str, dict]] = [
                                              support_width_mm=450, stirrup_legs=4, stirrup_dia_mm=10)),
     ("fixed bar size", dict(main_bar_dia_mm=20)),
     ("light load", dict(dead_load_kn_m=6, live_load_kn_m=3)),
+    ("narrow supports, T32: anchorage picks four bars", dict(support_width_mm=150, clear_span_mm=3000, depth_mm=450, dead_load_kn_m=60,
+                                                             live_load_kn_m=40, main_bar_dia_mm=32)),
 ]
 
 STOPS: list[tuple[str, dict, str]] = [
     ("continuous deep beam", dict(clear_span_mm=1000, depth_mm=600), "The effective span is less than 2.5 times"),
     ("section too small", dict(depth_mm=300, width_mm=200, dead_load_kn_m=80, live_load_kn_m=60, clear_span_mm=7000), "No arrangement"),
+    ("T32 cannot be anchored", dict(support_width_mm=150, clear_span_mm=4500, depth_mm=450, dead_load_kn_m=60, live_load_kn_m=40, main_bar_dia_mm=32),
+     "The bottom bars that carry the span moments are too large to be anchored"),
 ]
 
 # Tables 12 and 13 of IS 456, typed again: (dead load, imposed load).

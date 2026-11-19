@@ -80,6 +80,35 @@ class Diagrams:
         return k * _interp(self.v[i], self._x(i, xf), 1)
 
 
+def diagrams(n: int, spans_m: list[float], lc: float, wd: float, wl: float, moments: dict[str, float], shears: dict[str, float]) -> Diagrams:
+    """The scaled diagrams of a beam of n spans: Table 12 moments (end, interior, b, c) and Table 13 shears (A, B1, B2, C)."""
+    m_span = [moments["end"]] + [moments["interior"]] * (n - 2) + [moments["end"]]
+    m_sup = [0.0, moments["b"]] + [moments["c"]] * (n - 3) + [moments["b"], 0.0]
+    v_left = [shears["A"], shears["B2"]] + [shears["C"]] * (n - 3) + [shears["B1"]]
+    v_right = [shears["B1"]] + [shears["C"]] * (n - 3) + [shears["B2"], shears["A"]]
+    if n == 3:
+        v_left, v_right = [shears["A"], shears["B2"], shears["B1"]], [shears["B1"], shears["B2"], shears["A"]]
+    return Diagrams(spans_m, lc, wd, wl, m_span, m_sup, v_left, v_right)
+
+
+def inflection_point(dg: Diagrams, i: int, from_left: bool) -> float:
+    """Distance from the face to where the greatest moment turns positive: the point of inflection of the bottom bars."""
+    lc = dg.lc
+    prof = _scan((lambda x: dg.sag(i, x)) if from_left else (lambda x: dg.sag(i, lc - x)), 0.0, lc / 2.0)
+    return next((x for x, m in prof if m > 1e-9), lc / 2.0)
+
+
+def inflection_shear(dg: Diagrams, kind: str) -> float:
+    """The greatest shear at a point of inflection of the bottom bars next to an interior support, over the spans of a type, kN."""
+    n, lc = dg.n, dg.lc
+    sides = [(0, False)] if kind == "end" else [(i, fl) for i in range(1, n - 1) for fl in (True, False)]
+    worst = 0.0
+    for i, from_left in sides:
+        x = inflection_point(dg, i, from_left)
+        worst = max(worst, dg.shear(i, x if from_left else lc - x))
+    return worst
+
+
 def _scan(f: Any, x0: float, x1: float, steps: int = 400) -> list[tuple[float, float]]:
     return [(x0 + (x1 - x0) * k / steps, f(x0 + (x1 - x0) * k / steps)) for k in range(steps + 1)]
 
@@ -95,13 +124,7 @@ def plan(sheet: CalcSheet, inp: Any, cover: float, sections: dict[str, Any], spa
     fck, fy, fyv = float(inp.fck), float(inp.fy), is456.shear_fy(inp.fy_stirrup)
     asv = inp.stirrup_legs * math.pi * dst**2 / 4.0
     end, inner, sup_b, sup_c = sections["end"], sections["interior"], sections["support_b"], sections["support_c"]
-    m_span = [moments["end"]] + [moments["interior"]] * (n - 2) + [moments["end"]]
-    m_sup = [0.0, moments["b"]] + [moments["c"]] * (n - 3) + [moments["b"], 0.0]
-    v_left = [shears["A"], shears["B2"]] + [shears["C"]] * (n - 3) + [shears["B1"]]
-    v_right = [shears["B1"]] + [shears["C"]] * (n - 3) + [shears["B2"], shears["A"]]
-    if n == 3:
-        v_left, v_right = [shears["A"], shears["B2"], shears["B1"]], [shears["B1"], shears["B2"], shears["A"]]
-    dg = Diagrams(spans_m, lc, wd, wl, m_span, m_sup, v_left, v_right)
+    dg = diagrams(n, spans_m, lc, wd, wl, moments, shears)
     interior = list(range(1, n - 1))
 
     sheet.section("9. Curtailment and stirrup zones")
@@ -211,9 +234,7 @@ def plan(sheet: CalcSheet, inp: Any, cover: float, sections: dict[str, Any], spa
         return is456.moment_at_design_stress(fck, fy, b, d, area, bf, sec.flange.df if bf else 0.0) / 1e6
 
     def inflection(i: int, from_left: bool) -> float:
-        """Distance from the face to where the greatest moment turns positive: the point of inflection of the bottom bars."""
-        prof = _scan((lambda x: dg.sag(i, x)) if from_left else (lambda x: dg.sag(i, lc - x)), 0.0, lc / 2.0)
-        return next((x for x, m in prof if m > 1e-9), lc / 2.0)
+        return inflection_point(dg, i, from_left)
 
     embed = inp.support_width_mm - cover
 
