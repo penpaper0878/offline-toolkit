@@ -25,11 +25,11 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.engineering import is456
 from app.engineering import is456_slabs as sl
-from app.engineering.rebar import bar_area
+from app.engineering.rebar import bar_area, bend_radius
 from app.engineering.trace import CalcSheet
 
 ELEMENT_TYPE = "footing"
-ENGINE_VERSION = "1.0.0"
+ENGINE_VERSION = "1.1.0"
 CODE_BASIS = ("IS 456:2000", "IS 2502:1963")
 REF = is456.CODE
 
@@ -40,6 +40,12 @@ STEP = 50.0  # plan dimensions and depth are set out in 50 mm steps
 MAX_PROJECTION = 3000.0  # mm, the largest projection tried when the plan grows to anchor the bars
 PRACTICAL_MIN_SPACING = 100.0
 BEND_90_VALUE = 8.0  # Cl. 26.2.2.1(b): anchorage value of a bend, 4 diameters per 45 degrees
+
+
+def bent_value(straight: float, dia: float, fy: float) -> float:
+    """Anchorage of a bar bent up 90 degrees at its end: the straight part, which stops where the bend starts (r + phi inside the
+    bar's outer face, IS 2502 radius r), plus the bend's 8 diameters (Cl. 26.2.2.1(b))."""
+    return straight - (bend_radius(dia, fy) + dia) + BEND_90_VALUE * dia
 
 
 def _f(default: Any, title: str, group: str, unit: str = "", show_if: dict[str, Any] | None = None, labels: dict[str, str] | None = None,
@@ -248,10 +254,11 @@ def trial(inp: FootingInput, L: float, B: float, D: float, dia: int, cover: floa
     tau_p_allow = ks * 0.25 * math.sqrt(fck)
     ok_shear = tau1_l <= tc_l + 1e-12 and tau1_b <= tc_b + 1e-12 and tau_p <= tau_p_allow + 1e-12
     # Cl. 34.2.4.3: the bars develop their stress within the shorter projection beyond the column face,
-    # straight or, where that is too short, with a 90 degree bend at the end worth 8 diameters (Cl. 26.2.2.1(b))
+    # straight or, where that is too short, with a 90 degree bend at the end worth 8 diameters (Cl. 26.2.2.1(b)); the straight
+    # length then runs to where the bend starts, r + phi inside the bar's outer face (IS 2502 radius r)
     ld = is456.development_length(dia, fck, fy)
     straight = min(a_l, a_b) - cover
-    ok_anchorage = ld <= straight + BEND_90_VALUE * dia + 1e-9
+    ok_anchorage = ld <= bent_value(straight, dia, fy) + 1e-9
     bent_ends = ld > straight + 1e-9
     return Trial(D, dia, d_l, d_b, m_l / 1e6, m_b / 1e6, as_l, as_b, as_flex_l, as_flex_b, s_l, n_l, n_band, n_out, s_band, s_out, ap_l, ap_b,
                  v1_l / 1e3, v1_b / 1e3, tau1_l, tau1_b, tc_l, tc_b, vp / 1e3, b0, tau_p, tau_p_allow, ks, ok_flexure, ok_shear, ok_spacing, ok_anchorage,
@@ -403,10 +410,12 @@ def design_footing(inp: FootingInput) -> dict[str, Any]:
     avail = min(a_l, a_b) - cover
     sheet.step(f"{REF}, Cl. 26.2.1", f"Development length of T{t.dia}", "L_d", "", ld, "mm", 0)
     if t.bent_ends:
-        sheet.step(f"{REF}, Cl. 26.2.2.1(b)", "Straight length too short: bars bent up 90 degrees at the ends, the bend worth 8 diameters",
-                   "a - c + 8 d_b", f"{_n(avail, 0)} + 8 x {t.dia}", avail + BEND_90_VALUE * t.dia, "mm", 0)
+        r_b = bend_radius(t.dia, fy)
+        sheet.step(f"{REF}, Cl. 26.2.2.1(b)", "Straight length too short: bars bent up 90 degrees at the ends, the straight part running to "
+                   "the start of the bend (radius r, IS 2502) and the bend worth 8 diameters", "a - c - (r + d_b) + 8 d_b",
+                   f"{_n(avail, 0)} - ({_n(r_b, 0)} + {t.dia}) + 8 x {t.dia}", bent_value(avail, t.dia, fy), "mm", 0)
         sheet.check("anchorage", f"{REF}, Cl. 34.2.4.3, 26.2.2.1(b)", "Bars developed beyond the face of the column, with end bends",
-                    "L_d", ld, "<=", "a - c + 8 d_b", avail + BEND_90_VALUE * t.dia, "mm", 0)
+                    "L_d", ld, "<=", "a - c - (r + d_b) + 8 d_b", bent_value(avail, t.dia, fy), "mm", 0)
     else:
         sheet.check("anchorage", f"{REF}, Cl. 34.2.4.3", "Bars developed beyond the face of the column (shorter projection, less cover)",
                     "L_d", ld, "<=", "a - c", avail, "mm", 0)

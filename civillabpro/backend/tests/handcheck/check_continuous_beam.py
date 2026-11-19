@@ -58,6 +58,8 @@ CASES: list[tuple[str, dict]] = [
     ("light load", dict(dead_load_kn_m=6, live_load_kn_m=3)),
     ("narrow supports, T32: anchorage picks four bars", dict(support_width_mm=150, clear_span_mm=3000, depth_mm=450, dead_load_kn_m=60,
                                                              live_load_kn_m=40, main_bar_dia_mm=32)),
+    ("narrow supports, T20: U-hooks at the ends", dict(support_width_mm=150, clear_span_mm=2500, depth_mm=450, dead_load_kn_m=80,
+                                                       live_load_kn_m=48, main_bar_dia_mm=20)),
 ]
 
 STOPS: list[tuple[str, dict, str]] = [
@@ -475,7 +477,15 @@ def check_curtailment(name: str, s: dict, res: dict, h: dict) -> tuple[int, list
         checks_ = {i["id"]: i for sec in res["sheet"]["sections"] for i in sec["items"] if i.get("id", "").startswith("anchorage")}
         if kind == "end":
             main = next(i for i in res["bbs"]["items"] if i["description"].startswith("Bottom bars, end spans") and "curtailed" not in i["description"])
-            l0 = s["support_width_mm"] / 2 - cover + (8 * dia if "bend" in main["shape"] else 0)
+            # straight bar from the centre of the support to where the bend or hook starts (r + phi short of the bar's end at
+            # cover; IS 2502 radii 2 phi mild, 4 phi deformed), plus 8 phi for a bend or 16 phi for a U-hook (Cl. 26.2.2.1(b))
+            r_b = (2 if fy <= 250 else 4) * dia
+            l0 = s["support_width_mm"] / 2 - cover - (0 if main["shape"] == "straight" else r_b + dia) + (
+                16 * dia if "hook" in main["shape"] else 8 * dia if "bend" in main["shape"] else 0)
+            if "hook" in main["shape"]:
+                h_al = math.pi * (r_b + dia / 2) + 4 * dia - (r_b + dia)
+                if main["dims"]["hook"] != math.ceil(h_al / 5) * 5 or abs(main["cutting_length_mm"] - main["dims"]["A"] - main["dims"]["hook"]) > 1:
+                    bad.append(f"{name}: U-hook allowance {main['dims']['H']}, hand {h_al:.1f}")
             rhs = 1.3 * m1 * 1e3 / h["v_a"] + l0
             n += 1
             if abs(checks_["anchorage_end"]["rhs"] - rhs) > 0.01 * rhs + 1 or (ldv > rhs and res["status"] == "ok"):

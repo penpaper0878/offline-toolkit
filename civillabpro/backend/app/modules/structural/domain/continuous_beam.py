@@ -35,12 +35,12 @@ from app.engineering.rebar import BarGroup, bar_area
 from app.engineering.trace import CalcSheet
 from app.modules.structural.domain.beam import (
     _FLANGED,
-    BEND_90_ANCHORAGE,
     SECTION_LABELS,
     Flange,
     _f,
     anchorage_ok,
     effective_cover,
+    end_detail,
     flange_steps,
     flanged_flexure_steps,
     flexure_capacity,
@@ -51,7 +51,7 @@ from app.modules.structural.domain.beam import (
 )
 
 ELEMENT_TYPE = "continuous_beam"
-ENGINE_VERSION = "1.3.0"
+ENGINE_VERSION = "1.4.0"
 CODE_BASIS = ("IS 456:2000", "SP 16:1980", "IS 2502:1963")
 REF = is456.CODE
 FIRST_STIRRUP_MM = 50.0
@@ -209,14 +209,13 @@ def _anchorage_limits(inp: ContinuousBeamInput, d: float, wd: float, wl: float) 
 
 def anchorable(inp: ContinuousBeamInput, kind: Literal["end", "interior"], g: BarGroup, d: float, flg: Flange | None, cover: float,
                limits: dict[str, float]) -> bool:
-    """Cl. 26.2.3.3(c) for bottom bars: at the end support (1.3 M_1/V + L_0, a bend allowed) and at the points of inflection
+    """Cl. 26.2.3.3(c) for bottom bars: at the end support (1.3 M_1/V + L_0, a U-hook allowed) and at the points of inflection
     (M_1/V + max(d, 12 phi)). The shears carry a 2 percent margin, as the final check uses the spans of the bars chosen."""
     fck, fy = float(inp.fck), float(inp.fy)
     bf = flg.bf if flg is not None else None
     m1 = is456.moment_at_design_stress(fck, fy, inp.width_mm, d, g.area, bf, flg.df if flg is not None else 0.0) / 1e6
     if kind == "end":
-        l0 = inp.support_width_mm / 2.0 - cover + BEND_90_ANCHORAGE * g.dia
-        if not anchorage_ok(g.dia, fck, fy, m1, 1.02 * limits["A"], l0, True)[0]:
+        if end_detail(inp.support_width_mm, cover, g.dia, fck, fy, m1, 1.02 * limits["A"], "straight") is None:
             return False
     return anchorage_ok(g.dia, fck, fy, m1, 1.02 * limits[kind], max(d, 12.0 * g.dia), False)[0]
 
@@ -608,7 +607,7 @@ def _plan_record(p: dict[str, Any]) -> dict[str, Any]:
     top = {k: ({"long": _grp(v["long"]), "short": _grp(v["short"]), "cut": v["cut"]} if v else None) for k, v in (("b", p["top_b"]), ("c", p["top_c"]))}
     bottom = {k: ({"continuing": _grp(v["cont"]), "curtailed": _grp(v["cut"]), "left": v["left"], "right": v["right"]} if v else None)
               for k, v in (("end", p["bottom_end"]), ("interior", p["bottom_interior"]))}
-    return {"top": top, "bottom": bottom, "zones": p["zones"], "end_bend": p["end_bend"]}
+    return {"top": top, "bottom": bottom, "zones": p["zones"], "end_detail": p["end_detail"]}
 
 
 def _grp(g: BarGroup) -> dict[str, Any]:

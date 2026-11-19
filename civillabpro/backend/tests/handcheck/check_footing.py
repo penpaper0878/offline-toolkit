@@ -53,8 +53,8 @@ CASES: list[tuple[str, dict]] = [
 ]
 
 # Light loads on strong soil: the bearing plan leaves projections too short to develop even a 10 mm bar with a
-# 90 degree bend (L_d = 0.87 f_y phi / (4 tau_bd) against the projection less cover plus 8 phi, Cl. 26.2.1 and
-# 26.2.2.1(b)), so the plan grows. By hand: the engine's plan anchors T10, and 50 mm less does not.
+# 90 degree bend (L_d = 0.87 f_y phi / (4 tau_bd) against the projection less cover, less the r + phi the bend takes from
+# the straight part (IS 2502: r = 2 phi mild, 4 phi deformed), plus 8 phi, Cl. 26.2.1 and 26.2.2.1(b)), so the plan grows. By hand: the engine's plan anchors T10, and 50 mm less does not.
 ENLARGED: list[tuple[str, dict]] = [
     ("light load, strong soil, M20 Fe415", dict(column_width_mm=230, column_depth_mm=230, p_service_kn=300, sbc_kn_m2=400, fck=20, exposure="mild")),
     ("light load, wide column, M30 Fe550", dict(column_width_mm=450, column_depth_mm=600, p_service_kn=300, sbc_kn_m2=200, fck=30, fy=550)),
@@ -164,8 +164,10 @@ def compare(name: str, s: dict, res: dict) -> tuple[int, list[str]]:
             bad.append(f"{name}: a hand shear check fails for the depth the engine chose")
         avail = min((d["L"] - s["column_depth_mm"]) / 2, (d["B"] - s["column_width_mm"]) / 2) - h["cover"]
         if d["bent_ends"]:
-            # Cl. 26.2.2.1(b): a 90 degree bend is worth 8 diameters; it is used only when straight bars cannot develop
-            if not (avail < h["ld"] <= avail + 8 * d["dia"] + 1e-9):
+            # Cl. 26.2.2.1(b): a 90 degree bend is worth 8 diameters, the straight part stopping where the bend starts;
+            # bends are used only when straight bars cannot develop
+            r_b = (2 if s["fy"] <= 250 else 4) * d["dia"]
+            if not (avail < h["ld"] <= avail - (r_b + d["dia"]) + 8 * d["dia"] + 1e-9):
                 bad.append(f"{name}: bent ends reported but L_d {h['ld']:.0f} against straight {avail:.0f}")
         elif h["ld"] > avail + 1e-9:
             bad.append(f"{name}: development length {h['ld']:.0f} does not fit the projection")
@@ -223,8 +225,9 @@ def main() -> int:
             bad.append(f"{name}: the plan was not enlarged ({d['L']} x {d['B']})")
         # compare() has confirmed that the chosen bar develops at the engine's plan
         a_less = a_engine - 25  # 50 mm less on L and B
-        if a_less - 50 + 80 >= ld10:
-            bad.append(f"{name}: T10 would already develop with 50 mm less ({a_less - 50 + 80:.0f} >= {ld10:.0f}): plan not the least")
+        bent10 = a_less - 50 - ((2 if s["fy"] <= 250 else 4) * 10 + 10) + 80  # cover 50 (mild), straight to the bend, plus 8 phi
+        if bent10 >= ld10:
+            bad.append(f"{name}: T10 would already develop with 50 mm less ({bent10:.0f} >= {ld10:.0f}): plan not the least")
         n_enlarged += 1
     for name, ov, want in STOPS:
         res = design_footing(FootingInput(**dict(BASE, **ov)))

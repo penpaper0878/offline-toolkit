@@ -13,9 +13,9 @@ from typing import TYPE_CHECKING, Any
 
 from app.engineering import is456
 from app.engineering.drawing import DrawingModel
-from app.engineering.rebar import bar_unit_weight
+from app.engineering.rebar import bar_unit_weight, bend_radius
 from app.engineering.trace import CalcSheet
-from app.modules.structural.domain.beam_detailing import cross_section
+from app.modules.structural.domain.beam_detailing import cross_section, hook_allowance
 
 if TYPE_CHECKING:
     from app.modules.structural.domain.continuous_beam import ContinuousBeamInput
@@ -107,7 +107,12 @@ def bar_schedule(inp: ContinuousBeamInput, reinf: dict[str, Any], sheet: CalcShe
     eb_label = eb_run["label"] + (" continuing" if be else "")
     ld3 = is456.development_length(eb["dia"], fck, fy) / 3.0
     run = lc + 2.0 * embed + comp_ext(eb["dia"], sb["doubly"])
-    if embed >= ld3 and not cut_plan.get("end_bend"):  # bent also where Cl. 26.2.3.3(c) needs the bend's 8 diameters
+    detail = cut_plan.get("end_detail", "straight")
+    if detail == "hook":  # Cl. 26.2.3.3(c) needs the hook's 16 diameters at the end support
+        h_al = _ceil5(hook_allowance(eb["dia"], fy))
+        add(f"Bottom bars, end spans, {eb_label}", "U-hook at the end support", eb["dia"], 2 * eb_run["count"], {"A": run, "hook": h_al},
+            run + h_al, "A + hook (standard U-hook, IS 2502)")
+    elif embed >= ld3 and detail == "straight":
         add(f"Bottom bars, end spans, {eb_label}", "straight", eb["dia"], 2 * eb_run["count"], {"A": run}, run, "A")
     else:
         leg = _ceil5(max(9.0 * eb["dia"], ld3 - embed + 2.0 * eb["dia"]))
@@ -260,7 +265,15 @@ def drawing(inp: ContinuousBeamInput, reinf: dict[str, Any], bbs: dict[str, Any]
     y_t = D - (cover + dst + tb["dia"] / 2.0)
     main = next(i for i in bbs["items"] if i["description"].startswith("Bottom bars, end spans"))
     leg = main["dims"].get("B", 0.0)
-    el.line(cover, y_b, x_b + sw - cover, y_b, "rebar")  # end span bottom
+    if "hook" in main["shape"]:  # a U-hook at the end support: IS 2502 radius on the bar's centre line, 4 phi tail
+        dia = main["dia"]
+        rad = bend_radius(dia, inp.fy) + dia / 2.0
+        cx = cover + dia / 2.0 + rad
+        arc = [(cx - rad * math.sin(math.pi * k / 12), y_b + rad - rad * math.cos(math.pi * k / 12)) for k in range(13)]
+        el.polyline([*arc, (cx + 4.0 * dia, y_b + 2.0 * rad)], closed=False, layer="rebar")
+        el.line(cx, y_b, x_b + sw - cover, y_b, "rebar")
+    else:
+        el.line(cover, y_b, x_b + sw - cover, y_b, "rebar")  # end span bottom
     if leg:
         el.line(cover, y_b, cover, y_b + leg, "rebar")
     el.line(x_b + cover, y_b + 0.8 * ib["dia"], x_end, y_b + 0.8 * ib["dia"], "rebar")  # span 2 bottom, drawn just above

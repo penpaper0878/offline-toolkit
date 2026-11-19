@@ -251,3 +251,22 @@ def test_bar_selection_respects_anchorage():
     # where no arrangement can be anchored, the stop says so
     r = design_continuous_beam(ContinuousBeamInput(**dict(kw, clear_span_mm=4500)))
     assert r["status"] == "stopped" and "too large to be anchored" in r["stop_message"]
+
+
+def test_u_hooks_at_the_end_supports():
+    # narrow end supports: a 90 degree bend's 8 phi do not develop T20, a standard U-hook's 16 phi do (Cl. 26.2.2.1(b))
+    r = design_continuous_beam(ContinuousBeamInput(support_width_mm=150, clear_span_mm=2500, depth_mm=450, dead_load_kn_m=80,
+                                                   live_load_kn_m=48, main_bar_dia_mm=20))
+    assert r["status"] == "ok" and r["reinforcement"]["curtailment"]["end_detail"] == "hook"
+    c = checks(r)["anchorage_end"]
+    cover = r["reinforcement"]["cover"]
+    assert c["ok"]
+    steps = [i["title"] for s in r["sheet"]["sections"] for i in s["items"] if i["kind"] == "step"]
+    assert any("start of the hook" in t for t in steps) and any("U-hook, worth 16 diameters" in t for t in steps)
+    # L_0: straight from the centre of the support to the start of the hook (r = 4 phi), plus 16 phi
+    l0 = 150 / 2 - cover - (4 * 20 + 20) + 16 * 20
+    assert c["rhs"] - l0 > 0 and c["lhs"] == pytest.approx(is456.development_length(20, 25, 500))
+    main = items(r, "Bottom bars, end spans")[0]
+    assert main["shape"] == "U-hook at the end support" and main["cutting_length_mm"] == main["dims"]["A"] + main["dims"]["hook"]
+    elev = next(v for v in r["drawing"]["views"] if v["id"] == "elevation")
+    assert any(e["t"] == "polyline" and e["layer"] == "rebar" for e in elev["items"])

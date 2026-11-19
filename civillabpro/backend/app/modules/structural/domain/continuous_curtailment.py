@@ -26,11 +26,12 @@ from app.engineering import is456
 from app.engineering.rebar import BarGroup, bar_unit_weight
 from app.engineering.trace import CalcSheet
 from app.modules.structural.domain.beam import (
-    BEND_90_ANCHORAGE,
     SETTING_OUT,
     anchorage_check,
     anchorage_ok,
     cutoff_condition,
+    end_detail,
+    end_l0,
     practical_spacing,
     split_for_curtailment,
     stirrup_positions,
@@ -238,14 +239,14 @@ def plan(sheet: CalcSheet, inp: Any, cover: float, sections: dict[str, Any], spa
 
     embed = inp.support_width_mm - cover
 
-    def end_support(dia: float, m1: float, bend: bool) -> tuple[bool, float]:
-        l0 = inp.support_width_mm / 2.0 - cover + (BEND_90_ANCHORAGE * dia if bend else 0.0)
-        return anchorage_ok(dia, fck, fy, m1, shears["A"], l0, True)[0], l0
+    def end_support(dia: float, m1: float, start: str = "straight") -> str | None:
+        """The simplest end (straight, 90 degree bend, U-hook) from ``start`` on that meets Cl. 26.2.3.3(c) at the end support."""
+        return end_detail(inp.support_width_mm, cover, dia, fck, fy, m1, shears["A"], start)
 
     def bars_anchor(sec: Any, grp: BarGroup, d: float, idx: list[int], has_end: bool) -> bool:
-        """Can these bars be anchored at the end support (a bend allowed) and at every point of inflection near an interior support?"""
+        """Can these bars be anchored at the end support (a U-hook allowed) and at every point of inflection near an interior support?"""
         m1 = m1_of(sec, d, grp.area)
-        if has_end and not end_support(grp.dia, m1, True)[0]:
+        if has_end and end_support(grp.dia, m1) is None:
             return False
         for i in idx:
             for from_left in ((False,) if has_end else (True, False)):
@@ -324,20 +325,22 @@ def plan(sheet: CalcSheet, inp: Any, cover: float, sections: dict[str, Any], spa
 
     # ---------------------------------------------------------------- Cl. 26.2.3.3(c) with the bars that reach each point
     sheet.section("10. Anchorage of the bottom bars")
-    out["end_bend"] = False
+    out["end_detail"] = "straight"
     for kind, sec, idx, res in (("end", end, [0], be), ("interior", inner, interior, bi)):
         grp = res["cont"] if res else sec.bottom
         d = res["d_cont"] if res else sec.d
         m1 = m1_of(sec, d, grp.area)
         if kind == "end":
-            bent = embed < is456.development_length(grp.dia, fck, fy) / 3.0  # the schedule bends them for Cl. 26.2.3.3(a)
-            if not bent and not end_support(grp.dia, m1, False)[0]:
-                bent = out["end_bend"] = True
-                sheet.step(f"{REF}, Cl. 26.2.2.1(b)", "End supports: straight bars do not meet Cl. 26.2.3.3(c); bent up, a 90 degree bend worth 8 "
-                           "diameters", "", "", "", "")
-            l0 = end_support(grp.dia, m1, bent)[1]
-            if not anchorage_check(sheet, "anchorage_end", f"End supports: {grp.label()}", grp.dia, fck, fy, m1, shears["A"], l0, True,
-                                   "beyond the centre of the support" + (", with the bend" if bent else "")):
+            start = "bend" if embed < is456.development_length(grp.dia, fck, fy) / 3.0 else "straight"  # Cl. 26.2.3.3(a) bends them already
+            detail = out["end_detail"] = end_support(grp.dia, m1, start) or "hook"
+            if detail != start:
+                sheet.step(f"{REF}, Cl. 26.2.2.1(b)", f"End supports: a {'straight bar' if start == 'straight' else '90 degree bend'} does not meet "
+                           "Cl. 26.2.3.3(c): " + ("bent up, a 90 degree bend worth 8 diameters" if detail == "bend"
+                                                  else "a standard U-hook, worth 16 diameters"), "", "", "", "")
+            l0 = end_l0(inp.support_width_mm, cover, grp.dia, fy, detail)
+            text = {"straight": "beyond the centre of the support", "bend": "to the start of the bend, plus 8 phi",
+                    "hook": "to the start of the hook, plus 16 phi"}[detail]
+            if not anchorage_check(sheet, "anchorage_end", f"End supports: {grp.label()}", grp.dia, fck, fy, m1, shears["A"], l0, True, text):
                 sheet.flag("error", "The end span's bottom bars are too large to develop their stress at the end supports (Cl. 26.2.3.3(c)): use "
                                     "smaller bars or wider supports.", f"{REF}, Cl. 26.2.3.3(c)")
         sides = [(i, fl) for i in idx for fl in ((False,) if kind == "end" else (True, False))]

@@ -64,6 +64,10 @@ CASES: list[tuple[str, dict]] = [
     ("fixed bar size", dict(main_bar_dia_mm=20, dead_load_kn_m=20, live_load_kn_m=14)),
     ("heavy shear", dict(width_mm=250, depth_mm=600, clear_span_mm=3000, dead_load_kn_m=120, live_load_kn_m=80, stirrup_dia_mm=10)),
     ("user cover", dict(clear_cover_mm=40, exposure="moderate")),
+    ("narrow supports, a bend", dict(width_mm=230, depth_mm=450, clear_span_mm=2000, support_width_mm=150, dead_load_kn_m=80, live_load_kn_m=48,
+                                     main_bar_dia_mm=20, stirrup_dia_mm=10, fck=30)),
+    ("narrow supports, U-hooks", dict(width_mm=230, depth_mm=450, clear_span_mm=2000, support_width_mm=150, dead_load_kn_m=80, live_load_kn_m=48,
+                                      main_bar_dia_mm=20, stirrup_dia_mm=10, fck=25)),
     # flanged sections
     ("T-beam, neutral axis in the flange", dict(section="t_beam", width_mm=300, depth_mm=550, flange_thickness_mm=120, flange_width_mm=3000,
                                                 clear_span_mm=6000, support_width_mm=300, dead_load_kn_m=30, live_load_kn_m=15)),
@@ -89,6 +93,8 @@ CASES: list[tuple[str, dict]] = [
 STOPS: list[tuple[str, dict, str]] = [
     ("deep beam", dict(clear_span_mm=1500, depth_mm=1000, width_mm=300), "Effective span is less than twice"),
     ("section too small", dict(depth_mm=300, clear_span_mm=8000, dead_load_kn_m=80, live_load_kn_m=60), "No arrangement of up to two layers"),
+    ("too large to anchor", dict(width_mm=250, depth_mm=600, clear_span_mm=2500, support_width_mm=150, dead_load_kn_m=200, live_load_kn_m=150,
+                                 main_bar_dia_mm=32, stirrup_dia_mm=10, fck=30), "The bars that carry the moment are too large to be anchored"),
 ]
 
 # SP 16, Table A: (strain, design stress) at 0.80 ... 1.0 fyd, as printed.
@@ -349,13 +355,24 @@ def check_anchorage(name: str, s: dict, res: dict) -> tuple[int, list[str]]:
         m1 = t * (d - 0.42 * min(t / (0.36 * fck * b), d))
     v = eng["vu_face"] * 1e3
     main = next(i for i in res["bbs"]["items"] if i["description"].startswith("Bottom bars (tension)"))
-    bent = "bend" in main["shape"]
-    l0 = s["support_width_mm"] / 2 - cover + (8 * grp["dia"] if bent else 0)
+    # the straight bar runs to where the bend or hook starts: r + phi short of its end at cover (IS 2502 radii)
+    phi = grp["dia"]
+    r = (2 if fy <= 250 else 4) * phi
+    beyond = s["support_width_mm"] / 2 - cover
+    bad = []
+    if "hook" in main["shape"]:
+        l0 = beyond - (r + phi) + 16 * phi
+        h = math.pi * (r + phi / 2) + 4 * phi - (r + phi)  # arc on the bar's centre line, the 4 phi tail, less the straight part it replaces
+        if abs(main["dims"]["hook"] - math.ceil(h / 5) * 5) > 1e-6 or abs(main["cutting_length_mm"] - (main["dims"]["A"] + 2 * main["dims"]["hook"])) > 1:
+            bad.append(f"{name}: hook allowance {main['dims']['H']} (cut {main['cutting_length']}), hand {h:.1f}")
+    elif "bend" in main["shape"]:
+        l0 = beyond - (r + phi) + 8 * phi
+    else:
+        l0 = beyond
     tbd = {20: 1.2, 25: 1.4, 30: 1.5, 35: 1.7, 40: 1.9}[max(g for g in (20, 25, 30, 35, 40) if g <= min(fck, 40))] * (1.6 if fy >= 415 else 1.0)
     ld = grp["dia"] * 0.87 * fy / (4 * tbd)
     rhs = 1.3 * m1 / v + l0
     chk = next(i for sec in res["sheet"]["sections"] for i in sec["items"] if i.get("id") == "anchorage")
-    bad = []
     if abs(chk["rhs"] - rhs) > 0.003 * rhs + 1 or abs(chk["lhs"] - ld) > 0.5:
         bad.append(f"{name}: anchorage engine {chk['lhs']:.0f} <= {chk['rhs']:.0f}, hand {ld:.0f} <= {rhs:.0f}")
     if ld > rhs + 1e-6 and res["status"] == "ok":

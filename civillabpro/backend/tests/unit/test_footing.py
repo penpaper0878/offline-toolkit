@@ -168,7 +168,7 @@ def test_short_projections_use_bent_ends():
     d = r["data"]
     assert r["status"] == "ok" and d["bent_ends"]
     avail = min((d["L"] - 230) / 2, (d["B"] - 230) / 2) - 50
-    assert avail < d["ld"] <= avail + 8 * d["dia"]
+    assert avail < d["ld"] <= avail - (4 * d["dia"] + d["dia"]) + 8 * d["dia"]  # straight to the start of the bend (r = 4 phi), plus 8 phi
     item = r["bbs"]["items"][0]
     assert item["shape"] == "bent up 90 deg both ends" and item["dims"]["B"] == 12 * d["dia"]
     assert item["cutting_length_mm"] == math.ceil((d["L"] - 100 + 24 * d["dia"] - 4 * d["dia"]) / 5 - 1e-9) * 5
@@ -185,7 +185,7 @@ def test_plan_grows_until_the_bars_can_be_anchored():
     assert any("larger than the 950 x 950 mm" in f["message"] for f in r["sheet"]["flags"])
     # the bars develop at this plan, and the next smaller plan has no design at all
     avail = (d["L"] - 230) / 2 - 50
-    assert d["ld"] <= avail + 8 * d["dia"]
+    assert d["ld"] <= avail - 5 * d["dia"] + 8 * d["dia"]
     smaller = d["L"] - 50
     t, blocked = ft.select_section(inp, smaller, smaller, 50.0, ft.factored_pressure(inp, smaller / 1000, smaller / 1000))
     assert t is None and blocked

@@ -13,6 +13,11 @@ MAIN_BAR_DIAMETERS = (12, 16, 20, 25, 32)
 STIRRUP_DIAMETERS = (8, 10, 12)
 
 
+def bend_radius(dia_mm: float, fy: float) -> float:
+    """IS 2502: internal radius of bends and hooks, 2 phi for mild steel and 4 phi for deformed bars."""
+    return (2.0 if fy <= 250 else 4.0) * dia_mm
+
+
 def bar_area(dia_mm: float) -> float:
     """Cross-sectional area of one bar, mm2."""
     return math.pi * dia_mm**2 / 4.0

@@ -16,11 +16,11 @@ Version 0.4.0. Phase 1 is done: beams (rectangular, T and L; simple, cantilever 
 |---|---|
 | Platform core (identity, roles, audit, projects) | built, tested on SQLite and PostgreSQL 16 |
 | Shell and client | built, walked through in a browser in light and dark |
-| Structural: beam engine 1.3.0 (rectangular, T, L; curtailment, stirrup zones, anchorage) | built, independent hand check passing; Fig. 6, Cl. 23.1.2(c), (d) and 26.2.3 to compare with the code |
-| Structural: continuous beam engine 1.2.0 (new element; curtailment, zones, anchorage) | built, independent hand check passing; Table 13 and Cl. 22.2(b), 22.4.1, 26.2.3 to compare with the code |
+| Structural: beam engine 1.4.0 (rectangular, T, L; curtailment, stirrup zones, anchorage with bends and U-hooks) | built, independent hand check passing; Fig. 6, Cl. 23.1.2(c), (d) and 26.2.3 to compare with the code |
+| Structural: continuous beam engine 1.4.0 (curtailment, zones, anchorage enforced in the bar selection, U-hooks) | built, independent hand check passing; Table 13 and Cl. 22.2(b), 22.4.1, 26.2.3 to compare with the code |
 | Structural: column engine 1.0.0 | built, independent hand check passing; code text not yet compared (see the code register) |
 | Structural: slab engine 1.0.0 (one-way, two-way) | built, independent hand check passing; Table 26 rows and Annex D extents to compare with the code |
-| Structural: isolated footing engine 1.0.0 | built, independent hand check passing; Cl. 34 wording to compare with the code |
+| Structural: isolated footing engine 1.1.0 | built, independent hand check passing; Cl. 34 wording to compare with the code |
 | Exports: PDF, Excel, DXF | built, reviewed page by page |
 | Deployment | single-process mode verified; Dockerfile and compose file written, compose validated, image not built (no Docker daemon in the build session) |
 | Desktop shell (Electron) | not started (PLAT-010) |
@@ -33,7 +33,8 @@ Test counts at 0.4.0: backend 319 (277 engineering, architecture and hand checks
 
 1. **STR-009, blocked: compare the column, slab and footing clauses with the code text** (the three "To cross-check" lists in the code register). It needs the user: either approval of a direct download of the public copy, or the pages pasted into the session. Do not work around a declined download. Fix anything that differs and re-run every hand check.
 2. **PLAT-010 desktop shell** (Electron on the single-process backend with SQLite), the first item of phase 2's platform completion.
-3. Then phase 2's engineering: STR-020 combined and strap footing, STR-036 continuous beams of unequal spans by the elastic analysis already in `continuous.py`, STR-038 Cl. 26.2.3.3(c) in the continuous beam's bar selection; and the estimation module and standards library (see ROADMAP.md).
+3. Release 0.5.0 in progress (note `docs/modules/05-anchorage-spans-desktop.md`): STR-038 and STR-037 done; next STR-036 continuous beams of unequal spans and point loads (elastic envelope with Cl. 22.7 redistribution), then PLAT-010.
+4. Then phase 2's engineering: STR-020 combined and strap footing; and the estimation module and standards library (see ROADMAP.md).
 
 ## Decisions (do not reopen without a reason recorded here)
 
@@ -106,6 +107,12 @@ Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not her
 * Library versions at 0.1.0 are recent majors (React 19, MUI 9, Vite 8, Tailwind 4, TypeScript 7, dockview-react 8, recharts 3, FastAPI 0.16x, SQLAlchemy 2.1). Check the installed typings before assuming an older API.
 
 ## Log
+
+### 0.5.0 in progress (19 November 2026): STR-038 and STR-037 anchorage completed
+
+* Built: STR-038, the continuous beam's bar selection passes over bottom bars that cannot be anchored at the end supports or the points of inflection (continuous beam 1.3.0). STR-037, U-hooks where a bend is not enough, chosen as the least end detail that passes, in both beams' selection, check, schedule and drawing (beam 1.4.0, continuous beam 1.4.0).
+* Found and fixed: L_0 with a bend counted the r + phi of bar inside the bend twice (5 phi too much for deformed bars). STR-017's interpretation 73 and the footing's interpretation 37 are corrected (footing 1.1.0). `rebar.bend_radius` holds the IS 2502 radii for all three.
+* Hand checks: beam 716 values over 27 cases and 3 stops; continuous beam 767 over 14 cases and 3 stops; footing 384 over 16.
 
 ### 0.4.0 (19 November 2026): STR-017 anchorage, release; phase 1 closed
 

@@ -182,7 +182,7 @@ Two findings on the way. Condition (a) alone rejected most cut-offs in the test 
 |---|---|---|
 | M_1 | all the bars that reach the point at f_d, neutral axis from equilibrium (no x_u,max limit), a compression flange where there is one | Cl. 26.2.3.3(c) |
 | V | at the face of a simple support; at a point of inflection, from the scaled shear envelope | |
-| L_0 | simple support: w_s/2 - cover, plus 8 phi with a 90 degree bend; point of inflection: the greater of d and 12 phi | Cl. 26.2.3.3(c), 26.2.2.1(b) |
+| L_0 | simple support: w_s/2 - cover, plus 8 phi with a 90 degree bend (corrected in 0.5.0: the straight part stops r + phi short, where the bend starts; see note 05); point of inflection: the greater of d and 12 phi | Cl. 26.2.3.3(c), 26.2.2.1(b) |
 | Check | L_d <= 1.3 M_1/V + L_0 at simple supports (confined by the reaction); L_d <= M_1/V + L_0 at points of inflection | Cl. 26.2.3.3(c) |
 | Enforcement | simple beam: bar selection rejects diameters that fail even with a bend, the schedule bends bars that need it, curtailment is withdrawn where the continuing bars alone would fail; continuous beam: curtailment withdrawn likewise, a bend added at the end supports, Not OK with the remedy otherwise | |
 

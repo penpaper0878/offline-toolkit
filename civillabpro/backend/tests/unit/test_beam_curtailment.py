@@ -137,10 +137,11 @@ def test_sweep_cut_offs_are_safe():
 def test_anchorage_check_at_the_supports():
     r = design_beam(BeamInput())
     c = checks(r)["anchorage"]
-    # 2-T16 reach the supports: M_1 with the steel at f_d, V at the face, L_0 = 230/2 - 30, bars bent for Cl. 26.2.3.3(a)
+    # 2-T16 reach the supports: M_1 with the steel at f_d, V at the face; bent for Cl. 26.2.3.3(a), so L_0 is the straight
+    # bar from the centre of the support to the start of the bend (r = 4 phi, IS 2502), plus 8 phi
     t = 0.87 * 500 * 2 * math.pi * 16**2 / 4
     m1 = t * (404 - 0.42 * t / (0.36 * 25 * 230))
-    l0 = 230 / 2 - 30 + 8 * 16
+    l0 = 230 / 2 - 30 - (4 * 16 + 16) + 8 * 16
     assert c["ok"] and c["lhs"] == pytest.approx(is456.development_length(16, 25, 500))
     assert c["rhs"] == pytest.approx(1.3 * m1 / (r["data"]["vu_face"] * 1e3) + l0, rel=1e-6)
 
@@ -163,3 +164,36 @@ def test_bars_too_large_to_anchor_stop_with_the_right_message():
     r = design_beam(BeamInput(width_mm=250, depth_mm=600, clear_span_mm=2500, support_width_mm=150, dead_load_kn_m=200, live_load_kn_m=150,
                               main_bar_dia_mm=32, stirrup_dia_mm=10, fck=30))
     assert r["status"] == "stopped" and "anchored at the supports (Cl. 26.2.3.3(c))" in r["stop_message"]
+
+
+# ------------------------------------------------------------------ Cl. 26.2.2.1(b): U-hooks where a bend is not enough (STR-037)
+
+
+def test_end_l0_runs_to_the_start_of_the_bend_or_hook():
+    from app.modules.structural.domain.beam import end_l0
+    assert end_l0(300, 30, 20, 500, "straight") == 120
+    assert end_l0(300, 30, 20, 500, "bend") == 120 - 100 + 160  # r = 4 phi for deformed bars
+    assert end_l0(300, 30, 20, 500, "hook") == 120 - 100 + 320
+    assert end_l0(300, 30, 20, 250, "hook") == 120 - 60 + 320  # r = 2 phi for mild steel
+
+
+def test_hook_allowance():
+    from app.modules.structural.domain.beam_detailing import hook_allowance
+    assert hook_allowance(20, 500) == pytest.approx(math.pi * 90 + 80 - 100)  # about 13 phi
+    assert hook_allowance(12, 250) == pytest.approx(math.pi * 30 + 48 - 36)  # about 9 phi
+
+
+def test_hooks_where_a_bend_is_not_enough():
+    base = dict(width_mm=230, depth_mm=450, clear_span_mm=2000, support_width_mm=150, dead_load_kn_m=80, live_load_kn_m=48,
+                main_bar_dia_mm=20, stirrup_dia_mm=10)
+    bent = design_beam(BeamInput(**base, fck=30))
+    hooked = design_beam(BeamInput(**base, fck=25))  # a longer L_d: the bend's 8 phi no longer suffice
+    assert bent["reinforcement"]["end_detail"] == "bend" and hooked["reinforcement"]["end_detail"] == "hook"
+    assert hooked["status"] == "ok" and checks(hooked)["anchorage"]["ok"]
+    main = next(i for i in hooked["bbs"]["items"] if i["description"].startswith("Bottom bars (tension)"))
+    assert main["shape"] == "U-hook both ends" and main["dims"]["hook"] == 265
+    assert main["cutting_length_mm"] == main["dims"]["A"] + 2 * main["dims"]["hook"]
+    steps = [i["title"] for s in hooked["sheet"]["sections"] for i in s["items"] if i["kind"] == "step"]
+    assert any("U-hook" in t for t in steps)
+    elev = next(v for v in hooked["drawing"]["views"] if v["id"] == "elevation")
+    assert sum(1 for e in elev["items"] if e["t"] == "polyline" and e["layer"] == "rebar") == 2

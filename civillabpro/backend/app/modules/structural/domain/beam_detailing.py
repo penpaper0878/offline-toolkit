@@ -12,7 +12,7 @@ import math
 from typing import TYPE_CHECKING, Any
 
 from app.engineering.drawing import DrawingModel
-from app.engineering.rebar import BarGroup, bar_area, bar_unit_weight
+from app.engineering.rebar import BarGroup, bar_area, bar_unit_weight, bend_radius
 from app.engineering.trace import CalcSheet
 
 if TYPE_CHECKING:
@@ -23,6 +23,14 @@ FIRST_STIRRUP_MM = 50.0  # first stirrup from the face of the support
 
 def _ceil5(x: float) -> float:
     return math.ceil(x / 5.0 - 1e-9) * 5.0
+
+
+def hook_allowance(dia: float, fy: float) -> float:
+    """Length added to the outside straight dimension for a standard U-hook (IS 2502): the arc on the centre line of the bar,
+    pi (r + phi/2), and the 4 phi extension, less the r + phi the hook takes from the straight run. About 9 phi for mild steel
+    (r = 2 phi) and 13 phi for deformed bars (r = 4 phi)."""
+    r = bend_radius(dia, fy)
+    return math.pi * (r + dia / 2.0) + 4.0 * dia - (r + dia)
 
 
 def side_face_bars(inp: BeamInput, cover: float, ten: BarGroup, oth: BarGroup, torsion: bool) -> dict[str, Any] | None:
@@ -103,7 +111,12 @@ def bar_schedule(
     else:
         need = anch["ld_tension"] / 3.0  # Cl. 26.2.3.3(a): one third of L_d into a simple support
         run = lc + 2.0 * embed
-        if embed >= need and not anch.get("force_bend"):  # bent also where Cl. 26.2.3.3(c) needs the bend's 8 diameters
+        detail = anch.get("end_detail", "straight")
+        if detail == "hook":  # Cl. 26.2.3.3(c) needs the hook's 16 diameters
+            h_al = _ceil5(hook_allowance(dia, inp.fy))
+            add(f"Bottom bars (tension), {main_label}", "U-hook both ends", dia, main_count, {"A": run, "hook": h_al},
+                run + 2.0 * h_al, "A + 2 hook (standard U-hooks, IS 2502)")
+        elif embed >= need and detail == "straight":
             add(f"Bottom bars (tension), {main_label}", "straight", dia, main_count, {"A": run}, run, "A")
         else:
             leg = _ceil5(max(9.0 * dia, need - embed + 2.0 * dia))
@@ -352,7 +365,16 @@ def drawing(inp: BeamInput, cover: float, reinf: dict[str, Any], bbs: dict[str, 
         elev.rect(0, 0, total, D, "concrete")
         if flanged:
             elev.line(0, D - df, total, D - df, "centerline")  # soffit of the slab beside the web
-        elev.line(cover, y_b, total - cover, y_b, "rebar")
+        if "hook" in main["shape"]:  # U-hooks: a half circle of IS 2502 radius on the bar's centre line and a 4 phi tail
+            dia = main["dia"]
+            rad = bend_radius(dia, inp.fy) + dia / 2.0
+            for sgn, x_face in ((1.0, cover), (-1.0, total - cover)):
+                cx = x_face + sgn * (dia / 2.0 + rad)
+                arc = [(cx - sgn * rad * math.sin(math.pi * k / 12), y_b + rad - rad * math.cos(math.pi * k / 12)) for k in range(13)]
+                elev.polyline([*arc, (cx + sgn * 4.0 * dia, y_b + 2.0 * rad)], closed=False, layer="rebar")
+            elev.line(cover + dia / 2.0 + rad, y_b, total - cover - dia / 2.0 - rad, y_b, "rebar")
+        else:
+            elev.line(cover, y_b, total - cover, y_b, "rebar")
         if leg:
             elev.line(cover, y_b, cover, y_b + leg, "rebar")
             elev.line(total - cover, y_b, total - cover, y_b + leg, "rebar")

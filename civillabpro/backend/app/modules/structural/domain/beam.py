@@ -29,11 +29,11 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.engineering import is456
 from app.engineering.is456 import FlangeKind, FlexureDesign, MomentCapacity
-from app.engineering.rebar import MAIN_BAR_DIAMETERS, BarGroup, bar_area, bar_unit_weight
+from app.engineering.rebar import MAIN_BAR_DIAMETERS, BarGroup, bar_area, bar_unit_weight, bend_radius
 from app.engineering.trace import CalcSheet
 
 ELEMENT_TYPE = "beam"
-ENGINE_VERSION = "1.3.0"
+ENGINE_VERSION = "1.4.0"
 CODE_BASIS = ("IS 456:2000", "SP 16:1980", "IS 2502:1963")
 REF = is456.CODE
 
@@ -294,7 +294,7 @@ def select_bars(inp: BeamInput, cover: float, anchorage: bool = True) -> tuple[A
                 continue
             if anchorage and inp.support != "cantilever":  # Cl. 26.2.3.3(c) limits the diameter at a simple support (a bend allowed)
                 m1 = m1_at_support(inp, fl, d, ten.area)
-                if not anchorage_ok(ten.dia, fck, fy, m1, f.vu_face, inp.support_width_mm / 2.0 - cover + BEND_90_ANCHORAGE * ten.dia, True)[0]:
+                if end_detail(inp.support_width_mm, cover, ten.dia, fck, fy, m1, f.vu_face, "straight") is None:  # a hook allowed
                     continue
             if m2 > 0:
                 d2 = D - d_c
@@ -394,6 +394,26 @@ def stirrup_positions(lc: float, cover: float, cantilever: bool, base: float, zo
 
 
 BEND_90_ANCHORAGE = 8.0  # bar diameters: anchorage value of a 90 degree bend, Cl. 26.2.2.1(b)
+HOOK_ANCHORAGE = 16.0  # bar diameters: anchorage value of a standard U-type hook, Cl. 26.2.2.1(b)
+END_DETAILS = ("straight", "bend", "hook")
+
+
+def end_l0(support_width: float, cover: float, dia: float, fy: float, detail: str) -> float:
+    """L_0 at a simple support (Cl. 26.2.3.3(c)): the straight bar beyond the centre of the support, up to where a bend or hook begins
+    (r + phi inside the bar's outer end, which is at cover from the far face), plus the bend's or hook's anchorage value."""
+    beyond = support_width / 2.0 - cover
+    if detail == "straight":
+        return beyond
+    value = BEND_90_ANCHORAGE if detail == "bend" else HOOK_ANCHORAGE
+    return beyond - (bend_radius(dia, fy) + dia) + value * dia
+
+
+def end_detail(support_width: float, cover: float, dia: float, fck: float, fy: float, m1: float, v: float, start: str) -> str | None:
+    """The simplest end ('straight', 'bend', 'hook'), from ``start`` on, that meets Cl. 26.2.3.3(c); None if not even a hook does."""
+    for detail in END_DETAILS[END_DETAILS.index(start):]:
+        if anchorage_ok(dia, fck, fy, m1, v, end_l0(support_width, cover, dia, fy, detail), True)[0]:
+            return detail
+    return None
 
 
 def m1_at_support(inp: Any, fl: Flange | None, d: float, ast: float) -> float:
@@ -567,10 +587,7 @@ def curtail_and_zones(sheet: CalcSheet, inp: BeamInput, forces: Forces, arr: Arr
             return finish(Curtailment(False, "the extra stirrups would outweigh the steel saved"), [])
     if not cantilever:  # the continuing bars alone must satisfy Cl. 26.2.3.3(c) at the supports
         m1 = m1_at_support(inp, flex_flange, d_cont, cont.area)
-        bent = inp.support_width_mm - cover < is456.development_length(cont.dia, fck, fy) / 3.0
-        l0 = inp.support_width_mm / 2.0 - cover + (BEND_90_ANCHORAGE * cont.dia if bent else 0.0)
-        if not anchorage_ok(cont.dia, fck, fy, m1, forces.vu_face, l0, True)[0] and not anchorage_ok(
-                cont.dia, fck, fy, m1, forces.vu_face, inp.support_width_mm / 2.0 - cover + BEND_90_ANCHORAGE * cont.dia, True)[0]:
+        if end_detail(inp.support_width_mm, cover, cont.dia, fck, fy, m1, forces.vu_face, "straight") is None:
             sheet.step(f"{REF}, Cl. 26.2.3.3(c)", "The continuing bars alone could not be anchored at the supports: no curtailment", "", "", "", "")
             return finish(Curtailment(False, "Cl. 26.2.3.3(c) needs all the bars at the supports"), [])
     sheet.check("curtail_third", f"{REF}, Cl. 26.2.3.3(a)", "At least a third of the tension steel runs to the support", "A_st,cont", cont.area,
@@ -623,7 +640,7 @@ def design_beam(inp: BeamInput) -> dict[str, Any]:
         _forces_section(sheet, inp, forces, d_est, cantilever)
         if select_bars(inp, cover, anchorage=False) is not None:
             return _stopped(inp, sheet, "The bars that carry the moment are too large to be anchored at the supports (Cl. 26.2.3.3(c)), even with "
-                                        "a bend: widen the supports, deepen the section or use a higher concrete grade.")
+                                        "a U-hook: widen the supports, deepen the section or use a higher concrete grade.")
         return _stopped(inp, sheet, "No arrangement of up to two layers of bars carries the design moment within the "
                                     "steel limits of Cl. 26.5.1: increase the section, the concrete grade or the bar size.")
     arr, forces = selected
@@ -861,22 +878,24 @@ def design_beam(inp: BeamInput) -> dict[str, Any]:
     if inp.mode == "loads" and forces.tu == 0:  # the moment and shear diagrams are known
         curt, zones = curtail_and_zones(sheet, inp, forces, arr, flg, cover, sv, fyv, asv)
 
-    end_bend = False
+    end = "straight"
     if not cantilever:  # Cl. 26.2.3.3(c) at the simple supports, with the bars that reach them
         at_sup = curt.cont if curt and curt.applied and curt.cont else ten
         d_sup = (curt.d_cont if curt and curt.applied else d)
         m1 = m1_at_support(inp, flg if flg is not None and flg.in_compression else None, d_sup, at_sup.area)
         v_sup = forces.vu_face
         embed = inp.support_width_mm - cover
-        bent = embed < is456.development_length(at_sup.dia, fck, fy) / 3.0  # the schedule bends them for Cl. 26.2.3.3(a)
+        start = "bend" if embed < is456.development_length(at_sup.dia, fck, fy) / 3.0 else "straight"  # Cl. 26.2.3.3(a) bends them already
         sheet.section(f"{9 if curt is not None else 8}. Anchorage at the supports")
-        if not bent and not anchorage_ok(at_sup.dia, fck, fy, m1, v_sup, inp.support_width_mm / 2.0 - cover, True)[0]:
-            bent = end_bend = True  # a 90 degree bend at the end adds 8 diameters
-            sheet.step(f"{REF}, Cl. 26.2.2.1(b)", "Straight bars do not meet Cl. 26.2.3.3(c): bent up at the supports, a 90 degree bend worth 8 diameters",
+        end = end_detail(inp.support_width_mm, cover, at_sup.dia, fck, fy, m1, v_sup, start) or "hook"
+        if end != start:
+            sheet.step(f"{REF}, Cl. 26.2.2.1(b)", f"A {'straight bar' if start == 'straight' else '90 degree bend'} does not meet Cl. 26.2.3.3(c): "
+                       + ("bent up at the supports, a 90 degree bend worth 8 diameters" if end == "bend" else "a standard U-hook, worth 16 diameters"),
                        "", "", "", "")
-        l0 = inp.support_width_mm / 2.0 - cover + (BEND_90_ANCHORAGE * at_sup.dia if bent else 0.0)
-        if not anchorage_check(sheet, "anchorage", f"{at_sup.label()} at the supports", at_sup.dia, fck, fy, m1, v_sup, l0, True,
-                               "beyond the centre of the support" + (", with the bend" if bent else "")):
+        l0 = end_l0(inp.support_width_mm, cover, at_sup.dia, fy, end)
+        text = {"straight": "beyond the centre of the support", "bend": "to the start of the bend, plus 8 phi",
+                "hook": "to the start of the hook, plus 16 phi"}[end]
+        if not anchorage_check(sheet, "anchorage", f"{at_sup.label()} at the supports", at_sup.dia, fck, fy, m1, v_sup, l0, True, text):
             sheet.flag("error", "The bars at the supports are too large to develop their stress there (Cl. 26.2.3.3(c)): use smaller bars, a wider "
                                 "support, or more bars reaching the supports.", f"{REF}, Cl. 26.2.3.3(c)")
 
@@ -897,10 +916,11 @@ def design_beam(inp: BeamInput) -> dict[str, Any]:
                         if curt and curt.applied and curt.cont and curt.cut else None),
         "side_face": side,
         "cover": cover,
+        "end_detail": end,
         "layer_gap": arr.layer_gap,
         "section": {"kind": inp.section, "bw": b, "D": D} | ({"df": flg.df, "bf": round(flg.bf, 1), "b_actual": flg.b_actual} if flg else {}),
     }
-    anch = {"ld_tension": ld_t, "ld_other": ld_o, "other_in_compression": fl.doubly, "force_bend": end_bend}
+    anch = {"ld_tension": ld_t, "ld_other": ld_o, "other_in_compression": fl.doubly, "end_detail": end}
     bbs = beam_detailing.bar_schedule(inp, cover, reinforcement, anch, sheet)
     quantities = beam_detailing.quantities(inp, bbs)
     drawing = beam_detailing.drawing(inp, cover, reinforcement, bbs)
