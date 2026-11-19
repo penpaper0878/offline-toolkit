@@ -107,7 +107,7 @@ def bar_schedule(inp: ContinuousBeamInput, reinf: dict[str, Any], sheet: CalcShe
     eb_label = eb_run["label"] + (" continuing" if be else "")
     ld3 = is456.development_length(eb["dia"], fck, fy) / 3.0
     run = lc + 2.0 * embed + comp_ext(eb["dia"], sb["doubly"])
-    if embed >= ld3:
+    if embed >= ld3 and not cut_plan.get("end_bend"):  # bent also where Cl. 26.2.3.3(c) needs the bend's 8 diameters
         add(f"Bottom bars, end spans, {eb_label}", "straight", eb["dia"], 2 * eb_run["count"], {"A": run}, run, "A")
     else:
         leg = _ceil5(max(9.0 * eb["dia"], ld3 - embed + 2.0 * eb["dia"]))

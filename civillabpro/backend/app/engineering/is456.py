@@ -258,6 +258,23 @@ def moment_capacity_flanged(fck: float, fy: float, bf: float, bw: float, df: flo
     return _capacity(lambda xu: flanged_concrete(fck, bf, bw, df, d, xu), fck, fy, d, ast, asc, d_c)
 
 
+def moment_at_design_stress(fck: float, fy: float, b: float, d: float, ast: float, bf: float | None = None, df: float = 0.0) -> float:
+    """Cl. 26.2.3.3(c): M_1, the moment of resistance with all the tension steel at f_d = 0.87 fy, N mm.
+
+    The neutral axis follows from equilibrium with the stress block (a compression flange if bf is given), without the
+    x_u,max limit: the clause assumes the steel stressed to f_d.
+    """
+    t = 0.87 * fy * ast
+    if bf is None:
+        xu = min(t / (0.36 * fck * b), d)
+        return t * (d - 0.42 * xu)
+    lo, hi = 0.0, d
+    for _ in range(100):
+        mid = 0.5 * (lo + hi)
+        lo, hi = (mid, hi) if flanged_concrete(fck, bf, b, df, d, mid)[0] < t else (lo, mid)
+    return flanged_concrete(fck, bf, b, df, d, hi)[1]
+
+
 def min_tension_steel(b: float, d: float, fy: float) -> float:
     """Cl. 26.5.1.1(a): As / (b d) >= 0.85 / fy."""
     return 0.85 * b * d / fy

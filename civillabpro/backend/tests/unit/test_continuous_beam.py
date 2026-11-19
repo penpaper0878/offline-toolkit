@@ -214,10 +214,28 @@ def test_curtailment_of_the_continuous_beam():
     assert r["quantities"]["steel_kg"] < 388.6  # the same beam before curtailment
 
 
-def test_heavy_imposed_load_curtails_both_faces():
+def test_heavy_imposed_load_curtails_both_faces_where_anchorage_allows():
     r = design_continuous_beam(ContinuousBeamInput(live_load_kn_m=40))
     cur = r["data"]["curtailment"]
-    assert cur["bottom"]["end"] and cur["bottom"]["interior"] and cur["top"]["b"] and cur["top"]["c"]
+    assert cur["bottom"]["end"] and cur["top"]["b"] and cur["top"]["c"]
     be = cur["bottom"]["end"]
     assert be["left"] != be["right"]  # the end span's diagram is not symmetric
+    # two of the three T25 alone could not develop at the point of inflection (Cl. 26.2.3.3(c)), so all three run through
+    assert cur["bottom"]["interior"] is None
+    steps = [i["title"] for s in r["sheet"]["sections"] for i in s["items"]]
+    assert any(t.startswith("Interior span bottom bars: the continuing bars alone could not be anchored") for t in steps)
     assert r["checks_passed"] == r["checks_total"]
+
+
+def test_anchorage_at_the_end_supports_and_points_of_inflection():
+    r = design_continuous_beam(ContinuousBeamInput())
+    c = checks(r)
+    end, infl_e, infl_i = c["anchorage_end"], c["anchorage_inflection_end"], c["anchorage_inflection_interior"]
+    assert end["ok"] and infl_e["ok"] and infl_i["ok"]
+    # at the end support the bars are confined by the reaction (1.3 M_1/V); at a point of inflection L_0 = max(d, 12 phi), no 1.3
+    assert "1.3" in end["rhs_label"] and "1.3" not in infl_i["rhs_label"]
+    t = 0.87 * 500 * 5 * math.pi * 16**2 / 4  # all five T16 reach the end supports (the end span is not curtailed)
+    d = r["data"]["end"]["d"]
+    m1 = t * (d - 0.42 * t / (0.36 * 25 * 300))
+    l0 = 300 / 2 - r["reinforcement"]["cover"]
+    assert end["rhs"] == pytest.approx(1.3 * m1 / (r["data"]["v_a"] * 1e3) + l0, rel=1e-4)

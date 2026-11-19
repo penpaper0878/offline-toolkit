@@ -454,6 +454,38 @@ def check_curtailment(name: str, s: dict, res: dict, h: dict) -> tuple[int, list
             n += 1
             if t["left"] > peak - ld(cdia) + slack or t["right"] > lc - peak - ld(cdia) + slack:
                 bad.append(f"{name}: {kind} span curtailed bars shorter than L_d either side of the peak")
+    # Cl. 26.2.3.3(c): the bars reaching the end supports (1.3 M_1/V + L_0) and the points of inflection (M_1/V + max(d, 12 phi))
+    for kind, idx in (("end", [0]), ("interior", list(range(1, n_sp - 1)))):
+        t = cur["bottom"].get(kind)
+        grp = t["continuing"] if t else reinf[kind]["bottom"]["label"]
+        cnt, dia = bars(grp)
+        d = t["d_cont"] if t else eng[kind]["d"]
+        ast = cnt * math.pi * dia**2 / 4
+        bf = eng[kind]["bf"]
+        tt = 0.87 * fy * ast
+        if bf:
+            m1 = resistance(fck, fy, b, d, ast, 0.0, 1.0, bf, s["flange_thickness_mm"])  # bisection on force, no x_u,max limit
+        else:
+            m1 = tt * (d - 0.42 * min(tt / (0.36 * fck * b), d)) / 1e6
+        ldv = ld(dia)
+        checks_ = {i["id"]: i for sec in res["sheet"]["sections"] for i in sec["items"] if i.get("id", "").startswith("anchorage")}
+        if kind == "end":
+            main = next(i for i in res["bbs"]["items"] if i["description"].startswith("Bottom bars, end spans") and "curtailed" not in i["description"])
+            l0 = s["support_width_mm"] / 2 - cover + (8 * dia if "bend" in main["shape"] else 0)
+            rhs = 1.3 * m1 * 1e3 / h["v_a"] + l0
+            n += 1
+            if abs(checks_["anchorage_end"]["rhs"] - rhs) > 0.01 * rhs + 1 or (ldv > rhs and res["status"] == "ok"):
+                bad.append(f"{name}: end support anchorage engine {checks_['anchorage_end']['rhs']:.0f}, hand {rhs:.0f} (L_d {ldv:.0f})")
+        worst = 0.0
+        for i in idx:
+            for from_left in ((False,) if kind == "end" else (True, False)):
+                x = next((xf for xf in (lc * k / 800 for k in range(401)) if at(dg[i], xm(i, xf if from_left else lc - xf), 1) > 1e-9), lc / 2)
+                worst = max(worst, at(dg[i], xm(i, x if from_left else lc - x), 3))
+        rhs = m1 * 1e3 / worst + max(d, 12 * dia)
+        n += 1
+        c = checks_[f"anchorage_inflection_{kind}"]
+        if abs(c["rhs"] - rhs) > 0.03 * rhs + 1 or (ldv > rhs and res["status"] == "ok"):
+            bad.append(f"{name}: {kind} span anchorage at the point of inflection engine {c['rhs']:.0f}, hand {rhs:.0f} (L_d {ldv:.0f})")
     # stirrup zones: the shear where the wider spacing begins is within the resistance there
     fyv = min(s["fy_stirrup"], 415)
     asv = s["stirrup_legs"] * math.pi * dst**2 / 4

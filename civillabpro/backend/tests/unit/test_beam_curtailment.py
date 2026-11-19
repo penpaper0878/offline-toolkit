@@ -128,3 +128,38 @@ def test_sweep_cut_offs_are_safe():
             m = wu * x * (le - x) / 2e6
         assert m <= c["m_cont"] + 1e-6
     assert n == 36 and n_cut >= 10
+
+
+
+# ------------------------------------------------------------------ Cl. 26.2.3.3(c): anchorage at simple supports (STR-017)
+
+
+def test_anchorage_check_at_the_supports():
+    r = design_beam(BeamInput())
+    c = checks(r)["anchorage"]
+    # 2-T16 reach the supports: M_1 with the steel at f_d, V at the face, L_0 = 230/2 - 30, bars bent for Cl. 26.2.3.3(a)
+    t = 0.87 * 500 * 2 * math.pi * 16**2 / 4
+    m1 = t * (404 - 0.42 * t / (0.36 * 25 * 230))
+    l0 = 230 / 2 - 30 + 8 * 16
+    assert c["ok"] and c["lhs"] == pytest.approx(is456.development_length(16, 25, 500))
+    assert c["rhs"] == pytest.approx(1.3 * m1 / (r["data"]["vu_face"] * 1e3) + l0, rel=1e-6)
+
+
+def test_m1_has_no_neutral_axis_limit():
+    # the clause assumes the steel at f_d: over-reinforced sections are not capped at x_u,max
+    t = 0.87 * 500 * 2199
+    assert is456.moment_at_design_stress(25, 500, 250, 520, 2199) == pytest.approx(t * (520 - 0.42 * t / (0.36 * 25 * 250)))
+    assert is456.moment_at_design_stress(25, 500, 250, 520, 2199) > is456.moment_capacity(25, 500, 250, 520, 2199, 0, 50).mu
+
+
+def test_a_bend_is_added_where_straight_bars_fail():
+    # a heavily loaded short beam on narrow supports: straight T20 cannot develop; the bend's 8 phi makes up the difference
+    r = design_beam(BeamInput(width_mm=250, depth_mm=600, clear_span_mm=3000, dead_load_kn_m=120, live_load_kn_m=80, stirrup_dia_mm=10))
+    main = next(i for i in r["bbs"]["items"] if i["description"].startswith("Bottom bars (tension)"))
+    assert r["status"] == "ok" and "bend" in main["shape"] and checks(r)["anchorage"]["ok"]
+
+
+def test_bars_too_large_to_anchor_stop_with_the_right_message():
+    r = design_beam(BeamInput(width_mm=250, depth_mm=600, clear_span_mm=2500, support_width_mm=150, dead_load_kn_m=200, live_load_kn_m=150,
+                              main_bar_dia_mm=32, stirrup_dia_mm=10, fck=30))
+    assert r["status"] == "stopped" and "anchored at the supports (Cl. 26.2.3.3(c))" in r["stop_message"]

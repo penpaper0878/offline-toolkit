@@ -18,7 +18,7 @@ def checks(res):
 def test_worked_example_matches_the_hand_calculation():
     r = design_beam(BeamInput())
     d = r["data"]
-    assert r["status"] == "ok" and r["checks_passed"] == r["checks_total"] == 17
+    assert r["status"] == "ok" and r["checks_passed"] == r["checks_total"] == 18
     # self-weight 25 x 0.23 x 0.45 = 2.5875; w = 12 + 2.5875 + 8 = 22.5875; wu = 1.5 w
     assert d["w_factored"] == pytest.approx(33.8812, abs=1e-4)
     # d = 450 - 30 - 8 - 16/2; l = min(4000 + 404, 4000 + 230)

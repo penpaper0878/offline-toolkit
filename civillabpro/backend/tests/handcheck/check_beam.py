@@ -316,7 +316,51 @@ def compare(name: str, s: dict, res: dict) -> tuple[int, list[str]]:
     if res["data"]["sv"] > h["sv_allow"] * 1.02:
         bad.append(f"{name}: stirrup spacing {res['data']['sv']:.0f} above hand limit {h['sv_allow']:.0f}")
     k, more = check_curtailment(name, s, res)
-    return n + k, bad + more
+    k2, more2 = check_anchorage(name, s, res)
+    return n + k + k2, bad + more + more2
+
+
+def check_anchorage(name: str, s: dict, res: dict) -> tuple[int, list[str]]:
+    """Cl. 26.2.3.3(c) at the simple supports: L_d <= 1.3 M_1/V + L_0, M_1 with the bars at f_d (no x_u,max limit)."""
+    if s["support"] == "cantilever":
+        return 0, []
+    eng, reinf = res["data"], res["reinforcement"]
+    b, fck, fy = s["width_mm"], s["fck"], s["fy"]
+    cover = s["clear_cover_mm"] if s["clear_cover_mm"] is not None else COVER[s["exposure"]]
+    grp = reinf["curtailment"]["continuing"] if reinf.get("curtailment") else reinf["bottom"]
+    ast = grp["count"] * math.pi * grp["dia"] ** 2 / 4
+    d = eng["curtailment"]["d_cont"] if eng.get("curtailment") and eng["curtailment"]["applied"] else eng["d"]
+    t = 0.87 * fy * ast
+    if eng["bf"]:  # a compression flange: bisection on force
+        bf, df = eng["bf"], s["flange_thickness_mm"]
+
+        def c(x: float) -> tuple[float, float]:
+            if x <= df:
+                return 0.36 * fck * bf * x, 0.36 * fck * bf * x * (d - 0.42 * x)
+            yf = df if x >= 7 * df / 3 else 0.15 * x + 0.65 * df
+            return 0.36 * fck * b * x + 0.45 * fck * (bf - b) * yf, 0.36 * fck * b * x * (d - 0.42 * x) + 0.45 * fck * (bf - b) * yf * (d - yf / 2)
+
+        lo, hi = 0.0, d
+        for _ in range(200):
+            x = (lo + hi) / 2
+            lo, hi = (x, hi) if c(x)[0] < t else (lo, x)
+        m1 = c(hi)[1]
+    else:
+        m1 = t * (d - 0.42 * min(t / (0.36 * fck * b), d))
+    v = eng["vu_face"] * 1e3
+    main = next(i for i in res["bbs"]["items"] if i["description"].startswith("Bottom bars (tension)"))
+    bent = "bend" in main["shape"]
+    l0 = s["support_width_mm"] / 2 - cover + (8 * grp["dia"] if bent else 0)
+    tbd = {20: 1.2, 25: 1.4, 30: 1.5, 35: 1.7, 40: 1.9}[max(g for g in (20, 25, 30, 35, 40) if g <= min(fck, 40))] * (1.6 if fy >= 415 else 1.0)
+    ld = grp["dia"] * 0.87 * fy / (4 * tbd)
+    rhs = 1.3 * m1 / v + l0
+    chk = next(i for sec in res["sheet"]["sections"] for i in sec["items"] if i.get("id") == "anchorage")
+    bad = []
+    if abs(chk["rhs"] - rhs) > 0.003 * rhs + 1 or abs(chk["lhs"] - ld) > 0.5:
+        bad.append(f"{name}: anchorage engine {chk['lhs']:.0f} <= {chk['rhs']:.0f}, hand {ld:.0f} <= {rhs:.0f}")
+    if ld > rhs + 1e-6 and res["status"] == "ok":
+        bad.append(f"{name}: L_d {ld:.0f} exceeds 1.3 M_1/V + L_0 = {rhs:.0f} but the engine reports OK")
+    return 2, bad
 
 
 def check_curtailment(name: str, s: dict, res: dict) -> tuple[int, list[str]]:

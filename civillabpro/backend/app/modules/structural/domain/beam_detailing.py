@@ -103,7 +103,7 @@ def bar_schedule(
     else:
         need = anch["ld_tension"] / 3.0  # Cl. 26.2.3.3(a): one third of L_d into a simple support
         run = lc + 2.0 * embed
-        if embed >= need:
+        if embed >= need and not anch.get("force_bend"):  # bent also where Cl. 26.2.3.3(c) needs the bend's 8 diameters
             add(f"Bottom bars (tension), {main_label}", "straight", dia, main_count, {"A": run}, run, "A")
         else:
             leg = _ceil5(max(9.0 * dia, need - embed + 2.0 * dia))

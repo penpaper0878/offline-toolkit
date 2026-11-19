@@ -49,7 +49,7 @@ from app.modules.structural.domain.beam import (
 )
 
 ELEMENT_TYPE = "continuous_beam"
-ENGINE_VERSION = "1.1.0"
+ENGINE_VERSION = "1.2.0"
 CODE_BASIS = ("IS 456:2000", "SP 16:1980", "IS 2502:1963")
 REF = is456.CODE
 FIRST_STIRRUP_MM = 50.0
@@ -568,7 +568,7 @@ def _plan_record(p: dict[str, Any]) -> dict[str, Any]:
     top = {k: ({"long": _grp(v["long"]), "short": _grp(v["short"]), "cut": v["cut"]} if v else None) for k, v in (("b", p["top_b"]), ("c", p["top_c"]))}
     bottom = {k: ({"continuing": _grp(v["cont"]), "curtailed": _grp(v["cut"]), "left": v["left"], "right": v["right"]} if v else None)
               for k, v in (("end", p["bottom_end"]), ("interior", p["bottom_interior"]))}
-    return {"top": top, "bottom": bottom, "zones": p["zones"]}
+    return {"top": top, "bottom": bottom, "zones": p["zones"], "end_bend": p["end_bend"]}
 
 
 def _grp(g: BarGroup) -> dict[str, Any]:

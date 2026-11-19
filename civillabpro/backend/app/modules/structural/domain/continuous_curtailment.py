@@ -25,7 +25,16 @@ from app.engineering import continuous as analysis
 from app.engineering import is456
 from app.engineering.rebar import BarGroup, bar_unit_weight
 from app.engineering.trace import CalcSheet
-from app.modules.structural.domain.beam import SETTING_OUT, cutoff_condition, practical_spacing, split_for_curtailment, stirrup_positions
+from app.modules.structural.domain.beam import (
+    BEND_90_ANCHORAGE,
+    SETTING_OUT,
+    anchorage_check,
+    anchorage_ok,
+    cutoff_condition,
+    practical_spacing,
+    split_for_curtailment,
+    stirrup_positions,
+)
 
 REF = is456.CODE
 POINTS = 401
@@ -196,6 +205,35 @@ def plan(sheet: CalcSheet, inp: Any, cover: float, sections: dict[str, Any], spa
             bands[kind].append(z)
     out["top_b"], out["top_c"] = tb, tc_
 
+    # ---------------------------------------------------------------- anchorage of the bottom bars (Cl. 26.2.3.3(c))
+    def m1_of(sec: Any, d: float, area: float) -> float:
+        bf = sec.flange.bf if sec.flange is not None else None
+        return is456.moment_at_design_stress(fck, fy, b, d, area, bf, sec.flange.df if bf else 0.0) / 1e6
+
+    def inflection(i: int, from_left: bool) -> float:
+        """Distance from the face to where the greatest moment turns positive: the point of inflection of the bottom bars."""
+        prof = _scan((lambda x: dg.sag(i, x)) if from_left else (lambda x: dg.sag(i, lc - x)), 0.0, lc / 2.0)
+        return next((x for x, m in prof if m > 1e-9), lc / 2.0)
+
+    embed = inp.support_width_mm - cover
+
+    def end_support(dia: float, m1: float, bend: bool) -> tuple[bool, float]:
+        l0 = inp.support_width_mm / 2.0 - cover + (BEND_90_ANCHORAGE * dia if bend else 0.0)
+        return anchorage_ok(dia, fck, fy, m1, shears["A"], l0, True)[0], l0
+
+    def bars_anchor(sec: Any, grp: BarGroup, d: float, idx: list[int], has_end: bool) -> bool:
+        """Can these bars be anchored at the end support (a bend allowed) and at every point of inflection near an interior support?"""
+        m1 = m1_of(sec, d, grp.area)
+        if has_end and not end_support(grp.dia, m1, True)[0]:
+            return False
+        for i in idx:
+            for from_left in ((False,) if has_end else (True, False)):
+                x = inflection(i, from_left)
+                v = dg.shear(i, x if from_left else lc - x)
+                if not anchorage_ok(grp.dia, fck, fy, m1, v, max(d, 12.0 * grp.dia), False)[0]:
+                    return False
+        return True
+
     # ---------------------------------------------------------------- bottom bars in the spans
     def bottom_cut(label: str, kind: str, sec: Any, idx: list[int]) -> dict[str, Any] | None:
         split = split_for_curtailment(sec.bottom)
@@ -249,6 +287,10 @@ def plan(sheet: CalcSheet, inp: Any, cover: float, sections: dict[str, Any], spa
             if extra >= saved:
                 sheet.step("Practice", f"{label}: the closer stirrups would weigh as much as the steel saved: no curtailment", "", "", "", "")
                 return None
+        if not bars_anchor(sec, cont, d_c, idx, kind == "end"):
+            sheet.step(f"{REF}, Cl. 26.2.3.3(c)", f"{label}: the continuing bars alone could not be anchored at the supports or the points of "
+                       "inflection: no curtailment", "", "", "", "")
+            return None
         sheet.check(f"cut_{kind}_third", f"{REF}, Cl. 26.2.3.3", f"{label}: at least a third of the bottom steel runs into the supports",
                     "A_st,cont", cont.area, ">=", "A_st/3", sec.bottom.area / 3.0, "mm2", 0, ratio=False)
         return res
@@ -258,6 +300,36 @@ def plan(sheet: CalcSheet, inp: Any, cover: float, sections: dict[str, Any], spa
     for kind, res in (("end", be), ("interior", bi)):
         bands[kind] += (res or {}).get("bands", [])
     out["bottom_end"], out["bottom_interior"] = be, bi
+
+    # ---------------------------------------------------------------- Cl. 26.2.3.3(c) with the bars that reach each point
+    sheet.section("10. Anchorage of the bottom bars")
+    out["end_bend"] = False
+    for kind, sec, idx, res in (("end", end, [0], be), ("interior", inner, interior, bi)):
+        grp = res["cont"] if res else sec.bottom
+        d = res["d_cont"] if res else sec.d
+        m1 = m1_of(sec, d, grp.area)
+        if kind == "end":
+            bent = embed < is456.development_length(grp.dia, fck, fy) / 3.0  # the schedule bends them for Cl. 26.2.3.3(a)
+            if not bent and not end_support(grp.dia, m1, False)[0]:
+                bent = out["end_bend"] = True
+                sheet.step(f"{REF}, Cl. 26.2.2.1(b)", "End supports: straight bars do not meet Cl. 26.2.3.3(c); bent up, a 90 degree bend worth 8 "
+                           "diameters", "", "", "", "")
+            l0 = end_support(grp.dia, m1, bent)[1]
+            if not anchorage_check(sheet, "anchorage_end", f"End supports: {grp.label()}", grp.dia, fck, fy, m1, shears["A"], l0, True,
+                                   "beyond the centre of the support" + (", with the bend" if bent else "")):
+                sheet.flag("error", "The end span's bottom bars are too large to develop their stress at the end supports (Cl. 26.2.3.3(c)): use "
+                                    "smaller bars or wider supports.", f"{REF}, Cl. 26.2.3.3(c)")
+        sides = [(i, fl) for i in idx for fl in ((False,) if kind == "end" else (True, False))]
+        worst = max(sides, key=lambda t: dg.shear(t[0], inflection(t[0], t[1]) if t[1] else lc - inflection(t[0], t[1])))
+        i, from_left = worst
+        x = inflection(i, from_left)
+        v = dg.shear(i, x if from_left else lc - x)
+        side = "B" if kind == "end" else "the interior supports"
+        if not anchorage_check(sheet, f"anchorage_inflection_{kind}", f"{'End' if kind == 'end' else 'Interior'} span, point of inflection near "
+                               f"{side} ({x:.0f} from the face): {grp.label()}", grp.dia, fck, fy, m1, v, max(d, 12.0 * grp.dia), False,
+                               "the greater of d and 12 phi"):
+            sheet.flag("error", f"The {kind} span's bottom bars are too large to develop their stress at the point of inflection (Cl. 26.2.3.3(c)): "
+                                "use smaller bars.", f"{REF}, Cl. 26.2.3.3(c)")
 
     # ---------------------------------------------------------------- stirrup positions per span type
     for kind in ("end", "interior"):
