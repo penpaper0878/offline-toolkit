@@ -20,6 +20,11 @@ def items(res, start):
     return [i for i in res["bbs"]["items"] if i["description"].startswith(start)]
 
 
+def count(res, *starts):
+    """Bars of a group, continuing and curtailed together."""
+    return sum(i["count"] for i in res["bbs"]["items"] if i["description"].startswith(starts))
+
+
 def test_worked_example():
     r = design_continuous_beam(ContinuousBeamInput())
     d = r["data"]
@@ -48,8 +53,8 @@ def test_three_spans_have_no_c_support():
     assert r["status"] == "ok" and r["reinforcement"]["support_c"] is None and "support_c" not in r["data"] and r["data"]["m_c"] == 0
     assert not items(r, "Top bars over interior supports")
     eb, ib = r["reinforcement"]["end"]["bottom"], r["reinforcement"]["interior"]["bottom"]
-    assert items(r, "Bottom bars, end spans")[0]["count"] == 2 * eb["count"]
-    assert items(r, "Bottom bars, interior spans")[0]["count"] == ib["count"]
+    assert count(r, "Bottom bars, end spans") == 2 * eb["count"]
+    assert count(r, "Bottom bars, interior spans") == ib["count"]
 
 
 def test_effective_span_rules():
@@ -106,11 +111,11 @@ def test_schedule_counts_cover_the_whole_beam():
     for n in (3, 4, 7):
         r = design_continuous_beam(ContinuousBeamInput(spans=n))
         reinf = r["reinforcement"]
-        assert items(r, "Bottom bars, end spans")[0]["count"] == 2 * reinf["end"]["bottom"]["count"]
-        assert items(r, "Bottom bars, interior spans")[0]["count"] == (n - 2) * reinf["interior"]["bottom"]["count"]
-        assert items(r, "Top bars over supports next to the ends")[0]["count"] == 2 * reinf["support_b"]["top"]["count"]
+        assert count(r, "Bottom bars, end spans") == 2 * reinf["end"]["bottom"]["count"]
+        assert count(r, "Bottom bars, interior spans") == (n - 2) * reinf["interior"]["bottom"]["count"]
+        assert count(r, "Top bars over supports next to the ends", "Top bars over B") == 2 * reinf["support_b"]["top"]["count"]
         if n >= 4:
-            assert items(r, "Top bars over interior supports")[0]["count"] == (n - 3) * reinf["support_c"]["top"]["count"]
+            assert count(r, "Top bars over interior supports", "Top bars over C") == (n - 3) * reinf["support_c"]["top"]["count"]
         per = r["bbs"]["stirrups_per_span"]
         assert items(r, "Stirrups, end spans")[0]["count"] == 2 * per["end"]
         assert items(r, "Stirrups, interior spans")[0]["count"] == (n - 2) * per["interior"]
@@ -186,3 +191,33 @@ def test_sweep():
             assert math.isfinite(s["a_left"]) and 0 < s["a_left"] <= lc
         n_ok += r["status"] == "ok"
     assert n == 108 and n_ok > 50
+
+
+def test_curtailment_of_the_continuous_beam():
+    r = design_continuous_beam(ContinuousBeamInput())
+    cur, reinf = r["data"]["curtailment"], r["reinforcement"]
+    assert r["status"] == "ok"
+    tb = cur["top"]["b"]
+    # a third of the top steel (3 of 6 T16) runs to the point of inflection; the rest stops where those suffice
+    assert tb["long"] == "3-T16" and tb["short"] == "3-T16"
+    ld = is456.development_length(16, 25, 500)
+    assert ld <= tb["cut"]["end"] < reinf["layout"]["end"]["a_b"] and ld <= tb["cut"]["interior"] < reinf["layout"]["b_into_interior"]
+    assert all(c["condition"] in ("a", "b", "c") for c in tb["conditions"])
+    bi = cur["bottom"]["interior"]
+    assert bi["continuing"] == "2-T16" and bi["left"] == bi["right"] >= r["data"]["interior"]["d"]
+    # the stirrups: designed spacing near the supports, wider between, and the schedule counts the positions
+    z = cur["zones"]["interior"]
+    assert z["applied"] and z["s_end"] < z["s_mid"] and count(r, "Stirrups, interior spans") == 2 * z["count"]
+    # every gap between stirrups is within the spacing that applies there
+    pos = reinf["curtailment"]["zones"]["interior"]["positions"]
+    assert max(b - a for a, b in zip(pos, pos[1:], strict=False)) <= z["s_mid"] + 1e-6
+    assert r["quantities"]["steel_kg"] < 388.6  # the same beam before curtailment
+
+
+def test_heavy_imposed_load_curtails_both_faces():
+    r = design_continuous_beam(ContinuousBeamInput(live_load_kn_m=40))
+    cur = r["data"]["curtailment"]
+    assert cur["bottom"]["end"] and cur["bottom"]["interior"] and cur["top"]["b"] and cur["top"]["c"]
+    be = cur["bottom"]["end"]
+    assert be["left"] != be["right"]  # the end span's diagram is not symmetric
+    assert r["checks_passed"] == r["checks_total"]

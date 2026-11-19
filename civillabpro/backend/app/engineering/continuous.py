@@ -95,3 +95,25 @@ def envelope(spans: list[float], wd: float, wl: float, points: int = 41) -> list
             rows.append((x, min(vals), max(vals)))
         out.append(rows)
     return out
+
+
+def shear_at(m_left: float, m_right: float, w: float, span: float, x: float) -> float:
+    """Shear at x from the left support of a span with end moments and a uniform load, kN (positive upward on the left)."""
+    return (m_right - m_left) / span + w * (span / 2.0 - x)
+
+
+def shear_envelope(spans: list[float], wd: float, wl: float, points: int = 41) -> list[list[tuple[float, float]]]:
+    """Greatest shear (absolute) in each span over the arrangements of Cl. 22.4.1: (x, |V|max) at ``points`` stations, kN."""
+    n = len(spans)
+    cases = []
+    for _, loaded in load_arrangements(n):
+        w = [wd + (wl if loaded[i] else 0.0) for i in range(n)]
+        cases.append((w, support_moments(spans, w)))
+    out = []
+    for i, span in enumerate(spans):
+        rows = []
+        for k in range(points):
+            x = span * k / (points - 1)
+            rows.append((x, max(abs(shear_at(ms[i], ms[i + 1], w[i], span, x)) for w, ms in cases)))
+        out.append(rows)
+    return out

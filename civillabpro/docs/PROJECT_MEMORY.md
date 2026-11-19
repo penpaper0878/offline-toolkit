@@ -32,7 +32,7 @@ Test counts at 0.3.0: backend 256 (216 engineering, architecture and hand checks
 ## NEXT STEPS
 
 1. **STR-009, blocked: compare the column, slab and footing clauses with the code text** (the three "To cross-check" lists in the code register). It needs the user: either approval of a direct download of the public copy, or the pages pasted into the session. Do not work around a declined download. Fix anything that differs and re-run every hand check.
-2. **STR-016 curtailment and stirrup zones** for both beam elements: theoretical cut-off from the moment diagram (simple beam: the parabola; continuous beam: `continuous.envelope` scaled to the Table 12 values, or the envelope itself, to be decided and recorded), Cl. 26.2.3.1 to 26.2.3.4, and stirrup zones from the shear diagram. Then STR-017 anchorage at simple supports (Cl. 26.2.3.3(c)). These close phase 1 and make release 0.4.0; `docs/modules/04-beam-extensions.md` grows with each.
+2. **STR-017 anchorage at simple supports** (Cl. 26.2.3.3(c), L_d <= 1.3 M_1/V + L_0) for the simple beam and the end supports of the continuous beam; M_1 is the resistance of the bars that reach the support (the continuing bars of STR-016). It closes phase 1; then release 0.4.0 (version, walkthrough legs for T-beam and continuous beam, samples, screenshots, README).
 3. PLAT-010 desktop shell, then phase 2 (STR-020 combined and strap footing; estimation; standards library).
 
 ## Decisions (do not reopen without a reason recorded here)
@@ -67,6 +67,8 @@ Test counts at 0.3.0: backend 256 (216 engineering, architecture and hand checks
 | D26 | `show_if` may list several values | the flange rows serve both T and L sections without duplicating fields |
 | D27 | A continuous beam is its own element designed whole (3 to 12 equal spans), reusing the beam's section routines | per-span designs would schedule the bars over a shared support twice or leave them undeveloped |
 | D28 | Design moments of continuous beams from Table 12; points of inflection from an elastic analysis of the Cl. 22.4.1 arrangements | the coefficients give no moment diagram; combining Table 12 peaks with a span carrying dead load alone is not a real case and over-extends the bars |
+| D29 | Curtailment diagrams of the continuous beam: the elastic envelope scaled up (never down) to the Table 12 and 13 values | consistent with the sections as designed and with the real arrangements of load |
+| D30 | Cl. 26.2.3.2 is one shared function for both beams, trying (a), then (c), then (b) with closer stirrups; curtailment is skipped where it saves nothing | (a) alone rejected most practical cut-offs |
 
 Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not here.
 
@@ -104,6 +106,12 @@ Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not her
 * Library versions at 0.1.0 are recent majors (React 19, MUI 9, Vite 8, Tailwind 4, TypeScript 7, dockview-react 8, recharts 3, FastAPI 0.16x, SQLAlchemy 2.1). Check the installed typings before assuming an older API.
 
 ## Log
+
+### 0.4.0 in progress (19 November 2026): STR-016 curtailment and stirrup zones
+
+* Built: beam engine 1.2.0 and continuous beam engine 1.1.0 with curtailment (Cl. 26.2.3.1 to 26.2.3.4, the three conditions of 26.2.3.2) and stirrup zones; `continuous.shear_envelope`; `continuous_curtailment.py`; schedules split into continuing and curtailed bars; stirrups from their positions; drawings show both. Two commits: the simple beam, then the continuous beam.
+* Worked examples: simple beam 36.3 to 32.8 kg; four-span continuous beam 388.6 to 322.3 kg, all checks OK.
+* Found on the way: condition (a) alone rejected most cut-offs (condition (b) added); a cut-off 50 mm from a support saves nothing (rule: not within d); the hand check's own bisection was written wrong once (fixed in the check, not the engine); it needed the compression steel the engine counts; pattern loading flattens and moves the interior span's peak, and L_d from a single peak point left 8 mm of margin against the hand envelope (L_d now from both edges of the peak region).
 
 ### 0.4.0 in progress (19 November 2026): STR-015 continuous beams
 

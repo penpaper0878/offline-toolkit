@@ -56,3 +56,12 @@ def test_envelope_brackets_every_arrangement():
             for x, lo, hi in rows:
                 m = c.moment_at(ms[i], ms[i + 1], w[i], spans[i], x)
                 assert lo - 1e-9 <= m <= hi + 1e-9
+
+
+def test_shear_envelope():
+    # two equal spans, all loaded: 3wL/8 at the end support, 5wL/8 at the middle one
+    env = c.shear_envelope([5.0, 5.0], 10.0, 0.0, 11)
+    assert env[0][0][1] == pytest.approx(3 * 10 * 5 / 8) and env[0][-1][1] == pytest.approx(5 * 10 * 5 / 8)
+    # with imposed load on one span only, the unloaded span still carries shear across its middle
+    env = c.shear_envelope([5.0] * 3, 10.0, 20.0, 11)
+    assert env[1][5][1] > 0

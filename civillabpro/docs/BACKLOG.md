@@ -39,6 +39,7 @@ State: **done**, **next** (the item to start with), **ready** (can be started), 
 | UI-007 | Conditional property rows on a list of values (`show_if` with several values) (0.4.0) |
 | STR-015 | Continuous beam 1.0.0: equal spans by Tables 12 and 13, elastic placing of the points of inflection, schedule for the whole beam (0.4.0) |
 | ENG-006 | Continuous beam analysis kernel `continuous.py` (three-moment equation, Cl. 22.4.1 arrangements, envelope) (0.4.0) |
+| STR-016 | Curtailment (Cl. 26.2.3, with the three conditions of 26.2.3.2) and stirrup zones for the simple and the continuous beam (0.4.0) |
 
 ## Epic STR: structural design
 
@@ -48,9 +49,8 @@ State: **done**, **next** (the item to start with), **ready** (can be started), 
 | STR-033 | Slab: unequal support moments of adjacent panels (Annex D-1.1 distribution) | ready | needs a panel group: several slabs sharing edges |
 | STR-034 | Footing: sloped and stepped footings | ready | Cl. 34.1.2, 34.4 frustum already in place |
 | STR-035 | Footing: pressure distribution with moments for bending (instead of the uniform maximum) | ready | lighter footings under large moments |
-| STR-016 | Beams: bar curtailment and stirrup zones | **next** | Cl. 26.2.3; for the simple and the continuous beam; the envelope in `continuous.py` gives the moments along the spans; the last phase 1 items are STR-016 and STR-017 |
 | STR-036 | Continuous beam: unequal spans, and point loads, by the elastic analysis | ready | `continuous.py` already solves unequal spans; needs the envelope as the design moments (with Cl. 22.7 redistribution) |
-| STR-017 | Beam: anchorage check at simple supports | ready | Cl. 26.2.3.3(c), Ld <= 1.3 M1/V + L0 |
+| STR-017 | Beams: anchorage check at simple supports | **next** | Cl. 26.2.3.3(c), L_d <= 1.3 M_1/V + L_0; the last phase 1 item; the continuing bars of STR-016 are the M_1 bars |
 | STR-018 | Beam: calculated deflection and crack width | later | Annex C, Annex F |
 | STR-019 | Ductile detailing | later | IS 13920:2016; needs frame context |
 | STR-020 | Combined and strap footing | ready | phase 2; reuses the footing's shear, band and anchorage rules |

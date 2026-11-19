@@ -12,7 +12,7 @@ Status last checked: 16 November 2026. Column clauses added 17 November 2026; sl
 | Status | Current. Reaffirmed 2021. |
 | Amendments | Nos. 1 to 6. Amendment No. 6 is dated April 2024 (published August 2024); the excerpt consulted changes Cl. 5.1 (cement references, including composite cement to IS 16415) and deletes Cl. 17.5 in favour of a load test under Cl. 17.6. None of the clauses listed below is touched by that excerpt. |
 | Revision | A fifth revision ("Structural concrete") has been in draft; secondary sources report it was circulated for comment in 2025 and was still being processed in early 2026. IS 456:2000 remains the enforceable standard. Review this entry when the revision is published. |
-| Used by | beam engine 1.2.0, continuous beam engine 1.0.0, column engine 1.0.0, slab engine 1.0.0, footing engine 1.0.0 |
+| Used by | beam engine 1.2.0, continuous beam engine 1.1.0, column engine 1.0.0, slab engine 1.0.0, footing engine 1.0.0 |
 
 ### Clauses taken
 
@@ -115,6 +115,15 @@ The code text was not read (as for the column); the effective-width formulas, An
 63. **Stirrup zones.** The spacing designed at the critical section is kept from each support to where the shear falls to the resistance at the wider spacing (minimum shear steel, 0.75 d or 300 mm), with tau_c of the bars that run to the support. Every gap between stirrups is the least spacing required anywhere over it.
 64. **Forces entered** give no diagram: no curtailment and one spacing, as before.
 
+### Continuous beam engine 1.1.0: curtailment and stirrup zones (STR-016)
+
+65. **Diagrams.** The moment and shear along each span are the elastic envelope of the Cl. 22.4.1 arrangements (`engineering/continuous.py`), scaled up per span (sagging) and per support end (hogging, shear) wherever their peaks fall below the Table 12 and 13 values the sections were designed for; never scaled down.
+66. **Top bars over a support.** As for the simple beam, a third of the area and at least two bars (the long bars) run to the point of inflection and beyond (Cl. 26.2.3.4, interpretation 54); the others stop beyond the point where the long bars suffice by the greater of d and 12 phi, and at least L_d from the face. Cl. 26.2.3.2 is applied at each cut-off. Over the C supports every distinct side is checked (span 2's end, span 3's start, a span between two C supports) and the farthest cut-off governs.
+67. **Bottom bars.** A third of the area and the corner bars run into the supports (the code asks a quarter at continuous supports, Cl. 26.2.3.3(b); a third is used throughout). The others stop the greater of d and 12 phi short of where the continuing bars suffice, and at least L_d either side of the section of greatest moment, taken as the whole region within 0.5 percent of the peak (pattern loading moves the peak off mid-span and flattens it).
+68. **One schedule for every interior span.** The governing cut-offs (the longest stopped bars) and the longest stirrup zones over all interior spans, made symmetric; condition (b) bands on both sides.
+69. **Stirrup zones** use tau_c with the least tension steel and the least d among the span's mid-span and support sections.
+70. **Not worth it** as for the simple beam: no curtailment within d of a support, or where (b)'s stirrups weigh as much as the steel saved.
+
 ### Continuous beam engine 1.0.0: clauses taken
 
 The code text was not read. Table 12 and the end-support value of Table 13 were corroborated; the rest of Table 13 and the wording of Cl. 22.2(b), 22.4.1 and 26.2.3.4 are as commonly published.
@@ -153,6 +162,8 @@ The code text was not read. Table 12 and the end-support value of Table 13 were 
 * Cl. 22.4.1: the two arrangements of imposed load.
 * Cl. 26.2.3.4: d, 12 phi, l_n/16, and the one third.
 * Cl. 29: 2.5 for continuous beams.
+* Cl. 26.2.3.2: the three conditions, and whether f_y in 0.4 b s/f_y is that of the stirrups (as used).
+* Cl. 26.2.3.3(b): a quarter of the positive steel into continuous supports (a third is used).
 
 ### Column engine 1.0.0: clauses taken
 

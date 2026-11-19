@@ -9,7 +9,11 @@ From the clauses of IS 456:2000 and SP 16, by a different route wherever one exi
     and bisection on G-2.2); compression steel stress from SP 16 Table A;
   * tau_c by the SP 16 closed form (engine: Table 19);
   * points of inflection by Hardy Cross moment distribution of every load arrangement of Cl. 22.4.1 and a
-    scan with bisection for the first zero (engine: three-moment equation and a closed-form root).
+    scan with bisection for the first zero (engine: three-moment equation and a closed-form root);
+  * curtailment and stirrup zones: the same arrangements by Hardy Cross, scaled to Tables 12 and 13 by the
+    rule of the code register; at every cut-off, moved back by the greater of d and 12 phi, the bars that
+    remain resist the moment there (stress block, SP 16 Table A); L_d from the face or from the peak; every
+    zone end within the shear resistance at the wider spacing.
 
 Run:  python tests/handcheck/check_continuous_beam.py
 """
@@ -317,6 +321,156 @@ def compare(name: str, s: dict, res: dict) -> tuple[int, list[str]]:
     for kind in ("end", "interior"):
         if eng["stirrups"][kind]["spacing"] > h[f"stirrups.{kind}.allow"] * 1.03:
             bad.append(f"{name}: {kind} stirrups at {eng['stirrups'][kind]['spacing']} above the hand limit {h[f'stirrups.{kind}.allow']:.0f}")
+    k, more = check_curtailment(name, s, res, h)
+    return n + k, bad + more
+
+
+def hand_diagrams(spans: list[float], wd: float, wl: float, m_span: list[float], m_sup: list[float], v_l: list[float], v_r: list[float], steps: int = 400):
+    """Scaled envelopes from Hardy Cross: per span, lists of (x in m from the left centre line, sag, hog, |V|)."""
+    n = len(spans)
+    pats = [[True] * n, [i % 2 == 0 for i in range(n)], [i % 2 == 1 for i in range(n)]] + [[j in (i, i + 1) for j in range(n)] for i in range(n - 1)]
+    cases = []
+    for pt in pats:
+        w = [wd + (wl if pt[i] else 0.0) for i in range(n)]
+        cases.append((w, hardy_cross(spans, w)))
+    out = []
+    for i, L in enumerate(spans):
+        rows = []
+        for k in range(steps + 1):
+            x = L * k / steps
+            ms = [m[i] * (1 - x / L) + m[i + 1] * x / L + w[i] * x * (L - x) / 2 for w, m in cases]
+            vs = [abs((m[i + 1] - m[i]) / L + w[i] * (L / 2 - x)) for w, m in cases]
+            rows.append((x, max(ms), min(ms), max(vs)))
+        ks = max(1.0, m_span[i] / max(r[1] for r in rows))
+        khl = max(1.0, m_sup[i] / -rows[0][2]) if m_sup[i] > 0 else 1.0
+        khr = max(1.0, m_sup[i + 1] / -rows[-1][2]) if m_sup[i + 1] > 0 else 1.0
+        kvl, kvr = max(1.0, v_l[i] / rows[0][3]), max(1.0, v_r[i] / rows[-1][3])
+        out.append([(x, ks * max(sg, 0), (khl if x <= L / 2 else khr) * max(-hg, 0), (kvl if x <= L / 2 else kvr) * v) for x, sg, hg, v in rows])
+    return out
+
+
+def at(rows: list, x_m: float, col: int) -> float:
+    step = rows[1][0] - rows[0][0]
+    i = min(max(int(x_m / step), 0), len(rows) - 2)
+    t = min(max((x_m - rows[i][0]) / step, 0.0), 1.0)
+    return rows[i][col] + t * (rows[i + 1][col] - rows[i][col])
+
+
+def resistance(fck: float, fy: float, b: float, d: float, ast: float, asc: float, dsc: float, bf: float | None = None, df: float = 0.0) -> float:
+    """kN m, by bisection on force; compression steel from SP 16 Table A (left out for Fe 550, which it does not list)."""
+    def comp(x: float) -> tuple[float, float]:
+        if bf is None or x <= df:
+            w = bf or b
+            return 0.36 * fck * w * x, 0.36 * fck * w * x * (d - 0.42 * x)
+        yf = df if x >= 7 * df / 3 else 0.15 * x + 0.65 * df
+        return 0.36 * fck * b * x + 0.45 * fck * (bf - b) * yf, 0.36 * fck * b * x * (d - 0.42 * x) + 0.45 * fck * (bf - b) * yf * (d - yf / 2)
+
+    def sc(x: float) -> float:
+        if fy not in SP16_TABLE_A and fy != 250 or x <= dsc:
+            return 0.0
+        return asc * max(fsc(0.0035 * (x - dsc) / x, int(fy)) - 0.446 * fck, 0.0)
+
+    t, lo, hi = 0.87 * fy * ast, 0.0, d
+    for _ in range(200):
+        x = (lo + hi) / 2
+        lo, hi = (x, hi) if comp(x)[0] + sc(x) < t else (lo, x)
+    return (comp(hi)[1] + sc(hi) * (d - dsc)) / 1e6
+
+
+def check_curtailment(name: str, s: dict, res: dict, h: dict) -> tuple[int, list[str]]:
+    eng, reinf = res["data"], res["reinforcement"]
+    cur = eng["curtailment"]
+    n_sp, lc, b, D = s["spans"], s["clear_span_mm"], s["width_mm"], s["depth_mm"]
+    fck, fy = s["fck"], s["fy"]
+    cover = eng["cover"]
+    dst = s["stirrup_dia_mm"]
+    spans = [h["l_end"] / 1000] + [h["l_int"] / 1000] * (n_sp - 2) + [h["l_end"] / 1000]
+    m_span = [h["m_end"]] + [h["m_int"]] * (n_sp - 2) + [h["m_end"]]
+    m_sup = [0.0, h["m_b"]] + [h["m_c"]] * (n_sp - 3) + [h["m_b"], 0.0]
+    if n_sp == 3:
+        v_l, v_r = [h["v_a"], h["v_b2"], h["v_b1"]], [h["v_b1"], h["v_b2"], h["v_a"]]
+    else:
+        v_l = [h["v_a"], h["v_b2"]] + [h["v_c"]] * (n_sp - 3) + [h["v_b1"]]
+        v_r = [h["v_b1"]] + [h["v_c"]] * (n_sp - 3) + [h["v_b2"], h["v_a"]]
+    dg = hand_diagrams(spans, h["wd"], h["wl"], m_span, m_sup, v_l, v_r)
+    off = [(L * 1000 - lc) / 2 for L in spans]
+    xm = lambda i, xf: (xf + off[i]) / 1000  # noqa: E731  face distance from the left support of span i to centre-line metres
+    tbd = {20: 1.2, 25: 1.4, 30: 1.5, 35: 1.7, 40: 1.9}[max(g for g in (20, 25, 30, 35, 40) if g <= min(fck, 40))] * (1.6 if fy >= 415 else 1.0)
+    ld = lambda dia: dia * 0.87 * fy / (4 * tbd)  # noqa: E731
+    bad, n = [], 0
+    tol = 1.01
+
+    def bars(label: str) -> tuple[int, int]:  # "3-T16" or "10-T12 (6+4)" -> (count, dia)
+        c, rest = label.split("-T")
+        return int(c), int(rest.split()[0])
+
+    # top bars over the supports: at the cut-off, moved back towards the support by max(d, 12 phi), the long bars suffice
+    for key, sup_key in (("b", "support_b"), ("c", "support_c")):
+        t = cur["top"].get(key)
+        if not t:
+            continue
+        cnt, dia = bars(t["long"])
+        comp = reinf["end"]["bottom"] if key == "b" else reinf["interior"]["bottom"]
+        if key == "b" and reinf["interior"]["bottom"]["count"] * reinf["interior"]["bottom"]["dia"] ** 2 < comp["count"] * comp["dia"] ** 2:
+            comp = reinf["interior"]["bottom"]
+        a_c = comp["count"] * math.pi * comp["dia"] ** 2 / 4
+        d_l = D - (cover + dst + dia / 2)
+        m_r = max(resistance(fck, fy, b, d_l, cnt * math.pi * dia**2 / 4, a_c, eng[sup_key]["d_c"]), t["m_long"] * 0.995)
+        _, sdia = bars(t["short"])
+        back = max(eng[sup_key]["d"], 12 * sdia)
+        sides = [(0, False, "end"), (1, True, "interior")] if key == "b" else (
+            [(i, False, "interior") for i in range(1, min(n_sp - 2, 3))] + [(i, True, "interior") for i in range(2, min(n_sp - 1, 4))])
+        for i, at_left, kind in sides:
+            x_cut = t["cut"][kind]
+            xf = x_cut - back if at_left else lc - (x_cut - back)
+            m = at(dg[i], xm(i, xf), 2)
+            n += 2
+            if m > m_r * tol:
+                bad.append(f"{name}: top over {key.upper()} into span {i + 1}: {m:.1f} kN m at the theoretical point, long bars {m_r:.1f}")
+            if x_cut < ld(sdia) - 1:
+                bad.append(f"{name}: short top bars over {key.upper()} stop within L_d of the face")
+    # bottom bars in the spans
+    for kind, idx in (("end", [0]), ("interior", list(range(1, n_sp - 1)))):
+        t = cur["bottom"].get(kind)
+        if not t:
+            continue
+        cnt, dia = bars(t["continuing"])
+        _, cdia = bars(t["curtailed"])
+        top = reinf[kind]["top"]
+        a_top = top["count"] * math.pi * top["dia"] ** 2 / 4
+        d_c = D - (cover + dst + dia / 2)
+        bf = eng[kind]["bf"]
+        m_r = max(resistance(fck, fy, b, d_c, cnt * math.pi * dia**2 / 4, a_top, cover + dst + top["dia"] / 2, bf, s["flange_thickness_mm"]),
+                  t["m_cont"] * 0.995)
+        back = max(eng[kind]["d"], 12 * cdia)
+        for i in idx:
+            for xf in (t["left"] + back, lc - t["right"] - back):
+                m = at(dg[i], xm(i, xf), 1)
+                n += 1
+                if m > m_r * tol:
+                    bad.append(f"{name}: {kind} span bottom: {m:.1f} kN m at the theoretical point, continuing bars {m_r:.1f}")
+            peak = max(dg[i], key=lambda r: r[1])[0] * 1000 - off[i]
+            slack = 1000 * spans[i] / 400 + 1  # one station of the hand envelope
+            n += 1
+            if t["left"] > peak - ld(cdia) + slack or t["right"] > lc - peak - ld(cdia) + slack:
+                bad.append(f"{name}: {kind} span curtailed bars shorter than L_d either side of the peak")
+    # stirrup zones: the shear where the wider spacing begins is within the resistance there
+    fyv = min(s["fy_stirrup"], 415)
+    asv = s["stirrup_legs"] * math.pi * dst**2 / 4
+    for kind, idx in (("end", [0]), ("interior", list(range(1, n_sp - 1)))):
+        z = cur["zones"][kind]
+        if not z["applied"]:
+            continue
+        areas = [reinf[kind]["bottom"], reinf["support_b"]["top"]] + ([reinf["support_c"]["top"]] if reinf["support_c"] else [])
+        a_min = min(g["count"] * math.pi * g["dia"] ** 2 / 4 for g in areas)
+        d_min = min(eng[kind]["d"], eng["support_b"]["d"], *([eng["support_c"]["d"]] if n_sp >= 4 else []))
+        v_r = (tau_c(fck, 100 * a_min / (b * d_min)) * b * d_min + 0.87 * fyv * asv * d_min / z["s_mid"]) / 1e3
+        for i in idx:
+            for xf in (z["left"], lc - z["right"]):
+                v = at(dg[i], xm(i, xf), 3)
+                n += 1
+                if v > v_r * 1.03:
+                    bad.append(f"{name}: {kind} span shear {v:.1f} at a zone end {xf:.0f}, above {v_r:.1f}")
     return n, bad
 
 

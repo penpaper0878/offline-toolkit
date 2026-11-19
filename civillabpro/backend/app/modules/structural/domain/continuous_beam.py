@@ -49,7 +49,7 @@ from app.modules.structural.domain.beam import (
 )
 
 ELEMENT_TYPE = "continuous_beam"
-ENGINE_VERSION = "1.0.0"
+ENGINE_VERSION = "1.1.0"
 CODE_BASIS = ("IS 456:2000", "SP 16:1980", "IS 2502:1963")
 REF = is456.CODE
 FIRST_STIRRUP_MM = 50.0
@@ -498,12 +498,18 @@ def design_continuous_beam(inp: ContinuousBeamInput) -> dict[str, Any]:
         sheet.check(f"lap_hogging_{i}", f"{REF}, Cl. 22.4.1", f"Span between {s_['left']} and {s_['right']}: hogging over the middle half "
                     f"(elastic envelope) within the lapped top bars ({weak.top.label()}, compression steel ignored)",
                     "M_u", max(-m_mid, 0.0), "<=", "M_u,R", cap, "kN m")
+    from app.modules.structural.domain import continuous_curtailment as curtail
+    cut_plan = curtail.plan(sheet, inp, cover, {"end": end, "interior": inner, "support_b": sup_b, "support_c": sup_c}, spans_m, wd, wl,
+                            {"end": end.mu, "interior": inner.mu, "b": mb, "c": mc}, shears,
+                            {"B_end": lay["end"]["a_b"], "B_int": lay["b_into_interior"], "C_int": lay["c_into_interior"]}, stirrups)
+    reinforcement["curtailment"] = _plan_record(cut_plan)
     bbs = detailing.bar_schedule(inp, reinforcement, sheet)
     quantities = detailing.quantities(inp, bbs)
     drawing = detailing.drawing(inp, reinforcement, bbs)
 
-    sheet.flag("info", "Bottom bars run the full length of each span and the top bars over the supports to the extent shown; stirrups are at "
-                       "one spacing in each span. Both are on the safe side.")
+    if not any(cut_plan[k] for k in ("top_b", "top_c", "bottom_end", "bottom_interior")):
+        sheet.flag("info", "No bars are curtailed (the sheet says why for each set); bottom bars run the full length of each span and the top "
+                           "bars over the supports to the extent shown.")
     if flanged:
         sheet.flag("info", "Where the slab spans parallel to this beam, provide transverse bars over the beam, at least 60 percent of the "
                            "slab's mid-span steel, so that the slab acts as the flange.", f"{REF}, Cl. 23.1.1(b)")
@@ -546,6 +552,7 @@ def design_continuous_beam(inp: ContinuousBeamInput) -> dict[str, Any]:
                 "capacity": round(sup.cap.mu / 1e6, 4), "xu": round(sup.cap.xu, 3), "xu_max": round(sup.fl.xu_max, 3), "doubly": sup.fl.doubly,
                 "min_steel": round(is456.min_tension_steel(b, sup.d, fy), 2)}
     data["stirrups"] = {k: {"spacing": v["spacing"], "allow": round(v["allow"], 2)} for k, v in stirrups.items()}
+    data["curtailment"] = curtail.summary(cut_plan)
     return {
         "element_type": ELEMENT_TYPE, "engine_version": ENGINE_VERSION, "code_basis": list(CODE_BASIS),
         "status": "ok" if ok else "not_ok", "stop_message": None,
@@ -554,6 +561,14 @@ def design_continuous_beam(inp: ContinuousBeamInput) -> dict[str, Any]:
         "key_results": key_results, "data": data, "reinforcement": reinforcement, "sheet": sheet.to_dict(),
         "bbs": bbs, "quantities": quantities, "drawing": drawing,
     }
+
+
+def _plan_record(p: dict[str, Any]) -> dict[str, Any]:
+    """The curtailment plan as the detailing reads it."""
+    top = {k: ({"long": _grp(v["long"]), "short": _grp(v["short"]), "cut": v["cut"]} if v else None) for k, v in (("b", p["top_b"]), ("c", p["top_c"]))}
+    bottom = {k: ({"continuing": _grp(v["cont"]), "curtailed": _grp(v["cut"]), "left": v["left"], "right": v["right"]} if v else None)
+              for k, v in (("end", p["bottom_end"]), ("interior", p["bottom_interior"]))}
+    return {"top": top, "bottom": bottom, "zones": p["zones"]}
 
 
 def _grp(g: BarGroup) -> dict[str, Any]:

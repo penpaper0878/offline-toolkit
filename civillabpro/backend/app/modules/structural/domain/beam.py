@@ -353,14 +353,16 @@ class Curtailment:
     s_b: float = 0.0  # spacing along the stopped bars under condition (b)
 
 
-def stirrup_positions(lc: float, cover: float, cantilever: bool, base: float, zones: list[tuple[float, float, float]]) -> tuple[float, ...]:
+def stirrup_positions(lc: float, cover: float, cantilever: bool, base: float, zones: list[tuple[float, float, float]],
+                      symmetric: bool = True) -> tuple[float, ...]:
     """Every stirrup, mm from the face: the first 50 mm out, each gap the least spacing required anywhere over it.
 
     ``zones`` are (from, to, spacing) in mm from the face of the (left) support; elsewhere ``base``. A simple span is
-    set out from both supports symmetrically; a cantilever from its support to the free end, less cover.
+    set out from both supports symmetrically; a cantilever from its support to the free end, less cover; an
+    unsymmetric span (``symmetric`` False) from one support to 50 mm from the other.
     """
     first = 50.0
-    last = lc - cover if cantilever else lc / 2.0
+    last = lc - cover if cantilever else (lc / 2.0 if symmetric else lc - first)
 
     def need(a: float, b: float) -> float:
         sp = base
@@ -380,9 +382,44 @@ def stirrup_positions(lc: float, cover: float, cantilever: bool, base: float, zo
         xs.append(x + sp)
     if cantilever:
         return tuple(xs)
+    if not symmetric:
+        return tuple(xs + ([last] if last - xs[-1] > 1e-6 else []))
     left = [x for x in xs if x < lc / 2.0 - 1e-6]
     mid = [lc / 2.0] if (lc - 2.0 * left[-1]) > need(left[-1], lc / 2.0) + 1e-6 else []
     return tuple(left + mid + [lc - x for x in reversed(left)])
+
+
+def cutoff_condition(sheet: CalcSheet, key: str, label: str, v: float, tc: float, b: float, d: float, fyv: float, asv: float, s_here: float,
+                     cont: BarGroup, cut: BarGroup, a_req: float) -> tuple[str | None, float]:
+    """Cl. 26.2.3.2 at a cut-off in a tension zone: (a) V <= 2/3 V_R; else (c) twice the steel needed and V <= 3/4 V_R; else (b) closer
+    stirrups along the stopped bars. Returns the condition met (None if none can be) and the spacing (b) needs. Writes the checks."""
+    v_cap = (tc * b * d + 0.87 * fyv * asv * d / s_here) / 1e3
+    sheet.step(f"{REF}, Cl. 26.2.3.2", f"{label}: shear at the cut-off, and the resistance with the continuing bars and the stirrups there",
+               "V, V_R = tau_c b d + 0.87 f_yv A_sv d / s_v", f"s_v = {_n(s_here, 0)}", f"{_n(v)}, {_n(v_cap)}", "kN")
+    if v <= 2.0 / 3.0 * v_cap + 1e-9:
+        sheet.check(f"{key}_shear", f"{REF}, Cl. 26.2.3.2(a)", f"{label}: bars stopped in a tension zone, shear at the cut-off not more than "
+                    "two thirds of the resistance", "V", v, "<=", "2/3 V_R", 2.0 / 3.0 * v_cap, "kN")
+        return "a", 0.0
+    if cont.dia <= 36 and cont.area >= 2.0 * a_req - 1e-9 and v <= 0.75 * v_cap + 1e-9:
+        sheet.check(f"{key}_shear", f"{REF}, Cl. 26.2.3.2(c)", f"{label}: continuing bars twice the area needed at the cut-off, shear not more "
+                    "than three quarters of the resistance", "V", v, "<=", "3/4 V_R", 0.75 * v_cap, "kN")
+        return "c", 0.0
+    beta_b = cut.area / (cut.area + cont.area)
+    vus = max(v - tc * b * d / 1e3, 0.0)
+    need_shear = max(vus * 1e3 / (0.87 * fyv * d), 0.4 * b / (0.87 * fyv))  # A_sv/s for shear (Cl. 40.4, 26.5.1.6)
+    s_lim = d / (8.0 * beta_b)
+    s_b = practical_spacing(min(asv / (need_shear + 0.4 * b / fyv), s_lim, s_here))
+    sheet.step(f"{REF}, Cl. 26.2.3.2(b)", f"{label}: neither (a) nor (c); closer stirrups along the stopped bars over 3/4 d from the cut-off, "
+               "the excess over the shear requirement at least 0.4 b s / f_y, at not more than d/(8 beta_b)",
+               "s_b = min(A_sv / (A_sv,shear/s + 0.4 b/f_y), d/(8 beta_b))", f"beta_b = {_n(beta_b, 3)}", s_b, "mm", 0)
+    if s_b < 75.0:
+        sheet.step(f"{REF}, Cl. 26.2.3.2(b)", f"{label}: that spacing is below 75 mm: no curtailment", "", "", "", "")
+        return None, s_b
+    sheet.check(f"{key}_shear", f"{REF}, Cl. 26.2.3.2(b)", f"{label}: stirrup spacing along the stopped bars", "s_b", s_b, "<=", "d/(8 beta_b)",
+                s_lim, "mm", 0)
+    sheet.check(f"{key}_excess", f"{REF}, Cl. 26.2.3.2(b)", f"{label}: excess stirrup area along the stopped bars, per mm", "A_sv/s_b - A_sv,shear/s",
+                asv / s_b - need_shear, ">=", "0.4 b / f_y", 0.4 * b / fyv, "mm2/mm", 3, ratio=False)
+    return "b", s_b
 
 
 def curtail_and_zones(sheet: CalcSheet, inp: BeamInput, forces: Forces, arr: Arrangement, flg: Flange | None, cover: float, sv: float,
@@ -476,37 +513,13 @@ def curtail_and_zones(sheet: CalcSheet, inp: BeamInput, forces: Forces, arr: Arr
             sheet.step(f"{REF}, Cl. 26.2.3.1", "The cut-off would fall within d of the support: no curtailment, as it saves too little", "", "", "", "")
             return finish(Curtailment(False, "the cut-off falls within d of the support"), [])
     # Cl. 26.2.3.2: flexural bars stopped in a tension zone
-    v = v_at(x_cut)
-    s_here = spacing_at(x_cut)
-    v_cap = (tc * b * d_cont + 0.87 * fyv * asv * d_cont / s_here) / 1e3
     a_req = flexure_design(inp, flex_flange, m_at(x_cut) * 1e6, d_cont, arr.d_c).ast_req
-    sheet.step(f"{REF}, Cl. 26.2.3.2", "At the cut-off: shear, and the resistance with the continuing bars and the stirrups there",
-               "V, V_R = tau_c b d + 0.87 f_yv A_sv d / s_v", f"s_v = {_n(s_here, 0)}", f"{_n(v)}, {_n(v_cap)}", "kN")
-    if v <= 2.0 / 3.0 * v_cap + 1e-9:
-        sheet.check("curtail_shear", f"{REF}, Cl. 26.2.3.2(a)", "Bars stopped in a tension zone: shear at the cut-off not more than two thirds "
-                    "of the resistance", "V", v, "<=", "2/3 V_R", 2.0 / 3.0 * v_cap, "kN")
-        cond, s_b, extra = "a", 0.0, []
-    elif cont.dia <= 36 and cont.area >= 2.0 * a_req - 1e-9 and v <= 0.75 * v_cap + 1e-9:
-        sheet.check("curtail_shear", f"{REF}, Cl. 26.2.3.2(c)", "Bars stopped in a tension zone: continuing bars twice the area needed there, "
-                    "shear not more than three quarters of the resistance", "V", v, "<=", "3/4 V_R", 0.75 * v_cap, "kN")
-        cond, s_b, extra = "c", 0.0, []
-    else:
-        # (b): excess stirrups, at least 0.4 b s / f_y, along each stopped bar over 3/4 d from the cut-off, at no more than d/(8 beta_b)
-        beta_b = cut.area / arr.tension.area
-        vus = max(v - tc * b * d_cont / 1e3, 0.0)
-        need_shear = max(vus * 1e3 / (0.87 * fyv * d_cont), 0.4 * b / (0.87 * fyv))  # A_sv/s for shear (Cl. 40.4, 26.5.1.6)
-        s_lim = d_cont / (8.0 * beta_b)
-        s_b = practical_spacing(min(asv / (need_shear + 0.4 * b / fyv), s_lim, s_here))
-        sheet.step(f"{REF}, Cl. 26.2.3.2(b)", "Neither (a) nor (c): closer stirrups along the stopped bars over 3/4 d from the cut-off, the excess "
-                   "over the shear requirement at least 0.4 b s / f_y, at not more than d/(8 beta_b)",
-                   "s_b = min(A_sv / (A_sv,shear/s + 0.4 b/f_y), d/(8 beta_b))", f"beta_b = {_n(beta_b, 3)}", s_b, "mm", 0)
-        if s_b < 75.0:
-            sheet.step(f"{REF}, Cl. 26.2.3.2(b)", "That spacing is below 75 mm: no curtailment", "", "", "", "")
-            return finish(Curtailment(False, "Cl. 26.2.3.2 cannot be met at the cut-off with workable stirrups"), [])
-        sheet.check("curtail_shear", f"{REF}, Cl. 26.2.3.2(b)", "Stirrup spacing along the stopped bars", "s_b", s_b, "<=", "d/(8 beta_b)", s_lim, "mm", 0)
-        sheet.check("curtail_excess", f"{REF}, Cl. 26.2.3.2(b)", "Excess stirrup area along the stopped bars, per mm", "A_sv/s_b - A_sv,shear/s",
-                    asv / s_b - need_shear, ">=", "0.4 b / f_y", 0.4 * b / fyv, "mm2/mm", 3, ratio=False)
-        cond = "b"
+    cond_, s_b = cutoff_condition(sheet, "curtail", "Tension bars", v_at(x_cut), tc, b, d_cont, fyv, asv, spacing_at(x_cut), cont, cut, a_req)
+    if cond_ is None:
+        return finish(Curtailment(False, "Cl. 26.2.3.2 cannot be met at the cut-off with workable stirrups"), [])
+    cond = cond_
+    extra: list[tuple[float, float, float]] = []
+    if cond == "b":
         z0, z1 = (x_cut - 0.75 * d_cont, x_cut) if cantilever else (x_cut, x_cut + 0.75 * d_cont)
         extra = [(max(z0, 0.0), z1, s_b)]
         # worth it only if the extra stirrups weigh less than the steel the stopped bars save

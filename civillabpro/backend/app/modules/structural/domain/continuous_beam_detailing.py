@@ -101,29 +101,53 @@ def bar_schedule(inp: ContinuousBeamInput, reinf: dict[str, Any], sheet: CalcShe
 
     # ---- bottom bars, end spans: anchored at the end support (one third of L_d, Cl. 26.2.3.3), to the far face of B
     eb = end["bottom"]
+    cut_plan = reinf.get("curtailment") or {"top": {"b": None, "c": None}, "bottom": {"end": None, "interior": None}, "zones": {}}
+    be, bi = cut_plan["bottom"]["end"], cut_plan["bottom"]["interior"]
+    eb_run = be["continuing"] if be else eb  # the bars that run into the supports
+    eb_label = eb_run["label"] + (" continuing" if be else "")
     ld3 = is456.development_length(eb["dia"], fck, fy) / 3.0
     run = lc + 2.0 * embed + comp_ext(eb["dia"], sb["doubly"])
     if embed >= ld3:
-        add(f"Bottom bars, end spans, {eb['label']}", "straight", eb["dia"], 2 * eb["count"], {"A": run}, run, "A")
+        add(f"Bottom bars, end spans, {eb_label}", "straight", eb["dia"], 2 * eb_run["count"], {"A": run}, run, "A")
     else:
         leg = _ceil5(max(9.0 * eb["dia"], ld3 - embed + 2.0 * eb["dia"]))
-        add(f"Bottom bars, end spans, {eb['label']}", "L-bend at the end support", eb["dia"], 2 * eb["count"], {"A": run, "B": leg},
+        add(f"Bottom bars, end spans, {eb_label}", "L-bend at the end support", eb["dia"], 2 * eb_run["count"], {"A": run, "B": leg},
             run + leg - 2.0 * eb["dia"], "A + B - 2d (one 90 deg bend)")
+    if be:
+        c_len = lc - be["left"] - be["right"]
+        add(f"Bottom bars, end spans, curtailed, {be['curtailed']['label']}, {be['left']:.0f} from the end support and {be['right']:.0f} from B",
+            "straight", be["curtailed"]["dia"], 2 * be["curtailed"]["count"], {"A": c_len}, c_len, "A = clear span - both cut-off distances")
     # ---- bottom bars, interior spans
     ib = inner["bottom"]
+    ib_run = bi["continuing"] if bi else ib
     doubly_any = sb["doubly"] or bool(sc and sc["doubly"])
     run_i = lc + 2.0 * embed + 2.0 * comp_ext(ib["dia"], doubly_any)
-    add(f"Bottom bars, interior spans, {ib['label']}", "straight", ib["dia"], (n - 2) * ib["count"], {"A": run_i}, run_i, "A")
+    add(f"Bottom bars, interior spans, {ib_run['label']}" + (" continuing" if bi else ""), "straight", ib["dia"], (n - 2) * ib_run["count"],
+        {"A": run_i}, run_i, "A")
+    if bi:
+        c_len = lc - bi["left"] - bi["right"]
+        add(f"Bottom bars, interior spans, curtailed, {bi['curtailed']['label']}, {bi['left']:.0f} from each face", "straight",
+            bi["curtailed"]["dia"], (n - 2) * bi["curtailed"]["count"], {"A": c_len}, c_len, "A = clear span - both cut-off distances")
     # ---- top bars over the supports
-    tb = sb["top"]
+    tb, tpb = sb["top"], cut_plan["top"]["b"]
     len_b = sw + lay["end"]["a_b"] + lay["b_into_interior"]
-    add(f"Top bars over supports next to the ends (B), {tb['label']}", "straight", tb["dia"], 2 * tb["count"],
+    long_b = tpb["long"] if tpb else tb
+    add(f"Top bars over supports next to the ends (B), {long_b['label']}" + (" long" if tpb else ""), "straight", tb["dia"], 2 * long_b["count"],
         {"A": len_b}, len_b, "A = support + extents into both spans")
+    if tpb:
+        len_s = sw + tpb["cut"]["end"] + tpb["cut"]["interior"]
+        add(f"Top bars over B, short, {tpb['short']['label']}, {tpb['cut']['end']:.0f} into the end span and {tpb['cut']['interior']:.0f} into span 2",
+            "straight", tb["dia"], 2 * tpb["short"]["count"], {"A": len_s}, len_s, "A = support + cut-off distances")
     if sc:
-        tc = sc["top"]
+        tc, tpc = sc["top"], cut_plan["top"]["c"]
         len_c = sw + 2.0 * lay["c_into_interior"]
-        add(f"Top bars over interior supports (C), {tc['label']}", "straight", tc["dia"], (n - 3) * tc["count"], {"A": len_c}, len_c,
-            "A = support + extents into both spans")
+        long_c = tpc["long"] if tpc else tc
+        add(f"Top bars over interior supports (C), {long_c['label']}" + (" long" if tpc else ""), "straight", tc["dia"], (n - 3) * long_c["count"],
+            {"A": len_c}, len_c, "A = support + extents into both spans")
+        if tpc:
+            len_s = sw + 2.0 * tpc["cut"]["interior"]
+            add(f"Top bars over C, short, {tpc['short']['label']}, {tpc['cut']['interior']:.0f} into each span", "straight", tc["dia"],
+                (n - 3) * tpc["short"]["count"], {"A": len_s}, len_s, "A = support + cut-off distances")
     # ---- hangers
     he, hi = end["top"], inner["top"]
     if lay["end"]["hanger"] > 0:
@@ -148,9 +172,15 @@ def bar_schedule(inp: ContinuousBeamInput, reinf: dict[str, Any], sheet: CalcShe
     counts = {}
     for kind, spans_of_kind in (("end", 2), ("interior", n - 2)):
         sv = st[kind]["spacing"]
-        per = int(math.floor(max(lc - 2.0 * FIRST_STIRRUP_MM, 0.0) / sv + 1e-9)) + 1
+        z = cut_plan["zones"].get(kind)
+        per = len(z["positions"]) if z else int(math.floor(max(lc - 2.0 * FIRST_STIRRUP_MM, 0.0) / sv + 1e-9)) + 1
         counts[kind] = per
-        add(f"Stirrups, {kind} spans, T{dst} at {sv:.0f} c/c ({per} per span)", "closed stirrup, 135 deg hooks", dst, per * spans_of_kind,
+        desc = f"Stirrups, {kind} spans, T{dst} at {sv:.0f} c/c"
+        if z and z["applied"]:
+            desc += f" near the supports ({z['left']:.0f} and {z['right']:.0f} mm), {z['s_mid']:.0f} c/c or less between"
+        if z and z.get("bands"):
+            desc += f", closer along stopped bars (down to {min(bd[2] for bd in z['bands']):.0f} c/c)"
+        add(f"{desc} ({per} per span)", "closed stirrup, 135 deg hooks", dst, per * spans_of_kind,
             {"A": a_st, "B": h_st, "hook": hook}, 2.0 * (a_st + h_st) + 2.0 * hook - 12.0 * dst, formula)
         if st[kind]["legs"] == 4:
             first = (end if kind == "end" else inner)["bottom"]
@@ -244,12 +274,27 @@ def drawing(inp: ContinuousBeamInput, reinf: dict[str, Any], bbs: dict[str, Any]
     if first_int["hanger"] > 0 and x_b + sw + a_int - first_int["lap"] < x_end:
         el.line(x_b + sw + a_int - first_int["lap"], y_h, x_end, y_h, "stirrup")
     # stirrups
-    for x0, x1, sv in ((sw + FIRST_STIRRUP_MM, x_b - FIRST_STIRRUP_MM, st["end"]["spacing"]),
-                       (x_b + sw + FIRST_STIRRUP_MM, x_end, st["interior"]["spacing"])):
-        count = int(math.floor((x1 - x0) / sv + 1e-9)) + 1
-        step = max(1, math.ceil(count / 120))
-        for i in range(0, count, step):
-            el.line(x0 + i * sv, cover, x0 + i * sv, D - cover, "stirrup")
+    cp = reinf.get("curtailment") or {"top": {"b": None, "c": None}, "bottom": {"end": None, "interior": None}, "zones": {}}
+    for kind, origin in (("end", sw), ("interior", x_b + sw)):
+        z = cp["zones"].get(kind)
+        xs = [origin + p for p in z["positions"]] if z else []
+        if not z:
+            sv = st[kind]["spacing"]
+            xs = [origin + FIRST_STIRRUP_MM + i * sv for i in range(int(math.floor((lc - 2 * FIRST_STIRRUP_MM) / sv + 1e-9)) + 1)]
+        xs = [x for x in xs if x <= x_end]
+        for x in xs[::max(1, math.ceil(len(xs) / 120))]:
+            el.line(x, cover, x, D - cover, "stirrup")
+    tpb, be, bi = cp["top"]["b"], cp["bottom"]["end"], cp["bottom"]["interior"]
+    if tpb:  # short bars over B, just under the long ones
+        y_s = y_t - 1.6 * tb["dia"]
+        el.line(x_b - tpb["cut"]["end"], y_s, min(x_b + sw + tpb["cut"]["interior"], x_end), y_s, "rebar")
+        el.dim(x_b - tpb["cut"]["end"], D, x_b, D, 6.2 * te, f"{tpb['cut']['end']:.0f}", te)
+    if be:  # curtailed bottom bars of the end span
+        y_c = y_b + 1.6 * eb["dia"]
+        el.line(sw + be["left"], y_c, x_b - be["right"], y_c, "rebar")
+    if bi:
+        y_c = y_b + 2.4 * ib["dia"]
+        el.line(x_b + sw + bi["left"], y_c, x_end, y_c, "rebar")
     # dimensions and labels
     el.dim(sw, -sh, x_b, -sh, -2.0 * te, f"{lc:.0f} clear", te)
     el.dim(0, -sh, sw, -sh, -2.0 * te, f"{sw:.0f}", te)
@@ -259,7 +304,7 @@ def drawing(inp: ContinuousBeamInput, reinf: dict[str, Any], bbs: dict[str, Any]
         el.dim(x_tb0, D, x_b, D, 2.2 * te, f"{a_end:.0f}", te)
     el.dim(x_b + sw, D, x_tb1, D, 2.2 * te, f"{a_int:.0f}" + (" (past the break)" if x_b + sw + a_int > x_end else ""), te)
     el.text(sw + lc / 2.0, D + 4.2 * te, f"{st['end']['label']} ({bbs['stirrups_per_span']['end']} per span)", te, "middle")
-    el.text(x_b + sw / 2.0, D + 6.0 * te, f"{tb['label']} top over B", te, "middle")
+    el.text(x_b + sw / 2.0, D + 8.0 * te, f"{tb['label']} top over B", te, "middle")
     if lay["end"]["hanger"] > 0:
         el.text(sw + 0.3 * lc, D + 2.6 * te, f"{he['label']} {'compression bars' if end['doubly'] else 'hangers'}", te, "middle")
     el.text(sw + lc / 2.0, -sh - 5.0 * te, f"{eb['label']} bottom, end span", te, "middle")

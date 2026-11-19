@@ -6,8 +6,8 @@ The items that close phase 1, built one at a time. STR-014 extends the beam elem
 |---|---|---|
 | STR-014 flanged sections (T and L) | done | 1.1.0 |
 | STR-015 continuous beams by Tables 12 and 13 | done | continuous beam 1.0.0 (new element) |
-| STR-016 curtailment and stirrup zones | next | |
-| STR-017 anchorage at simple supports | planned | |
+| STR-016 curtailment and stirrup zones | done | beam 1.2.0, continuous beam 1.1.0 |
+| STR-017 anchorage at simple supports | next | |
 
 ## STR-014: flanged sections (T and L)
 
@@ -125,3 +125,47 @@ Stops: effective span less than 2.5 D (a continuous deep beam, Cl. 29); no bars 
 | `tests/unit/test_continuous_beam.py` | 18 | the worked example to Tables 12 and 13; three spans without C; Cl. 22.2(b); compression steel at a support and its continuation; Cl. 26.2.3.4 extents; the mid-span lap and its check; hanger laps; schedule counts for 3, 4 and 7 spans; T-beam with 0.7 l and supports on the web; drawing; validation; stops; references; a sweep of 108 beams |
 | `tests/handcheck/check_continuous_beam.py` | 37 base results, 368 values over 12 cases, 2 stops | Tables 12 and 13 typed again; flexure by stress-block bisection and the G-2.2.1 quadratic; SP 16 Table A; tau_c closed form; points of inflection by Hardy Cross moment distribution and a scan with bisection (they agree with the engine's three-moment solution to 0.1 mm) |
 | `tests/api/test_structural.py` | 1 new, 1 changed | the element in the registry, calculate, save, revise, approve and the three exports |
+
+## STR-016: curtailment and stirrup zones
+
+### 1. Requirements
+
+**Goal.** Stop the bars that are no longer needed and space the stirrups by the shear diagram, as IS 456 allows, in both beam elements; until now every bar ran the full length at one stirrup spacing.
+
+**In scope.** The simple beam in load mode (simply supported and cantilever) and the continuous beam: tension bars curtailed by Cl. 26.2.3.1 to 26.2.3.4 with the three conditions of Cl. 26.2.3.2; stirrups at the designed spacing near the supports and at the minimum-steel spacing where the shear allows; closer stirrups along stopped bars where condition (b) is used; schedule, drawing and report.
+
+**Out of scope.** Forces entered by the user (no diagram: everything as before); torsion; staggering bars of one layer at different points (one cut-off per set).
+
+### 2. Architecture
+
+| Layer | Change |
+|---|---|
+| Analysis kernel | `continuous.shear_envelope` |
+| Beam domain | `split_for_curtailment`, `stirrup_positions` (symmetric, cantilever or unsymmetric spans, with any number of closer zones), `cutoff_condition` (Cl. 26.2.3.2, shared), `curtail_and_zones` |
+| Continuous beam domain | `continuous_curtailment.py`: scaled diagrams, zones, top and bottom cut-offs, stirrup positions per span type |
+| Detailing | continuing and curtailed bars as separate schedule items; stirrup counts from their positions; the stopped bars and the zones in the elevations |
+
+### 3. Engineering logic
+
+| Step | Rule | Reference |
+|---|---|---|
+| Which bars stop | the second layer, or alternate bars; a third of the area and the corner bars continue | Cl. 26.2.3.3, 26.2.3.4 |
+| Where | beyond the point where the others suffice by the greater of d and 12 phi; L_d from the face (top bars) or either side of the greatest moment (bottom bars); 50 mm steps | Cl. 26.2.3.1, 26.2.1 |
+| Stopped in a tension zone | (a) V <= 2/3 V_R; (c) twice the steel needed and V <= 3/4 V_R; (b) closer stirrups over 3/4 d along the stopped bars, excess >= 0.4 b s/f_y, spacing <= d/(8 beta_b) | Cl. 26.2.3.2 |
+| Worth it | not within d of a support; not where (b)'s stirrups weigh as much as the steel saved | practice |
+| Stirrup zones | designed spacing to where the shear falls to the resistance at the minimum-steel spacing | Cl. 40.4, 26.5.1.5, 26.5.1.6 |
+| Diagrams | simple beam: the parabola of the factored load; continuous beam: the elastic envelope scaled to Tables 12 and 13 | Cl. 22.4.1 |
+
+Results on the worked examples: the simple beam stops its middle T16 800 mm from each face (32.8 kg, from 36.3); the four-span continuous beam stops half the top bars over B 800 mm and 850 mm out, four of the ten T12 over C 600 mm out and half the interior spans' bottom bars 750 mm from each face; its end span keeps all five bottom bars because the cut-off near the end support would fall within d (300 mm against 454). 322.3 kg, from 388.6.
+
+Two findings on the way. Condition (a) alone rejected most cut-offs in the test cases (the shear at a cut-off near a quarter of the span is often more than two thirds of the resistance); condition (b) is what designers use there; with it, and with the two rules on when curtailment is not worth it, 18 of the 22 hand-check beams in load mode are curtailed. And pattern loading moves the interior spans' greatest moment off mid-span and flattens it, so L_d is now measured from both edges of the region within 0.5 percent of the peak; the hand check found the case where a single peak point left 8 mm of margin.
+
+### 4. Tests
+
+| Suite | Tests | Proves |
+|---|---|---|
+| `tests/unit/test_beam_curtailment.py` | 8 | the split rule; stirrup positions (one spacing, zones, bands, cantilever); the worked example; condition (b) and its band; the reasons when nothing is curtailed; cantilever; zones against the shear; a sweep checking every cut-off against the diagram |
+| `tests/unit/test_continuous_beam.py` | 2 new, 2 changed | the continuous worked example's cut-offs, zones and saving; both faces curtailed under heavy imposed load; schedule counts across continuing and curtailed items |
+| `tests/unit/test_continuous.py` | 1 new | the shear envelope (3wL/8 and 5wL/8 for two spans) |
+| `tests/handcheck/check_beam.py` | cut-offs and zones of every case | the resistance of the continuing bars (stress block, SP 16 Table A), the cut-off by bisection on M(x), condition (b) recomputed, every zone end within the shear resistance |
+| `tests/handcheck/check_continuous_beam.py` | the same for the continuous beam | Hardy Cross envelopes scaled by the same rule; every cut-off, moved back by max(d, 12 phi), within the remaining bars; L_d; zone ends |
