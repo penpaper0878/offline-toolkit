@@ -12,7 +12,7 @@ Status last checked: 16 November 2026. Column clauses added 17 November 2026; sl
 | Status | Current. Reaffirmed 2021. |
 | Amendments | Nos. 1 to 6. Amendment No. 6 is dated April 2024 (published August 2024); the excerpt consulted changes Cl. 5.1 (cement references, including composite cement to IS 16415) and deletes Cl. 17.5 in favour of a load test under Cl. 17.6. None of the clauses listed below is touched by that excerpt. |
 | Revision | A fifth revision ("Structural concrete") has been in draft; secondary sources report it was circulated for comment in 2025 and was still being processed in early 2026. IS 456:2000 remains the enforceable standard. Review this entry when the revision is published. |
-| Used by | beam engine 1.1.0, continuous beam engine 1.0.0, column engine 1.0.0, slab engine 1.0.0, footing engine 1.0.0 |
+| Used by | beam engine 1.2.0, continuous beam engine 1.0.0, column engine 1.0.0, slab engine 1.0.0, footing engine 1.0.0 |
 
 ### Clauses taken
 
@@ -95,6 +95,25 @@ The code text was not read (as for the column); the effective-width formulas, An
 * Cl. 23.1.2(c), (d): the isolated-beam expressions, and whether b is the actual flange width (as used).
 * Cl. 23.1.1(b): the extent of the transverse bars (the corroborating sources give the 60 percent but not the extent).
 * Annex G-2.2: the wording that lets x_u replace x_u,max.
+
+### Beam engine 1.2.0: curtailment and stirrup zones (STR-016)
+
+| Clause | Subject | Where |
+|---|---|---|
+| Cl. 26.2.3.1 | bars extend beyond the point where they are no longer needed by the greater of d and 12 phi | `beam.curtail_and_zones` |
+| Cl. 26.2.1 | development length either side of the section of maximum stress | the same |
+| Cl. 26.2.3.2(a), (b), (c) | bars stopped in a tension zone: shear at most 2/3 of the resistance; or closer stirrups along the stopped bars; or twice the steel needed and shear at most 3/4 | the same |
+| Cl. 26.2.3.3(a) | a third of the positive steel to the supports of simple members | `beam.split_for_curtailment` |
+| Cl. 40.4, 26.5.1.5, 26.5.1.6 | stirrup spacing by the shear diagram; minimum shear steel, 0.75 d, 300 mm | stirrup zones |
+
+### Beam engine: curtailment interpretations
+
+59. **Which bars stop.** The second layer, or alternate bars of a single layer; at least two bars (the corners, which carry the stirrups) and a third of the area continue. A single layer of two bars is not curtailed.
+60. **Where.** From the factored load's moment diagram (simple span w x (l - x)/2 between centre lines, cantilever w (l - x)^2/2), the resistance of the continuing bars with the other face's bars as compression steel. Cut-offs are set out in 50 mm steps towards the supports (away from the support on a cantilever).
+61. **Condition (b)** takes the excess as the stirrup area above the larger of the shear demand at the cut-off and the minimum of Cl. 26.5.1.6, over 3/4 d along each stopped bar, at no more than d/(8 beta_b); f_y in 0.4 b s/f_y is that of the stirrups.
+62. **Not worth it.** No curtailment when the cut-off falls within d of a support, or when the closer stirrups of condition (b) weigh as much as the steel the stopped bars save. The sheet says which.
+63. **Stirrup zones.** The spacing designed at the critical section is kept from each support to where the shear falls to the resistance at the wider spacing (minimum shear steel, 0.75 d or 300 mm), with tau_c of the bars that run to the support. Every gap between stirrups is the least spacing required anywhere over it.
+64. **Forces entered** give no diagram: no curtailment and one spacing, as before.
 
 ### Continuous beam engine 1.0.0: clauses taken
 

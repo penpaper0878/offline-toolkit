@@ -14,7 +14,8 @@ Fig. 6 for deflection, and the self-weight of the rib below the slab.
 Worked example (the defaults): 230 x 450 beam, 4.0 m clear span on 230 mm
 supports, M25 / Fe 500, moderate exposure, DL 12 kN/m + LL 8 kN/m. Expected:
 wu = 33.881 kN/m, l = 4230 mm, Mu = 75.78 kN m, Vu = 54.07 kN, Ast,req = 481 mm2,
-3-T16 bottom, 2-T12 top, T8 2-legged at 300 c/c, steel 36.3 kg.
+3-T16 bottom (the middle bar stopping 800 mm from each face), 2-T12 top, T8 2-legged at
+300 c/c, steel 32.8 kg.
 tests/handcheck/check_beam.py reproduces these figures independently.
 """
 
@@ -28,11 +29,11 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.engineering import is456
 from app.engineering.is456 import FlangeKind, FlexureDesign, MomentCapacity
-from app.engineering.rebar import MAIN_BAR_DIAMETERS, BarGroup, bar_area
+from app.engineering.rebar import MAIN_BAR_DIAMETERS, BarGroup, bar_area, bar_unit_weight
 from app.engineering.trace import CalcSheet
 
 ELEMENT_TYPE = "beam"
-ENGINE_VERSION = "1.1.0"
+ENGINE_VERSION = "1.2.0"
 CODE_BASIS = ("IS 456:2000", "SP 16:1980", "IS 2502:1963")
 REF = is456.CODE
 
@@ -302,6 +303,225 @@ def select_bars(inp: BeamInput, cover: float) -> tuple[Arrangement, Forces] | No
             if best is None or key < best[0]:
                 best = (key, Arrangement(ten, oth, d, d_c, clear, gap), f)
     return (best[1], best[2]) if best else None
+
+
+# ------------------------------------------------------------------ curtailment and stirrup zones (Cl. 26.2.3)
+
+SETTING_OUT = 50.0  # mm: cut-off points and zone ends are set out in 50 mm steps
+
+
+def split_for_curtailment(g: BarGroup) -> tuple[BarGroup, BarGroup] | None:
+    """(continuing, curtailed) bars: the second layer stops, or alternate bars of a single layer.
+
+    At least two bars (the corners, which hold the stirrups) and a third of the area continue to the supports
+    (Cl. 26.2.3.3(a)); a single layer of two bars is not curtailed.
+    """
+    if len(g.layers) == 2:
+        cont, cut = BarGroup(g.dia, (g.layers[0],)), BarGroup(g.dia, (g.layers[1],))
+    else:
+        n = g.layers[0]
+        n_cont = max(2, math.ceil(n / 2))
+        if n_cont >= n:
+            return None
+        cont, cut = BarGroup(g.dia, (n_cont,)), BarGroup(g.dia, (n - n_cont,))
+    if cont.area < g.area / 3.0 - 1e-9:
+        return None
+    return cont, cut
+
+
+@dataclass(frozen=True)
+class Zones:
+    applied: bool  # a wider spacing between end zones
+    s_end: float
+    s_mid: float
+    length: float  # mm from the face of the support over which s_end is kept (0 when one spacing throughout)
+    positions: tuple[float, ...]  # every stirrup, mm from the face of the (left or only) support
+    cutoff: tuple[float, float, float] | None = None  # (from, to, spacing): closer stirrups along stopped bars, Cl. 26.2.3.2(b)
+
+
+@dataclass(frozen=True)
+class Curtailment:
+    applied: bool
+    reason: str
+    cont: BarGroup | None = None
+    cut: BarGroup | None = None
+    d_cont: float = 0.0
+    m_cont: float = 0.0  # kN m, resistance of the continuing bars
+    x_theory: float = 0.0  # mm from the face of the support: where the curtailed bars are no longer needed
+    x_cut: float = 0.0  # mm from the face: simply supported, where they stop at each end; cantilever, how far they reach
+    condition: str = ""
+    s_b: float = 0.0  # spacing along the stopped bars under condition (b)
+
+
+def stirrup_positions(lc: float, cover: float, cantilever: bool, base: float, zones: list[tuple[float, float, float]]) -> tuple[float, ...]:
+    """Every stirrup, mm from the face: the first 50 mm out, each gap the least spacing required anywhere over it.
+
+    ``zones`` are (from, to, spacing) in mm from the face of the (left) support; elsewhere ``base``. A simple span is
+    set out from both supports symmetrically; a cantilever from its support to the free end, less cover.
+    """
+    first = 50.0
+    last = lc - cover if cantilever else lc / 2.0
+
+    def need(a: float, b: float) -> float:
+        sp = base
+        for z0, z1, sz in zones:
+            if z0 <= b + 1e-9 and z1 >= a - 1e-9:
+                sp = min(sp, sz)
+        return sp
+
+    xs = [first]
+    while True:
+        x = xs[-1]
+        sp = need(x, x)
+        while need(x, x + sp) < sp:
+            sp = need(x, x + sp)
+        if x + sp > last + 1e-9:
+            break
+        xs.append(x + sp)
+    if cantilever:
+        return tuple(xs)
+    left = [x for x in xs if x < lc / 2.0 - 1e-6]
+    mid = [lc / 2.0] if (lc - 2.0 * left[-1]) > need(left[-1], lc / 2.0) + 1e-6 else []
+    return tuple(left + mid + [lc - x for x in reversed(left)])
+
+
+def curtail_and_zones(sheet: CalcSheet, inp: BeamInput, forces: Forces, arr: Arrangement, flg: Flange | None, cover: float, sv: float,
+                      fyv: float, asv: float) -> tuple[Curtailment, Zones]:
+    """Stirrup zones from the shear diagram and curtailment of the tension bars from the moment diagram (loads only)."""
+    lc, b, dst = inp.clear_span_mm, inp.width_mm, inp.stirrup_dia_mm
+    fck, fy = float(inp.fck), float(inp.fy)
+    cantilever = inp.support == "cantilever"
+    wu, le = forces.w_factored, forces.l_eff  # kN/m = N/mm, mm
+    off = 0.0 if cantilever else (le - lc) / 2.0  # centre line of the support to its face
+
+    def m_at(xf: float) -> float:  # kN m at xf mm from the face
+        if cantilever:
+            return wu * max(le - xf, 0.0) ** 2 / 2.0 / 1e6
+        x = xf + off
+        return wu * x * (le - x) / 2.0 / 1e6
+
+    def v_at(xf: float) -> float:  # kN
+        return wu * max(lc - xf, 0.0) / 1e3 if cantilever else wu * max(le / 2.0 - off - xf, 0.0) / 1e3
+
+    split = split_for_curtailment(arr.tension)
+    cont = split[0] if split else arr.tension
+    d_cont = inp.depth_mm - (cover + dst + cont.dia / 2.0) if split else arr.d
+
+    # ---- stirrup zones: closer near the supports, wider where minimum shear steel suffices
+    sheet.section("8. Stirrup zones and curtailment of the tension bars")
+    s_mid = practical_spacing(min(is456.stirrup_spacing_minimum_steel(fyv, asv, b), 0.75 * arr.d, 300.0))
+    tc = is456.tau_c(fck, 100.0 * cont.area / (b * d_cont))
+    v_mid = (tc * b * d_cont + 0.87 * fyv * asv * d_cont / s_mid) / 1e3
+    x_z = (lc - v_mid * 1e3 / wu) if cantilever else (le / 2.0 - off - v_mid * 1e3 / wu)
+    span_end = lc - cover if cantilever else lc / 2.0
+    zoned = s_mid > sv and x_z < span_end - s_mid
+    length = max(x_z, 0.0) if zoned else 0.0
+    base = s_mid if zoned else sv
+    zone_list: list[tuple[float, float, float]] = [(0.0, length, sv)] if zoned else []
+    if zoned:
+        sheet.step(f"{REF}, Cl. 26.5.1.5, 26.5.1.6", "Spacing where minimum shear reinforcement governs", "s_v,mid = min(0.87 f_yv A_sv/(0.4 b), 0.75 d, 300)",
+                   "", s_mid, "mm", 0)
+        sheet.step(f"{REF}, Cl. 40.4", "Shear resistance at that spacing (tau_c with the bars that run to the support)",
+                   "V_R = tau_c b d + 0.87 f_yv A_sv d / s_v,mid", f"tau_c = {_n(tc, 3)}", v_mid, "kN")
+        sheet.step(f"{REF}, Cl. 40.4", f"Stirrups at {_n(sv, 0)} c/c from the face of the support to where the shear falls to V_R; "
+                   f"at {_n(s_mid, 0)} c/c or less beyond", "x_zone", "V(x) = V_R", length, "mm", 0)
+    else:
+        sheet.step(f"{REF}, Cl. 40.4", "One stirrup spacing throughout: the minimum spacing governs, or the shear stays high over the span",
+                   "s_v", "", sv, "mm", 0)
+
+    def spacing_at(xf: float) -> float:
+        return sv if not zoned or xf <= length + 1e-6 else s_mid
+
+    def finish(curt: Curtailment, extra: list[tuple[float, float, float]]) -> tuple[Curtailment, Zones]:
+        zl = zone_list + extra
+        pos = stirrup_positions(lc, cover, cantilever, base, zl)
+        if zoned:
+            end_of_zone = max((x for x in pos if x <= length + sv), default=pos[0])
+            sheet.check("zone_shear", f"{REF}, Cl. 40.4", "Shear where the wider spacing begins", "V", v_at(end_of_zone), "<=", "V_R", v_mid, "kN")
+        return curt, Zones(zoned, sv, base, length, pos, extra[0] if extra else None)
+
+    # ---- curtailment
+    if split is None:
+        sheet.step(f"{REF}, Cl. 26.2.3.3(a)", f"{arr.tension.label()}: too few bars to curtail (two bars, and a third of the area, must reach "
+                   "the supports)", "", "", "", "")
+        return finish(Curtailment(False, "too few bars to curtail"), [])
+    cont, cut = split
+    flex_flange = flg if flg is not None and flg.in_compression else None
+    m_cont = flexure_capacity(inp, flex_flange, d_cont, cont.area, arr.other.area, arr.d_c).mu / 1e6
+    mu_max = m_at(0.0) if cantilever else forces.mu
+    beyond = max(arr.d, 12.0 * cut.dia)
+    ld = is456.development_length(cut.dia, fck, fy)
+    sheet.step(f"{REF}, Cl. 26.2.3.3(a)", f"Bars that run to the support{'s' if not cantilever else ''}: {cont.label()} of {arr.tension.label()} "
+               "(at least a third of the area, and the corner bars)", "A_st,cont", "", cont.area, "mm2", 0)
+    sheet.step(f"{REF}, Cl. 38.1", "Moment of resistance of the continuing bars", "M_R,cont", f"d = {_n(d_cont, 1)}", m_cont, "kN m")
+    if cantilever:
+        x_t = 0.0 if m_cont >= mu_max else le - math.sqrt(2.0 * m_cont * 1e6 / wu)
+        x_cut = math.ceil(max(x_t + beyond, ld) / SETTING_OUT - 1e-9) * SETTING_OUT
+        sheet.step("Statics", "Where the curtailed bars are no longer needed, from the face of the support", "M(x) = w_u (l - x)^2 / 2 = M_R,cont",
+                   "", x_t, "mm", 0)
+        sheet.step(f"{REF}, Cl. 26.2.3.1, 26.2.1", "Curtailed bars run beyond it by the greater of d and 12 phi, and at least L_d from the face",
+                   "x_cut = max(x_t + max(d, 12 phi), L_d)", f"max({_n(x_t, 0)} + {_n(beyond, 0)}, {_n(ld, 0)})", x_cut, "mm", 0)
+        if x_cut >= lc - cover - SETTING_OUT:
+            sheet.step(f"{REF}, Cl. 26.2.3.1", "The cut-off would reach the free end: no curtailment", "", "", "", "")
+            return finish(Curtailment(False, "the cut-off reaches the free end"), [])
+    else:
+        x_t = lc / 2.0 if m_cont >= mu_max else le / 2.0 - math.sqrt(max(le * le / 4.0 - 2.0 * m_cont * 1e6 / wu, 0.0)) - off
+        x_cut = math.floor(min(x_t - beyond, lc / 2.0 - ld) / SETTING_OUT + 1e-9) * SETTING_OUT
+        sheet.step("Statics", "Where the curtailed bars are no longer needed, from the face of each support", "M(x) = w_u x (l - x) / 2 = M_R,cont",
+                   f"x from the centre line, less {_n(off, 0)} to the face", x_t, "mm", 0)
+        sheet.step(f"{REF}, Cl. 26.2.3.1, 26.2.1", "Curtailed bars stop the greater of d and 12 phi short of it towards the support, and run at "
+                   "least L_d each side of mid-span; set out in 50 mm steps", "x_cut = min(x_t - max(d, 12 phi), l_c/2 - L_d)",
+                   f"min({_n(x_t, 0)} - {_n(beyond, 0)}, {_n(lc / 2, 0)} - {_n(ld, 0)})", x_cut, "mm", 0)
+        if x_cut < arr.d:
+            sheet.step(f"{REF}, Cl. 26.2.3.1", "The cut-off would fall within d of the support: no curtailment, as it saves too little", "", "", "", "")
+            return finish(Curtailment(False, "the cut-off falls within d of the support"), [])
+    # Cl. 26.2.3.2: flexural bars stopped in a tension zone
+    v = v_at(x_cut)
+    s_here = spacing_at(x_cut)
+    v_cap = (tc * b * d_cont + 0.87 * fyv * asv * d_cont / s_here) / 1e3
+    a_req = flexure_design(inp, flex_flange, m_at(x_cut) * 1e6, d_cont, arr.d_c).ast_req
+    sheet.step(f"{REF}, Cl. 26.2.3.2", "At the cut-off: shear, and the resistance with the continuing bars and the stirrups there",
+               "V, V_R = tau_c b d + 0.87 f_yv A_sv d / s_v", f"s_v = {_n(s_here, 0)}", f"{_n(v)}, {_n(v_cap)}", "kN")
+    if v <= 2.0 / 3.0 * v_cap + 1e-9:
+        sheet.check("curtail_shear", f"{REF}, Cl. 26.2.3.2(a)", "Bars stopped in a tension zone: shear at the cut-off not more than two thirds "
+                    "of the resistance", "V", v, "<=", "2/3 V_R", 2.0 / 3.0 * v_cap, "kN")
+        cond, s_b, extra = "a", 0.0, []
+    elif cont.dia <= 36 and cont.area >= 2.0 * a_req - 1e-9 and v <= 0.75 * v_cap + 1e-9:
+        sheet.check("curtail_shear", f"{REF}, Cl. 26.2.3.2(c)", "Bars stopped in a tension zone: continuing bars twice the area needed there, "
+                    "shear not more than three quarters of the resistance", "V", v, "<=", "3/4 V_R", 0.75 * v_cap, "kN")
+        cond, s_b, extra = "c", 0.0, []
+    else:
+        # (b): excess stirrups, at least 0.4 b s / f_y, along each stopped bar over 3/4 d from the cut-off, at no more than d/(8 beta_b)
+        beta_b = cut.area / arr.tension.area
+        vus = max(v - tc * b * d_cont / 1e3, 0.0)
+        need_shear = max(vus * 1e3 / (0.87 * fyv * d_cont), 0.4 * b / (0.87 * fyv))  # A_sv/s for shear (Cl. 40.4, 26.5.1.6)
+        s_lim = d_cont / (8.0 * beta_b)
+        s_b = practical_spacing(min(asv / (need_shear + 0.4 * b / fyv), s_lim, s_here))
+        sheet.step(f"{REF}, Cl. 26.2.3.2(b)", "Neither (a) nor (c): closer stirrups along the stopped bars over 3/4 d from the cut-off, the excess "
+                   "over the shear requirement at least 0.4 b s / f_y, at not more than d/(8 beta_b)",
+                   "s_b = min(A_sv / (A_sv,shear/s + 0.4 b/f_y), d/(8 beta_b))", f"beta_b = {_n(beta_b, 3)}", s_b, "mm", 0)
+        if s_b < 75.0:
+            sheet.step(f"{REF}, Cl. 26.2.3.2(b)", "That spacing is below 75 mm: no curtailment", "", "", "", "")
+            return finish(Curtailment(False, "Cl. 26.2.3.2 cannot be met at the cut-off with workable stirrups"), [])
+        sheet.check("curtail_shear", f"{REF}, Cl. 26.2.3.2(b)", "Stirrup spacing along the stopped bars", "s_b", s_b, "<=", "d/(8 beta_b)", s_lim, "mm", 0)
+        sheet.check("curtail_excess", f"{REF}, Cl. 26.2.3.2(b)", "Excess stirrup area along the stopped bars, per mm", "A_sv/s_b - A_sv,shear/s",
+                    asv / s_b - need_shear, ">=", "0.4 b / f_y", 0.4 * b / fyv, "mm2/mm", 3, ratio=False)
+        cond = "b"
+        z0, z1 = (x_cut - 0.75 * d_cont, x_cut) if cantilever else (x_cut, x_cut + 0.75 * d_cont)
+        extra = [(max(z0, 0.0), z1, s_b)]
+        # worth it only if the extra stirrups weigh less than the steel the stopped bars save
+        hoop = 2.0 * ((b - 2.0 * cover) + (inp.depth_mm - 2.0 * cover)) + 2.0 * max(10.0 * dst, 75.0) - 12.0 * dst
+        n_extra = len(stirrup_positions(lc, cover, cantilever, base, zone_list + extra)) - len(stirrup_positions(lc, cover, cantilever, base, zone_list))
+        extra_kg = n_extra * hoop / 1000.0 * bar_unit_weight(dst) * (2 if inp.stirrup_legs == 4 else 1)
+        saved = (lc - cover - x_cut) if cantilever else 2.0 * (x_cut + inp.support_width_mm - cover)
+        saved_kg = cut.count * saved / 1000.0 * bar_unit_weight(cut.dia)
+        sheet.step("Practice", "Steel saved by stopping the bars, against the extra stirrups", "", "", f"{_n(saved_kg, 1)}, {_n(extra_kg, 1)}", "kg")
+        if extra_kg >= saved_kg:
+            sheet.step("Practice", "The extra stirrups weigh as much as the steel saved: no curtailment", "", "", "", "")
+            return finish(Curtailment(False, "the extra stirrups would outweigh the steel saved"), [])
+    sheet.check("curtail_third", f"{REF}, Cl. 26.2.3.3(a)", "At least a third of the tension steel runs to the support", "A_st,cont", cont.area,
+                ">=", "A_st/3", arr.tension.area / 3.0, "mm2", 0, ratio=False)
+    return finish(Curtailment(True, "", cont, cut, d_cont, m_cont, x_t, x_cut, cond, s_b), extra)
 
 
 def practical_spacing(s: float) -> float:
@@ -579,12 +799,26 @@ def design_beam(inp: BeamInput) -> dict[str, Any]:
                    "A_s = 0.001 b D", f"0.001 x {_n(b, 0)} x {_n(D, 0)}", 0.001 * b * D, "mm2", 0)
         sheet.step("Selected", "Side face bars provided on each face", "", f"{side['per_face']}-T{side['dia']}", side["area_total"], "mm2", 0)
 
+    curt: Curtailment | None = None
+    zones: Zones | None = None
+    if inp.mode == "loads" and forces.tu == 0:  # the moment and shear diagrams are known
+        curt, zones = curtail_and_zones(sheet, inp, forces, arr, flg, cover, sv, fyv, asv)
+
     # ------------------------------------------------------------------ assemble
+    stirrup_label = f"T{dst} {legs}-legged @ {_n(sv, 0)} c/c" + (f" near the supports, {_n(zones.s_mid, 0)} c/c between" if zones and zones.applied else "")
     reinforcement = {
         "tension_face": face_t,
         face_t: {"count": ten.count, "dia": ten.dia, "layers": list(ten.layers), "area": round(ten.area, 1), "label": ten.label()},
         face_o: {"count": oth.count, "dia": oth.dia, "layers": list(oth.layers), "area": round(oth.area, 1), "label": oth.label()},
-        "stirrups": {"dia": dst, "legs": legs, "spacing": sv, "label": f"T{dst} {legs}-legged @ {_n(sv, 0)} c/c"},
+        "stirrups": {"dia": dst, "legs": legs, "spacing": sv, "label": stirrup_label,
+                     "zones": ({"s_mid": zones.s_mid, "length": zones.length} if zones and zones.applied else None),
+                     "positions": list(zones.positions) if zones else None,
+                     "cutoff": ({"from": round(zones.cutoff[0], 1), "to": round(zones.cutoff[1], 1), "spacing": zones.cutoff[2]}
+                                if zones and zones.cutoff else None)},
+        "curtailment": ({"continuing": {"count": curt.cont.count, "dia": curt.cont.dia, "layers": list(curt.cont.layers), "label": curt.cont.label()},
+                         "curtailed": {"count": curt.cut.count, "dia": curt.cut.dia, "layers": list(curt.cut.layers), "label": curt.cut.label()},
+                         "x_cut": curt.x_cut, "x_theory": round(curt.x_theory, 1)}
+                        if curt and curt.applied and curt.cont and curt.cut else None),
         "side_face": side,
         "cover": cover,
         "layer_gap": arr.layer_gap,
@@ -595,9 +829,11 @@ def design_beam(inp: BeamInput) -> dict[str, Any]:
     quantities = beam_detailing.quantities(inp, bbs)
     drawing = beam_detailing.drawing(inp, cover, reinforcement, bbs)
 
-    if inp.mode == "loads":
-        sheet.flag("info", "Bars run the full length without curtailment and stirrups are at one spacing throughout; "
-                           "both are on the safe side.")
+    if inp.mode == "forces":
+        sheet.flag("info", "With forces entered there is no moment or shear diagram: the bars run the full length and the stirrups are at one "
+                           "spacing throughout, both on the safe side.")
+    elif curt and not curt.applied:
+        sheet.flag("info", f"The tension bars run the full length: {curt.reason}.")
     if fl.doubly:
         sheet.flag("info", "The section is doubly reinforced. A deeper section usually costs less steel.")
     if flg:
@@ -646,6 +882,10 @@ def design_beam(inp: BeamInput) -> dict[str, Any]:
             "sv_allow": round(sv_allow, 2), "sv": sv, "sv_governing": governing,
             "span_depth": round(forces.l_eff / d, 4), "span_depth_allow": round(allow, 4), "fs": round(fs, 3), "kt": round(kt, 5), "kc": round(kc, 5),
             "ld_tension": round(ld_t, 1),
+            "curtailment": ({"applied": curt.applied, "reason": curt.reason, "m_cont": round(curt.m_cont, 4), "d_cont": round(curt.d_cont, 2),
+                             "x_theory": round(curt.x_theory, 2), "x_cut": curt.x_cut, "condition": curt.condition, "s_b": curt.s_b} if curt else None),
+            "zones": ({"applied": zones.applied, "s_end": zones.s_end, "s_mid": zones.s_mid, "length": round(zones.length, 2),
+                       "count": len(zones.positions)} if zones else None),
             "section": inp.section, "bf": round(flg.bf, 2) if flg else None, "l0": round(flg.l0, 1) if flg else None,
             "na_in_flange": fl.na_in_flange, "pt_defl": round(pt_defl, 5), "kf": round(kf, 5),
         },

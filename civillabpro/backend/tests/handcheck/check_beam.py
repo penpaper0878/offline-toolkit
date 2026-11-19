@@ -13,6 +13,10 @@ different route wherever the code allows one:
     neutral axis in the web, x_u from the closed-form root of the G-2.2.1 quadratic,
     or by false position where y_f < D_f (engine: bisection on the G-2.2 moment);
     Fig. 6 from its two straight lines;
+  * curtailment: the resistance of the continuing bars by stress-block bisection and the point
+    where they suffice by bisection on M(x) (engine: closed form), then Cl. 26.2.3.1, 26.2.1 and
+    26.2.3.2 checked at the engine's cut-off with the SP 16 tau_c; stirrup zones: the shear where
+    the wider spacing begins checked against the resistance there;
   * loads, effective span, torsion equivalents, deflection factors, development
     length: recomputed line by line.
 
@@ -311,6 +315,145 @@ def compare(name: str, s: dict, res: dict) -> tuple[int, list[str]]:
         bad.append(f"{name}: tension steel provided {h['ast_prov']:.0f} below hand requirement {h['ast_req']:.0f}")
     if res["data"]["sv"] > h["sv_allow"] * 1.02:
         bad.append(f"{name}: stirrup spacing {res['data']['sv']:.0f} above hand limit {h['sv_allow']:.0f}")
+    k, more = check_curtailment(name, s, res)
+    return n + k, bad + more
+
+
+def check_curtailment(name: str, s: dict, res: dict) -> tuple[int, list[str]]:
+    """Cl. 26.2.3: the engine's cut-off and stirrup zones checked from the diagrams, by bisection."""
+    eng, reinf = res["data"], res["reinforcement"]
+    cur, zones = eng.get("curtailment"), eng.get("zones")
+    if s["mode"] != "loads" or cur is None:
+        return 0, []
+    bad: list[str] = []
+    n = 0
+    b, D, lc, fck, fy = s["width_mm"], s["depth_mm"], s["clear_span_mm"], s["fck"], s["fy"]
+    cant = s["support"] == "cantilever"
+    wu, le, d = eng["w_factored"], eng["l_eff"], eng["d"]
+    off = 0.0 if cant else (le - lc) / 2
+
+    def m_at(xf: float) -> float:  # kN m, xf from the face of the support
+        return wu * max(le - xf, 0) ** 2 / 2e6 if cant else wu * (xf + off) * (le - xf - off) / 2e6
+
+    def v_at(xf: float) -> float:
+        return wu * max(lc - xf, 0) / 1e3 if cant else wu * max(le / 2 - off - xf, 0) / 1e3
+
+    fyv = min(s["fy_stirrup"], 415)
+    asv = s["stirrup_legs"] * math.pi * s["stirrup_dia_mm"] ** 2 / 4
+    st = reinf["stirrups"]
+    if cur["applied"]:
+        c = reinf["curtailment"]
+        cont, cut = c["continuing"], c["curtailed"]
+        a_cont = cont["count"] * math.pi * cont["dia"] ** 2 / 4
+        a_all = a_cont + cut["count"] * math.pi * cut["dia"] ** 2 / 4
+        dc = cur["d_cont"]
+        # resistance of the continuing bars: stress block (a flange in compression for a simple span), by bisection on force
+        bf = eng["bf"] if (eng["bf"] and not cant) else b
+        df = s["flange_thickness_mm"] if eng["bf"] and not cant else D
+        t = 0.87 * fy * a_cont
+
+        def comp(x: float) -> tuple[float, float]:
+            if x <= df:
+                return 0.36 * fck * bf * x, 0.36 * fck * bf * x * (dc - 0.42 * x)
+            yf = df if x >= 7 * df / 3 else 0.15 * x + 0.65 * df
+            return (0.36 * fck * b * x + 0.45 * fck * (bf - b) * yf,
+                    0.36 * fck * b * x * (dc - 0.42 * x) + 0.45 * fck * (bf - b) * yf * (dc - yf / 2))
+
+        # the bars on the other face act as compression steel (SP 16 Table A), as in the engine's moment check
+        of = "top" if reinf["tension_face"] == "bottom" else "bottom"
+        oth = reinf[of]
+        asc = oth["count"] * math.pi * oth["dia"] ** 2 / 4
+        dsc = (s["clear_cover_mm"] if s["clear_cover_mm"] is not None else COVER[s["exposure"]]) + s["stirrup_dia_mm"] + oth["dia"] / 2
+        with_asc = fsc_hand(0.002, fy) is not None
+
+        def steel_c(x: float) -> float:
+            if not with_asc or x <= dsc:
+                return 0.0
+            return asc * max(fsc_hand(0.0035 * (x - dsc) / x, fy) - 0.446 * fck, 0.0)  # type: ignore[operator]
+
+        lo, hi = 0.0, dc
+        for _ in range(200):
+            x = (lo + hi) / 2
+            lo, hi = (x, hi) if comp(x)[0] + steel_c(x) < t else (lo, x)
+        m_r = (comp(hi)[1] + steel_c(hi) * (dc - dsc)) / 1e6
+        n += 1
+        # Fe 550 is not in SP 16 Table A: there the hand value leaves out the compression steel and can only be lower
+        if (with_asc and abs(m_r - cur["m_cont"]) > 0.006 * cur["m_cont"]) or m_r > cur["m_cont"] * 1.006:
+            bad.append(f"{name}: resistance of the continuing bars engine {cur['m_cont']:.2f} hand {m_r:.2f}")
+        m_r = max(m_r, cur["m_cont"])
+        # where the continuing bars suffice, by bisection on M(x) from the face
+        if cant:  # M falls from the face to the free end
+            if m_at(0) <= m_r:
+                x_t = 0.0
+            else:
+                lo, hi = 0.0, lc
+                for _ in range(200):
+                    x = (lo + hi) / 2
+                    lo, hi = (x, hi) if m_at(x) > m_r else (lo, x)
+                x_t = (lo + hi) / 2
+        elif m_at(lc / 2) <= m_r:  # M rises from the face to mid-span
+            x_t = lc / 2
+        else:
+            lo, hi = 0.0, lc / 2
+            for _ in range(200):
+                x = (lo + hi) / 2
+                lo, hi = (x, hi) if m_at(x) < m_r else (lo, x)
+            x_t = (lo + hi) / 2
+        beyond = max(d, 12 * cut["dia"])
+        tbd = {20: 1.2, 25: 1.4, 30: 1.5, 35: 1.7, 40: 1.9}[max(g for g in (20, 25, 30, 35, 40) if g <= min(fck, 40))] * (1.6 if fy >= 415 else 1.0)
+        ld = cut["dia"] * 0.87 * fy / (4 * tbd)
+        x_cut = cur["x_cut"]
+        n += 3
+        if cant:
+            if not (x_cut >= x_t + beyond - 1 and x_cut >= ld - 1 and x_cut <= max(x_t + beyond, ld) + 50):
+                bad.append(f"{name}: cantilever cut-off {x_cut} against x_t {x_t:.0f} + {beyond:.0f}, L_d {ld:.0f}")
+        elif not (x_cut <= x_t - beyond + 1 and x_cut <= lc / 2 - ld + 1 and x_cut >= min(x_t - beyond, lc / 2 - ld) - 50):
+            bad.append(f"{name}: cut-off {x_cut} against x_t {x_t:.0f} - {beyond:.0f}, l_c/2 - L_d {lc / 2 - ld:.0f}")
+        if a_cont < a_all / 3 - 1e-6:
+            bad.append(f"{name}: less than a third of the bars continue")
+        # Cl. 26.2.3.2 at the cut-off with the stirrups there
+        z = st.get("zones")
+        sv_here = st["spacing"] if not z or x_cut <= z["length"] + 1e-6 else z["s_mid"]
+        pt = min(max(100 * a_cont / (b * dc), 0.15), 3.0)
+        beta = max(0.8 * min(fck, 40) / (6.89 * pt), 1.0)
+        tc = 0.85 * math.sqrt(0.8 * min(fck, 40)) * (math.sqrt(1 + 5 * beta) - 1) / (6 * beta)
+        v_cap = (tc * b * dc + 0.87 * fyv * asv * dc / sv_here) / 1e3
+        n += 1
+        if cur["condition"] in ("a", "c"):
+            lim = 2 / 3 if cur["condition"] == "a" else 3 / 4
+            if v_at(x_cut) > lim * v_cap * 1.03:
+                bad.append(f"{name}: shear at the cut-off {v_at(x_cut):.1f} above {lim:.2f} of {v_cap:.1f}")
+        else:  # (b): closer stirrups along the stopped bars over 3/4 d, excess >= 0.4 b s / f_y, spacing <= d / (8 beta_b)
+            cz = st["cutoff"]
+            beta_b = 1 - a_cont / a_all
+            vus = max(v_at(x_cut) - tc * b * dc / 1e3, 0.0)
+            need = max(vus * 1e3 / (0.87 * fyv * dc), 0.4 * b / (0.87 * fyv)) + 0.4 * b / fyv
+            s_allow = min(asv / need, dc / (8 * beta_b))
+            span = (x_cut - 0.75 * dc, x_cut) if cant else (x_cut, x_cut + 0.75 * dc)
+            inside = [x for x in st["positions"] if span[0] - cz["spacing"] - 1e-6 <= x <= span[1] + cz["spacing"] + 1e-6]
+            gaps = [q - p_ for p_, q in zip(inside, inside[1:], strict=False)]
+            n += 2
+            if cz["spacing"] > s_allow * 1.03:
+                bad.append(f"{name}: spacing along the stopped bars {cz['spacing']} above the hand limit {s_allow:.0f}")
+            if not gaps or max(gaps) > cz["spacing"] + 1e-6 or abs(cz["from"] - span[0]) > 1 or abs(cz["to"] - span[1]) > 1:
+                bad.append(f"{name}: the closer stirrups do not cover 3/4 d from the cut-off ({cz}, {span})")
+    if zones and zones["applied"]:
+        z = st["zones"]
+        pos = st["positions"]
+        end = max(p for p in pos if p <= z["length"] + st["spacing"] + 1e-6)
+        cont_bars = reinf["curtailment"]["continuing"] if reinf.get("curtailment") else reinf[reinf["tension_face"]]
+        a_cont = cont_bars["count"] * math.pi * cont_bars["dia"] ** 2 / 4
+        dc = eng["curtailment"]["d_cont"] if eng["curtailment"]["applied"] else d
+        pt = min(max(100 * a_cont / (b * dc), 0.15), 3.0)
+        beta = max(0.8 * min(fck, 40) / (6.89 * pt), 1.0)
+        tc = 0.85 * math.sqrt(0.8 * min(fck, 40)) * (math.sqrt(1 + 5 * beta) - 1) / (6 * beta)
+        v_mid = (tc * b * dc + 0.87 * fyv * asv * dc / z["s_mid"]) / 1e3
+        n += 2
+        if v_at(end) > v_mid * 1.03:
+            bad.append(f"{name}: shear {v_at(end):.1f} where the wider spacing begins, above {v_mid:.1f}")
+        gaps = [b2 - a2 for a2, b2 in zip(pos, pos[1:], strict=False)]
+        if max(gaps) > z["s_mid"] + 1e-6 or any(g > st["spacing"] + 1e-6 for a2, g in zip(pos, gaps, strict=False) if a2 < z["length"]):
+            bad.append(f"{name}: stirrup positions exceed the zone spacings")
     return n, bad
 
 

@@ -18,7 +18,7 @@ def checks(res):
 def test_worked_example_matches_the_hand_calculation():
     r = design_beam(BeamInput())
     d = r["data"]
-    assert r["status"] == "ok" and r["checks_passed"] == r["checks_total"] == 15
+    assert r["status"] == "ok" and r["checks_passed"] == r["checks_total"] == 17
     # self-weight 25 x 0.23 x 0.45 = 2.5875; w = 12 + 2.5875 + 8 = 22.5875; wu = 1.5 w
     assert d["w_factored"] == pytest.approx(33.8812, abs=1e-4)
     # d = 450 - 30 - 8 - 16/2; l = min(4000 + 404, 4000 + 230)
@@ -40,9 +40,12 @@ def test_worked_example_matches_the_hand_calculation():
 
 def test_worked_example_bar_schedule_and_quantities():
     r = design_beam(BeamInput())
-    a, b, c = r["bbs"]["items"]
-    # bottom bars: A = 4000 + 2 x (230 - 30); L_d/3 = 259 > 200 so legs of max(9d, 259 - 200 + 2d) = 144 -> 145
-    assert a["dims"] == {"A": 4400, "B": 145} and a["cutting_length_mm"] == 4400 + 2 * 145 - 4 * 16 + 4  # rounded up to 5
+    a, cut, b, c = r["bbs"]["items"]
+    # continuing bottom bars (2 of 3): A = 4000 + 2 x (230 - 30); L_d/3 = 259 > 200 so legs of max(9d, 259 - 200 + 2d) = 144 -> 145
+    assert a["count"] == 2 and a["dims"] == {"A": 4400, "B": 145} and a["cutting_length_mm"] == 4400 + 2 * 145 - 4 * 16 + 4  # rounded up to 5
+    # the middle bar: no longer needed 1212 mm from the face (2-T16 resist 65.26 kN m), stops d = 404 short of it, in 50 mm steps
+    assert cut["count"] == 1 and cut["cutting_length_mm"] == 4000 - 2 * 800
+    assert r["data"]["curtailment"]["x_theory"] == pytest.approx(1212.1, abs=0.2) and r["data"]["curtailment"]["condition"] == "a"
     assert b["cutting_length_mm"] == 4400 and b["count"] == 2
     # stirrups: (4000 - 100) / 300 = 13 spaces; 2(170 + 390) + 2 x 80 - 12 x 8 = 1184 -> 1185
     assert c["count"] == 14 and c["cutting_length_mm"] == 1185
@@ -52,7 +55,7 @@ def test_worked_example_bar_schedule_and_quantities():
     q = r["quantities"]
     assert q["concrete_m3"] == pytest.approx(0.23 * 0.45 * 4.46, abs=1e-3)
     assert q["formwork_m2"] == pytest.approx((0.23 + 0.9) * 4.0, abs=1e-3)
-    assert q["steel_kg"] == pytest.approx(36.3, abs=0.05)
+    assert q["steel_kg"] == pytest.approx(32.8, abs=0.05)  # 36.3 kg before curtailment
 
 
 def test_doubly_reinforced_beam():
@@ -63,7 +66,7 @@ def test_doubly_reinforced_beam():
     assert d["mu_capacity"] >= d["mu"] and d["xu"] <= d["xu_max"] + 1e-6
     assert d["kc"] > 1.0
     assert "asc" in checks(r) and r["status"] == "ok"
-    assert "compression" in r["bbs"]["items"][1]["description"]
+    assert any(i["description"].startswith("Top bars (compression)") for i in r["bbs"]["items"])
 
 
 def test_cantilever_puts_tension_steel_on_top_and_anchors_it():

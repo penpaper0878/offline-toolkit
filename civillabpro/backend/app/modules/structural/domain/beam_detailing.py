@@ -81,16 +81,21 @@ def bar_schedule(
             }
         )
 
-    # ---- main tension bars
+    # ---- main tension bars (the continuing bars when some are curtailed)
     dia = ten["dia"]
+    curt = reinf.get("curtailment")
+    main_label, main_count = (curt["continuing"]["label"], curt["continuing"]["count"]) if curt else (ten["label"], ten["count"])
+    if curt:
+        main_label += " continuing"
+    leg_used = 0.0
     if cantilever:
         need = anch["ld_tension"]  # full development beyond the face of the support, Cl. 26.2.1
         run = lc - cover + embed
         if embed >= need:
-            add(f"Top bars (tension), {ten['label']}", "straight", dia, ten["count"], {"A": run}, run, "A")
+            add(f"Top bars (tension), {main_label}", "straight", dia, main_count, {"A": run}, run, "A")
         else:
-            leg = _ceil5(max(9.0 * dia, need - embed + 2.0 * dia))
-            add(f"Top bars (tension), {ten['label']}", "L-bend at support", dia, ten["count"], {"A": run, "B": leg},
+            leg = leg_used = _ceil5(max(9.0 * dia, need - embed + 2.0 * dia))
+            add(f"Top bars (tension), {main_label}", "L-bend at support", dia, main_count, {"A": run, "B": leg},
                 run + leg - 2.0 * dia, "A + B - 2d (one 90 deg bend)")
             sheet.flag("warning", f"Top bars need L_d = {need:.0f} mm beyond the face of the support; the support gives "
                                   f"{embed:.0f} mm, so the bars are bent down with a {leg:.0f} mm leg. "
@@ -99,14 +104,30 @@ def bar_schedule(
         need = anch["ld_tension"] / 3.0  # Cl. 26.2.3.3(a): one third of L_d into a simple support
         run = lc + 2.0 * embed
         if embed >= need:
-            add(f"Bottom bars (tension), {ten['label']}", "straight", dia, ten["count"], {"A": run}, run, "A")
+            add(f"Bottom bars (tension), {main_label}", "straight", dia, main_count, {"A": run}, run, "A")
         else:
             leg = _ceil5(max(9.0 * dia, need - embed + 2.0 * dia))
-            add(f"Bottom bars (tension), {ten['label']}", "L-bend both ends", dia, ten["count"], {"A": run, "B": leg},
+            add(f"Bottom bars (tension), {main_label}", "L-bend both ends", dia, main_count, {"A": run, "B": leg},
                 run + 2.0 * leg - 4.0 * dia, "A + 2B - 2 x 2d (two 90 deg bends)")
             if leg > D - 2.0 * cover:
                 sheet.flag("warning", f"The {leg:.0f} mm anchorage leg of the bottom bars is longer than the beam is deep: "
                                       "widen the support or use smaller bars.", "IS 456:2000, Cl. 26.2.3.3(a)")
+
+    # ---- curtailed tension bars (Cl. 26.2.3)
+    if curt:
+        cut, x_cut = curt["curtailed"], curt["x_cut"]
+        if cantilever:  # anchored in the support as the continuing bars, stopping x_cut from its face
+            a_len = embed + x_cut
+            if leg_used:
+                add(f"Top bars (tension, curtailed), {cut['label']}, {x_cut:.0f} from the face", "L-bend at support", cut["dia"], cut["count"],
+                    {"A": a_len, "B": leg_used}, a_len + leg_used - 2.0 * cut["dia"], "A + B - 2d (one 90 deg bend)")
+            else:
+                add(f"Top bars (tension, curtailed), {cut['label']}, {x_cut:.0f} from the face", "straight", cut["dia"], cut["count"],
+                    {"A": a_len}, a_len, "A")
+        else:
+            a_len = lc - 2.0 * x_cut
+            add(f"Bottom bars (tension, curtailed), {cut['label']}, stopping {x_cut:.0f} from each face", "straight", cut["dia"], cut["count"],
+                {"A": a_len}, a_len, "A = clear span - 2 x cut-off distance")
 
     # ---- bars on the other face
     run_o = (lc - cover + embed) if cantilever else (lc + 2.0 * embed)
@@ -124,13 +145,20 @@ def bar_schedule(
     # ---- stirrups
     dst, sv = st["dia"], st["spacing"]
     n_st = 0
-    if sv > 0:
+    if st.get("positions"):
+        n_st = len(st["positions"])
+    elif sv > 0:
         zone = (lc - FIRST_STIRRUP_MM - cover) if cantilever else (lc - 2.0 * FIRST_STIRRUP_MM)
         n_st = int(math.floor(max(zone, 0.0) / sv + 1e-9)) + 1
+    zones, cz = st.get("zones"), st.get("cutoff")
+    st_desc = (f"Stirrups, T{dst} at {sv:.0f} c/c for {zones['length']:.0f} from the {'support' if cantilever else 'supports'}, "
+               f"{zones['s_mid']:.0f} c/c or less beyond") if zones else f"Stirrups, T{dst} at {sv:.0f} c/c"
+    if cz:
+        st_desc += f"; {cz['spacing']:.0f} c/c along the stopped bars ({cz['from']:.0f} to {cz['to']:.0f} from the face)"
     a, h = b - 2.0 * cover, D - 2.0 * cover
     hook = max(10.0 * dst, 75.0)
     stirrup_formula = "2(A + B) + 2 x hook - 3 x 2d - 2 x 3d (three 90 deg and two 135 deg bends)"
-    add(f"Stirrups, T{dst} at {sv:.0f} c/c", "closed stirrup, 135 deg hooks", dst, n_st, {"A": a, "B": h, "hook": hook},
+    add(st_desc, "closed stirrup, 135 deg hooks", dst, n_st, {"A": a, "B": h, "hook": hook},
         2.0 * (a + h) + 2.0 * hook - 12.0 * dst, stirrup_formula)
     if st["legs"] == 4:
         n1 = ten["layers"][0]
@@ -334,10 +362,24 @@ def drawing(inp: BeamInput, cover: float, reinf: dict[str, Any], bbs: dict[str, 
         elev.dim(0, -sh, sw, -sh, -2.0 * te, f"{sw:.0f}", te)
         elev.dim(total - sw, -sh, total, -sh, -2.0 * te, f"{sw:.0f}", te)
     n_st, sv = bbs["stirrup_count"], st["spacing"]
-    step = max(1, math.ceil(n_st / 240))  # keep very long beams drawable
-    for i in range(0, n_st, step):
-        x = x0 + i * sv
+    xs = [sw + p for p in st["positions"]] if st.get("positions") else [x0 + i * sv for i in range(n_st)]
+    step = max(1, math.ceil(len(xs) / 240))  # keep very long beams drawable
+    for x in xs[::step]:
         elev.line(x, cover, x, D - cover, "stirrup")
+    curt = reinf.get("curtailment")
+    if curt:  # the curtailed bars, drawn just inside the continuing ones
+        x_cut, dc = curt["x_cut"], curt["curtailed"]["dia"]
+        if cantilever:
+            y_c = y_t - 0.9 * dc
+            elev.line(cover, y_c, sw + x_cut, y_c, "rebar")
+            if leg:
+                elev.line(cover, y_c, cover, y_c - leg, "rebar")
+            elev.dim(sw, D, sw + x_cut, D, 1.2 * te, f"{x_cut:.0f}", te)
+        else:
+            y_c = y_b + 0.9 * dc
+            elev.line(sw + x_cut, y_c, sw + lc - x_cut, y_c, "rebar")
+            elev.dim(sw, 0, sw + x_cut, 0, -1.2 * te, f"{x_cut:.0f}", te)
+            elev.dim(sw + lc - x_cut, 0, sw + lc, 0, -1.2 * te, f"{x_cut:.0f}", te)
     elev.dim(total, 0, total, D, 2.0 * te, f"{D:.0f}", te)
     mid = sw + lc / 2.0
     elev.text(mid, D + 3.4 * te, f"{top['label']} top", te, "middle")
@@ -348,6 +390,12 @@ def drawing(inp: BeamInput, cover: float, reinf: dict[str, Any], bbs: dict[str, 
         f"Concrete M{inp.fck}; main bars Fe {inp.fy}; stirrups Fe {inp.fy_stirrup}.",
         f"Nominal cover {cover:.0f} mm to stirrups ({inp.exposure.replace('_', ' ')} exposure).",
         *(["The flange is the slab, cast with the beam; its bars are the slab's. Dashed line in the elevation: slab soffit."] if flanged else []),
+        *([f"{curt['curtailed']['label']} of the tension bars stop {curt['x_cut']:.0f} mm from the face of the "
+           f"{'support' if cantilever else 'supports'}; {curt['continuing']['label']} run through."] if curt else []),
+        *([f"Stirrups at {sv:.0f} c/c for {st['zones']['length']:.0f} mm from the {'support' if cantilever else 'supports'}, "
+           f"{st['zones']['s_mid']:.0f} c/c or less beyond."] if st.get("zones") else []),
+        *([f"Stirrups at {st['cutoff']['spacing']:.0f} c/c from {st['cutoff']['from']:.0f} to {st['cutoff']['to']:.0f} mm from the face of the "
+           f"{'support' if cantilever else 'supports'}, along the stopped bars (IS 456 Cl. 26.2.3.2(b))."] if st.get("cutoff") else []),
         "All dimensions in millimetres. Do not scale from the drawing.",
     ]
     return model.to_dict()

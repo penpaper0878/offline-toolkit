@@ -100,7 +100,7 @@ def test_exports_are_real_documents(client, team, design):
     xlsx = client.get(f"{url}/bbs.xlsx", headers=team["viewer"])
     wb = openpyxl.load_workbook(io.BytesIO(xlsx.content))
     ws = wb["BBS"]
-    assert ws["A1"].value == "Bar bending schedule" and ws["B8"].value.startswith("Bottom bars (tension), 3-T16")
+    assert ws["A1"].value == "Bar bending schedule" and ws["B8"].value.startswith("Bottom bars (tension), 2-T16 continuing") and ws["B9"].value.startswith("Bottom bars (tension, curtailed), 1-T16")
     assert ws["I8"].value == 4630 and ws["J8"].value == "=ROUND(E8*I8/1000,3)" and wb["Summary"]["A2"].value == 8
 
     dxf = client.get(f"{url}/drawing.dxf", headers=team["viewer"])
