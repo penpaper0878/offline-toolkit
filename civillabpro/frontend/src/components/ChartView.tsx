@@ -22,6 +22,7 @@ function sides(points: [number, number][]): ("left" | "right")[] {
 export function ChartView({ chart }: { chart: Chart }) {
   const [asTable, setAsTable] = useState(false);
   const axis = (a: Chart["x"]) => `${a.label.replace(/_/g, "")} (${a.unit})`;
+  const below = chart.series.some((s) => s.points.some(([, y]) => y < 0)); // hogging moments, for one, are drawn negative
   const data = chart.series.map((s) => {
     const side = sides(s.points);
     return s.points.map(([x, y], i): Point => ({ x, y, label: s.labels?.[i], series: s.name, side: side[i] }));
@@ -66,7 +67,7 @@ export function ChartView({ chart }: { chart: Chart }) {
                 axisLine={{ stroke: "var(--viz-axis)" }} domain={[0, "auto"]}
                 label={{ value: axis(chart.x), position: "insideBottom", offset: -8, fontSize: 11, fill: "var(--clp-ink-2)" }} />
               <YAxis type="number" dataKey="y" name={chart.y.label} tick={{ fontSize: 11, fill: "var(--clp-ink-3)" }} tickLine={false} axisLine={false}
-                domain={[0, "auto"]} width={56}
+                domain={[below ? "auto" : 0, "auto"]} width={56}
                 label={{ value: axis(chart.y), angle: -90, position: "insideLeft", offset: 6, fontSize: 11, fill: "var(--clp-ink-2)" }} />
               <Tooltip
                 cursor={{ stroke: "var(--clp-ink-3)", strokeDasharray: "3 3" }}

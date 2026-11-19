@@ -14,7 +14,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError, download } from "../api/client";
 import { useCalculation, useDesign, useElements, useInvalidatingMutation, useProject } from "../api/hooks";
-import type { Design, DesignResult, ElementSpec } from "../api/types";
+import type { Design, DesignResult, DrawingView, ElementSpec } from "../api/types";
 import { CalcSheet, ChecksTable, Flags } from "../components/CalcSheet";
 import { DrawingCanvas } from "../components/DrawingCanvas";
 import { Unit } from "../components/Fx";
@@ -34,9 +34,40 @@ interface Workspace {
   setValue: (key: string, value: unknown) => void;
   result: DesignResult | undefined;
   readOnly: boolean;
+  /** The view each drawing panel shows when the drawing has more views than there are panels (a beam of many spans). */
+  picks: Record<string, string>;
+  setPick: (panel: string, viewId: string) => void;
 }
 const Ctx = createContext<Workspace | null>(null);
 const useWorkspace = () => useContext(Ctx)!;
+
+const DRAWING_PANELS = ["section", "elevation"] as const;
+/** The view a drawing panel shows: the one picked for it, or the view in its own place (first, second). */
+function viewFor(views: DrawingView[] | undefined, panel: string, picks: Record<string, string>): DrawingView | undefined {
+  if (!views?.length) return undefined;
+  return views.find((v) => v.id === picks[panel]) ?? views[DRAWING_PANELS.indexOf(panel as (typeof DRAWING_PANELS)[number])];
+}
+
+function DrawingPanel({ panel, missing }: { panel: string; missing: string }) {
+  const w = useWorkspace();
+  const views = w.result?.drawing?.views;
+  const view = viewFor(views, panel, w.picks);
+  if (!view || !views) return <Scroll><Missing what={missing} /></Scroll>;
+  return (
+    <div className="h-full flex flex-col bg-[var(--clp-panel)]">
+      {views.length > DRAWING_PANELS.length && (
+        <div className="shrink-0 px-2 py-1 border-b border-[var(--clp-border)] flex items-center gap-2 text-[12px]">
+          <label htmlFor={`view-${panel}`} className="text-[var(--clp-ink-3)]">View</label>
+          <select id={`view-${panel}`} value={view.id} onChange={(e) => w.setPick(panel, e.target.value)}
+            className="h-6 px-1 bg-transparent border border-[var(--clp-border)] rounded text-[12px] text-[var(--clp-ink)] cursor-pointer">
+            {views.map((v) => <option key={v.id} value={v.id}>{v.title}</option>)}
+          </select>
+        </div>
+      )}
+      <div className="flex-1 min-h-0"><DrawingCanvas view={view} /></div>
+    </div>
+  );
+}
 
 const Missing = ({ what }: { what: string }) => <div className="p-4 text-[var(--clp-ink-3)]">{what} appears once the calculation runs through.</div>;
 const Scroll = ({ children }: { children: React.ReactNode }) => <div className="h-full overflow-auto bg-[var(--clp-panel)] text-[var(--clp-ink)]">{children}</div>;
@@ -45,9 +76,10 @@ const Scroll = ({ children }: { children: React.ReactNode }) => <div className="
 const PANELS: Record<string, React.FunctionComponent<IDockviewPanelProps>> = {
   properties: () => { const w = useWorkspace(); return <Scroll><PropertyGrid properties={w.spec.input_schema.properties} values={w.values} errors={w.errors} onChange={w.setValue} disabled={w.readOnly} /></Scroll>; },
   // The two drawing panels show the element's first and second views (a section for members, a plan for slabs and
-  // footings); their tab titles follow the views' titles. The panel ids stay fixed so saved layouts keep working.
-  section: () => { const v = useWorkspace().result?.drawing?.views[0]; return v ? <DrawingCanvas view={v} /> : <Scroll><Missing what="The drawing" /></Scroll>; },
-  elevation: () => { const v = useWorkspace().result?.drawing?.views[1]; return v ? <DrawingCanvas view={v} /> : <Scroll><Missing what="The second view" /></Scroll>; },
+  // footings), or any view picked in them where there are more; their tab titles follow the views' titles. The panel ids
+  // stay fixed so saved layouts keep working.
+  section: () => <DrawingPanel panel="section" missing="The drawing" />,
+  elevation: () => <DrawingPanel panel="elevation" missing="The second view" />,
   calculation: () => { const r = useWorkspace().result; return <Scroll>{r ? <CalcSheet sheet={r.sheet} /> : <Missing what="The calculation sheet" />}</Scroll>; },
   checks: () => { const r = useWorkspace().result; return <Scroll>{r ? <ChecksTable sheet={r.sheet} /> : <Missing what="The list of checks" />}</Scroll>; },
   bbs: () => { const r = useWorkspace().result; return <Scroll>{r?.bbs ? <BbsTable bbs={r.bbs} /> : <Missing what="The bar bending schedule" />}</Scroll>; },
@@ -81,7 +113,7 @@ function defaultLayout(dock: DockviewApi) {
 /** Name the two drawing tabs after the views they show ("Plan", "Section A-A", ...). */
 function applyViewTitles(dock: DockviewApi | null, titles: string) {
   if (!dock || !titles) return;
-  titles.split("\n").slice(0, 2).forEach((title, i) => dock.getPanel(i === 0 ? "section" : "elevation")?.api.setTitle(title));
+  titles.split("\n").slice(0, 2).forEach((title, i) => { if (title) dock.getPanel(DRAWING_PANELS[i])?.api.setTitle(title); });
 }
 
 function useDebounced<T>(value: T, ms: number): T {
@@ -206,14 +238,17 @@ export function DesignWorkspacePage() {
     e.api.onDidLayoutChange(() => { try { localStorage.setItem(key, JSON.stringify(e.api.toJSON())); } catch { /* layout not remembered */ } });
   }, [elementType]);
 
-  const viewTitles = result?.drawing?.views.map((v) => v.title).join("\n") ?? "";
+  const [picks, setPicks] = useState<Record<string, string>>({});
+  useEffect(() => setPicks({}), [elementType]);
+  const setPick = useCallback((panel: string, viewId: string) => setPicks((p) => ({ ...p, [panel]: viewId })), []);
+  const viewTitles = DRAWING_PANELS.map((pn) => viewFor(result?.drawing?.views, pn, picks)?.title ?? "").join("\n");
   useEffect(() => { titlesRef.current = viewTitles; applyViewTitles(dockRef.current, viewTitles); }, [viewTitles]);
 
   if (saved.error) return <div className="p-6 text-[var(--clp-bad)]" role="alert">{(saved.error as Error).message} <Link to="/projects">Back to projects</Link></div>;
   if (elements.isSuccess && elementType && !spec) return <div className="p-6 text-[var(--clp-bad)]" role="alert">This server has no designer for "{elementType}".</div>;
   if (!spec || !values) return <div className="p-6 text-[var(--clp-ink-3)]">Opening design</div>;
 
-  const workspace: Workspace = { spec, values, errors: { ...serverErrors, ...errors }, setValue, result, readOnly };
+  const workspace: Workspace = { spec, values, errors: { ...serverErrors, ...errors }, setValue, result, readOnly, picks, setPick };
   const stale = !valid || calc.isError;
   return (
     <Ctx.Provider value={workspace}>

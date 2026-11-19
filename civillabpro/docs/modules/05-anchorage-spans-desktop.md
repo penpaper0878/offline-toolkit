@@ -7,7 +7,7 @@ The items left open at 0.4.0, built one at a time: STR-038 and STR-037 finish th
 | STR-038 anchorage in the continuous beam's bar selection | done | continuous beam 1.3.0 |
 | STR-037 U-hooks; L_0 measured to the start of the bend | done | beam 1.4.0, continuous beam 1.4.0, footing 1.1.0 |
 | STR-039 curtailment kept off the compression steel of the supports (defect) | done | continuous beam 1.5.0 |
-| STR-036 continuous beams of unequal spans and point loads | in progress | |
+| STR-036 continuous beams of unequal spans and point loads | done | continuous beam 1.5.0 (elastic method) |
 | PLAT-010 desktop shell | not started | |
 
 ## STR-038: anchorage in the continuous beam's bar selection
@@ -78,3 +78,92 @@ Worked examples:
 **Fix.** Before stopping any bottom bars of a span, the engine recomputes each neighbouring support with only the continuing bars as compression steel. If that support would fall short of A_sc,req, become over-reinforced, or resist less than its moment, the span's bars are not curtailed, and the sheet says why. Code register interpretation 70a; continuous beam 1.5.0.
 
 **Tests.** `test_curtailment_keeps_the_compression_steel_of_the_supports`. The hand check now recomputes every support with the bars that actually reach it from each side, by its own stress-block bisection. With the fix reverted it reports the T-beam floor case and the new shallow-beam case. With the fix, 897 values over 15 cases agree.
+
+## STR-036: continuous beams of unequal spans and point loads, by elastic analysis
+
+### 1. Requirements
+
+**Goal.** Design a continuous beam whose spans differ, or that carries point loads, which the coefficients of Tables 12 and 13 cannot do (Cl. 22.5.1). Use an elastic analysis of the arrangements of Cl. 22.4.1, with the redistribution of moments that Cl. 22.7 allows by Cl. 37.1.1. Design, detail, curtail and draw every span and support, and check everything independently.
+
+**Inputs.** The element's new `analysis` field picks the method. The elastic method takes:
+
+* a table of spans (two to twelve): clear span, dead and imposed uniform load;
+* a table of point loads: span, distance from the left face, dead and imposed load;
+* the redistribution, up to 30 percent.
+
+Section, materials, support width, bar sizes and stirrups are shared with the coefficient method.
+
+### 2. Architecture
+
+No new endpoint, table or screen. The registry pattern gained two general abilities:
+
+* **Table fields.** A list of records in an input model reaches the client with its rows' schema inlined (`ElementSpec.input_schema()`). The property grid edits it as a table: cells validated against the schema, rows added by copying the last one, rows removed down to the minimum. The PDF report prints a line per row. Any element can now take tabular input.
+* **Drawings of many views.** Where a drawing has more views than the two drawing panels, each panel offers a picker, and its tab title follows the view it shows.
+
+| Layer | File | What |
+|---|---|---|
+| Kernel | `engineering/continuous.py` | `SpanLoad`, three-moment equation under any loads, free diagrams, `arrangements`, `redistribute` (one fraction or one per support), `envelopes` with stations either side of every point load |
+| Domain | `continuous_elastic.py` | effective spans, the `Beam` design envelope, per-span and per-support bar selection with Cl. 37.1.1(d), the stepping down of redistribution, shear, deflection, extents, laps, the curtailment and stirrup plan, anchorage, charts |
+| Domain | `continuous_elastic_detailing.py` | per-span layout of support bars and hangers, the merged schedule, quantities, an elevation per span and two cross-sections |
+| Domain | `continuous_beam.py` | the `analysis`, `span_table`, `point_loads` and `redistribution_pct` inputs; dispatch to the elastic method |
+| Client | `PropertyGrid.tsx`, `DesignWorkspacePage.tsx`, `ChartView.tsx` | table fields, the view picker, charts below zero |
+| Export | `pdf_report.py` | list inputs, a line per row |
+
+### 3. Engineering logic
+
+| Step | Rule | Reference |
+|---|---|---|
+| Effective spans | Cl. 22.2(b) per span, with the greatest effective depth the bars allow (the longest spans) | Cl. 22.2 |
+| Analysis | knife edges, end supports free; dead loads everywhere, each span's imposed loads by the arrangements (all, alternate, adjacent pairs) | Cl. 22.4.1 |
+| Redistribution | each arrangement's hogging held to (1 - r) of the support's greatest elastic hogging; span moments by statics; r stepped down by 5 percent at a support that cannot meet (d) | Cl. 22.7, 37.1.1(a), (c) |
+| Design envelope | max(redistributed, 0.7 elastic) everywhere | Cl. 37.1.1(b) |
+| Sections | each span for its greatest sagging, each support for its hogging at the centre line with the lighter adjacent bottom bars as compression steel; x_u/d + dM/100 <= 0.6 where the resistance is below the elastic moment | Annex G, Cl. 37.1.1(d) |
+| Shear | V at d from the face (at the face beside a point load within d); stirrup bands wherever the shear needs closer than the minimum-steel spacing | Cl. 22.6.2.1, 40.4, 26.5.1.5, 26.5.1.6 |
+| Detailing | extents beyond the points of inflection, curtailment with Cl. 26.2.3.2, anchorage of Cl. 26.2.3.3(c) at the end supports (straight, bend or U-hook) and the points of inflection; top bars that meet within a span lap in tension, checked by developed resistance | Cl. 26.2.1, 26.2.3, 26.2.5.1 |
+
+Worked example (the defaults of the span table): spans of 5.0, 6.5 and 4.5 m, a 40 + 30 kN point load 3.0 m into span 2, 15 percent redistribution, 300 x 500, M25 / Fe 500. Results:
+
+* Supports 2 and 3 are designed for 270.9 and 252.2 kN m, against elastic greatest moments of 318.7 and 296.8 kN m.
+* Span 2's moment rises from 280.0 to 292.5 kN m, keeping equilibrium.
+* Bars: span 1 4-T16, span 2 4-T25 (doubly reinforced), span 3 5-T12; 9-T16 (6+3) over support 2 and 5-T20 over support 3.
+* All 76 checks are OK; 351 kg of steel.
+
+With 30 percent entered, support 2 takes 30 percent and support 3 takes 25, because at 30 percent no arrangement of top bars there keeps x_u/d within 0.3.
+
+### 4. Validation
+
+`tests/handcheck/check_continuous_elastic.py` works by a different route throughout:
+
+* the arrangements by Hardy Cross moment distribution, with the fixed-end moments of uniform and point loads and the end spans released;
+* the diagrams by statics from the left reaction;
+* the steel by the stress block, with SP 16 Table A for compression steel;
+* tau_c by the SP 16 closed form.
+
+It checks:
+
+* the effective spans, the elastic and design moments at every support and span, and the end shears;
+* the steel against each moment, and Cl. 37.1.1(d);
+* every stirrup gap against the shear there, and the extents of the top bars;
+* every cut-off, moved back by d or 12 phi, against the bars that remain;
+* the resistance diagram of the bars as detailed against the design envelope at 200 stations a span, which also covers 0.7 of the elastic envelope;
+* the anchorage at the end supports and the points of inflection, and the deflection allowance.
+
+936 values over 14 cases (two to five spans, T and L beams, wide supports, a short span between long ones, a point load beside a support, 0 to 30 percent redistribution, T32 bars governed by anchorage) and 2 stop states agree.
+
+Four sabotaged engines each fail it:
+
+* a point-load term taken from the wrong end;
+* no cap on the support moments;
+* anchorage at the points of inflection switched off;
+* stirrups 10 percent wider.
+
+A 0.6 floor in place of 0.7 changes no result in these cases (it cannot move a point of inflection), which is why the resistance-diagram check guards Cl. 37.1.1(b) directly.
+
+### 5. Tests
+
+| Suite | Tests | Proves |
+|---|---|---|
+| `tests/unit/test_continuous_elastic.py` | 14 | kernel against closed forms (3PL/16, a point load in one span, uniform loads as the coefficient routine); free diagrams; the redistribution cap; stations at point loads; the worked example; Cl. 37.1.1(d); no redistribution; two spans with a mirrored schedule; meeting top bars; shear at the face beside a point load; stops and input errors; the coefficient method unchanged; stepping redistribution down; a random sweep |
+| `tests/api/test_structural.py` | 1 new | inlined table schemas, calculation, field errors inside a table (`span_table.1.clear_span_mm`), save, revise, PDF, Excel and DXF |
+| `frontend/src/components/components.test.tsx` | 3 new | a table field validated row by row, edited, rows added and removed; a chart with negative values |
+| `e2e/walkthrough.js` | 1 new leg | switch to the elastic method, edit the span table, add a span, pick a view, charts, save and export, 0 console errors |

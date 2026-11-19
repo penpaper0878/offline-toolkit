@@ -211,7 +211,7 @@ src/
 
 * **Shell**: a ribbon with a Home tab and a contextual tab the current page registers; a module sidebar that also shows the roadmap; open documents as tabs; a status bar with server state; Ctrl K for commands and search; a draggable calculator; light and dark themes.
 * **Design workspace**: dockable panels (dockview). Inputs change, are validated against the schema limits, debounced, and sent to the calculate endpoint; the previous result stays on screen until the new one arrives. Reports are issued only from a saved revision.
-* **Schema-driven forms**: the property grid is generated from the element's JSON schema. The client holds no per-element form code.
+* **Schema-driven forms**: the property grid is generated from the element's JSON schema. The client holds no per-element form code. A list of records (the spans of a continuous beam, its point loads) is a table field: the server inlines the rows' schema (`ElementSpec.input_schema()`), the grid edits it as a table and the report prints a line per row.
 * **Code splitting**: the dashboard (charts), the workspace (docking) and administration load on demand.
 * **No external requests**: fonts and icons are bundled, so the desktop install works offline.
 

@@ -1,5 +1,5 @@
 // End-to-end walkthrough in a real browser: register, create a project, design a beam, a column, a slab,
-// a footing and a continuous beam, save, download each report / schedule / drawing, switch theme, search, use the calculator,
+// a footing and a continuous beam (by coefficients and by elastic analysis), save, download each report / schedule / drawing, switch theme, search, use the calculator,
 // reload.
 //
 //   1. start the API and the web client (see README.md)
@@ -158,6 +158,37 @@ const BASE = process.argv[3] || process.env.BASE || 'http://127.0.0.1:5173';
     await page.waitForTimeout(500);
     await shot(`${el.name}-2-section-bbs`);
   }
+
+  step('continuous beam by elastic analysis');
+  await page.locator('[data-ribbon="project"]').click();
+  await page.getByRole('link', { name: /New RCC continuous beam/ }).click();
+  await page.getByLabel('Analysis', { exact: true }).waitFor({ timeout: 15000 });
+  await page.getByLabel('Analysis', { exact: true }).selectOption('elastic');
+  await page.getByRole('table', { name: 'Spans' }).waitFor();
+  await page.getByText('Span 1: support 1 to support 2', { exact: true }).first().waitFor({ timeout: 15000 });
+  await page.getByLabel('Clear span, row 3').fill('5500');
+  await page.getByRole('button', { name: 'Add row' }).first().click(); // a fourth span, copying the third
+  // more views than drawing panels: each panel picks the one it shows, and its tab follows
+  const picker = page.locator('select[id^="view-"]').first(); // the drawing tab in front (a saved layout may have either)
+  await picker.locator('option', { hasText: 'Span 4: support 4 to support 5' }).waitFor({ state: 'attached', timeout: 15000 });
+  await picker.selectOption({ label: 'Span 4: support 4 to support 5' });
+  await page.getByText('Span 4: support 4 to support 5', { exact: true }).first().waitFor({ timeout: 10000 });
+  await page.waitForTimeout(500);
+  await shot('continuous-elastic-1-elevation');
+  await page.getByText('Charts', { exact: true }).first().click();
+  await page.waitForTimeout(600);
+  await shot('continuous-elastic-2-charts');
+  await page.keyboard.press('Control+s');
+  await page.waitForURL('**/designs/*', { timeout: 10000 });
+  await page.getByText(/saved/i).first().waitFor();
+  for (const [id, ext] of [['pdf', '.pdf'], ['xlsx', '.xlsx'], ['dxf', '.dxf']]) {
+    const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), page.locator(`[data-ribbon="${id}"]`).click()]);
+    await dl.saveAs(`${out}/export-continuous-elastic${ext}`);
+    console.log('download', dl.suggestedFilename(), require('fs').statSync(`${out}/export-continuous-elastic${ext}`).size);
+  }
+  await page.getByText('Bar schedule', { exact: true }).first().click();
+  await page.waitForTimeout(500);
+  await shot('continuous-elastic-3-bbs');
 
   step('dashboard with data');
   await page.keyboard.press('Alt+1');

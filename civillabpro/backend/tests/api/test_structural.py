@@ -270,3 +270,31 @@ def test_continuous_beam_goes_through_the_same_life_cycle(client, team, project)
     assert revised["result"]["data"]["m_b"] > d["result"]["data"]["m_b"]
     assert wb["BBS"]["B8"].value.startswith("Bottom bars, end spans")
     assert "CLP-REBAR" in {layer.dxf.name for layer in doc.layers}
+
+
+def test_continuous_beam_by_elastic_analysis_through_the_same_endpoints(client, team, project):
+    cb = {e["type"]: e for e in client.get("/api/v1/structural/elements", headers=team["viewer"]).json()}["continuous_beam"]
+    props = cb["input_schema"]["properties"]
+    # list inputs reach the client with their rows' schema inlined
+    assert props["span_table"]["type"] == "array" and props["span_table"]["items"]["properties"]["clear_span_mm"]["unit"] == "mm"
+    assert props["point_loads"]["items"]["properties"]["span"]["type"] == "integer" and "$defs" not in cb["input_schema"]
+    assert props["span_table"]["show_if"] == {"analysis": "elastic"} and props["spans"]["show_if"] == {"analysis": "coefficients"}
+    calc = client.post("/api/v1/structural/continuous_beam/calculate", headers=team["viewer"], json={"analysis": "elastic"}).json()
+    assert calc["status"] == "ok" and calc["data"]["method"] == "elastic" and len(calc["charts"]) == 2
+    bad = client.post("/api/v1/structural/continuous_beam/calculate", headers=team["viewer"],
+                      json={"analysis": "elastic", "span_table": [{"clear_span_mm": 5000}, {"clear_span_mm": 500}]})
+    assert bad.status_code == 422 and bad.json()["error"]["details"][0]["field"] == "span_table.1.clear_span_mm"
+
+    r = client.post(f"/api/v1/projects/{project['id']}/designs", headers=team["engineer"],
+                    json={"element_type": "continuous_beam", "name": "CB2", "inputs": {"analysis": "elastic"}})
+    assert r.status_code == 201, r.text
+    d = r.json()
+    url = f"/api/v1/designs/{d['id']}"
+    revised = client.put(url, headers=team["engineer"], json={"inputs": {**d["inputs"], "redistribution_pct": 30}}).json()
+    assert revised["result"]["data"]["m_sup"][1] < d["result"]["data"]["m_sup"][1]  # more redistribution, less hogging to design for
+    pdf = client.get(f"{url}/report.pdf", headers=team["viewer"])
+    assert pdf.content.startswith(b"%PDF-")
+    wb = openpyxl.load_workbook(io.BytesIO(client.get(f"{url}/bbs.xlsx", headers=team["viewer"]).content))
+    assert wb["BBS"]["B8"].value.startswith("Bottom bars")
+    doc = ezdxf.read(io.StringIO(client.get(f"{url}/drawing.dxf", headers=team["viewer"]).content.decode()))
+    assert not doc.audit().errors

@@ -57,15 +57,45 @@ REF = is456.CODE
 FIRST_STIRRUP_MM = 50.0
 
 
+_COEF: dict[str, Any] = {"analysis": "coefficients"}
+_ELASTIC: dict[str, Any] = {"analysis": "elastic"}
+
+
+class SpanRow(BaseModel):
+    """One span of the elastic method, left to right."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    clear_span_mm: float = _f(5000, "Clear span", "Spans", "mm", ge=1000, le=20000)
+    dead_load_kn_m: float = _f(25, "Dead load", "Spans", "kN/m", ge=0, le=5000, description="Characteristic, uniform, excluding self-weight")
+    live_load_kn_m: float = _f(15, "Imposed load", "Spans", "kN/m", ge=0, le=5000, description="Characteristic, uniform")
+
+
+class PointLoad(BaseModel):
+    """A point load of the elastic method, on one span."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    span: int = _f(2, "Span", "Point loads", ge=1, le=12, description="Counted from the left")
+    distance_mm: float = _f(3000, "From the left face", "Point loads", "mm", ge=0, le=20000, description="From the face of the span's left support")
+    dead_kn: float = _f(40, "Dead load", "Point loads", "kN", ge=0, le=5000, description="Characteristic")
+    live_kn: float = _f(30, "Imposed load", "Point loads", "kN", ge=0, le=5000, description="Characteristic")
+
+
 class ContinuousBeamInput(BaseModel):
-    """Everything the continuous beam engine reads. Lengths in mm, loads in kN/m."""
+    """Everything the continuous beam engine reads. Lengths in mm, loads in kN/m and kN."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     mark: str = _f("CB1", "Member mark", "Member", min_length=1, max_length=40)
-    spans: int = _f(4, "Number of spans", "Member", ge=3, le=12, description="Tables 12 and 13 need three or more spans")
-    clear_span_mm: float = _f(5000, "Clear span of each span", "Geometry", "mm", ge=1000, le=20000,
+    analysis: Literal["coefficients", "elastic"] = _f(
+        "coefficients", "Analysis", "Member",
+        labels={"coefficients": "Tables 12 and 13 (equal spans, uniform load)", "elastic": "Elastic, with redistribution (any spans, point loads)"})
+    spans: int = _f(4, "Number of spans", "Member", "", _COEF, ge=3, le=12, description="Tables 12 and 13 need three or more spans")
+    clear_span_mm: float = _f(5000, "Clear span of each span", "Geometry", "mm", _COEF, ge=1000, le=20000,
                               description="Spans may differ by up to 15 percent of the longest (Cl. 22.5.1): enter the longest")
+    span_table: list[SpanRow] = _f([SpanRow(clear_span_mm=5000), SpanRow(clear_span_mm=6500), SpanRow(clear_span_mm=4500)], "Spans", "Geometry", "",
+                                   _ELASTIC, min_length=2, max_length=12, description="Two to twelve spans, left to right")
     support_width_mm: float = _f(300, "Support width", "Geometry", "mm", ge=100, le=2000, description="Along the beam, each support")
     section: Literal["rectangular", "t_beam", "l_beam"] = _f("rectangular", "Section", "Geometry", labels=SECTION_LABELS)
     width_mm: float = _f(300, "Width b", "Geometry", "mm", ge=150, le=2000, description="The web width b_w of a T or L beam")
@@ -85,8 +115,12 @@ class ContinuousBeamInput(BaseModel):
     clear_cover_mm: float | None = _f(None, "Cover to stirrups", "Materials", "mm", ge=15, le=100, description="Blank takes IS 456 Table 16")
     max_aggregate_mm: float = _f(20, "Aggregate size", "Materials", "mm", ge=10, le=40)
 
-    dead_load_kn_m: float = _f(25, "Dead load", "Loading", "kN/m", ge=0, le=5000, description="Characteristic, on every span, excluding self-weight")
-    live_load_kn_m: float = _f(15, "Imposed load", "Loading", "kN/m", ge=0, le=5000, description="Characteristic, on any span (Table 12, not fixed)")
+    dead_load_kn_m: float = _f(25, "Dead load", "Loading", "kN/m", _COEF, ge=0, le=5000, description="Characteristic, on every span, excluding self-weight")
+    live_load_kn_m: float = _f(15, "Imposed load", "Loading", "kN/m", _COEF, ge=0, le=5000, description="Characteristic, on any span (Table 12, not fixed)")
+    point_loads: list[PointLoad] = _f([PointLoad()], "Point loads", "Loading", "", _ELASTIC, max_length=24,
+                                      description="Characteristic; the imposed part is placed with the span's imposed load (Cl. 22.4.1)")
+    redistribution_pct: float = _f(15, "Redistribution of support moments", "Loading", "%", _ELASTIC, ge=0, le=30,
+                                   description="Cl. 37.1.1: at most 30 percent; the sections must then satisfy x_u/d + dM/100 <= 0.6")
     include_self_weight: bool = _f(True, "Add self-weight", "Loading")
     unit_weight_kn_m3: float = _f(25, "Unit weight of concrete", "Loading", "kN/m3", ge=20, le=30, description="IS 875 (Part 1)")
     load_factor: float = _f(1.5, "Load factor", "Loading", "", ge=1.0, le=2.0, description="On DL + LL, IS 456 Table 18")
@@ -103,8 +137,19 @@ class ContinuousBeamInput(BaseModel):
                 raise ValueError("The flange must be at least 100 mm thinner than the overall depth of the beam.")
             if self.flange_width_mm <= self.width_mm:
                 raise ValueError("The flange width available must be more than the web width.")
-        if self.dead_load_kn_m + self.live_load_kn_m <= 0 and not self.include_self_weight:
-            raise ValueError("Enter a dead or imposed load, or include the self-weight.")
+        if self.analysis == "coefficients":
+            if self.dead_load_kn_m + self.live_load_kn_m <= 0 and not self.include_self_weight:
+                raise ValueError("Enter a dead or imposed load, or include the self-weight.")
+            return self
+        n = len(self.span_table)
+        for k, p in enumerate(self.point_loads, 1):
+            if p.span > n:
+                raise ValueError(f"Point load {k} is on span {p.span}, but the beam has {n} spans.")
+            if p.distance_mm > self.span_table[p.span - 1].clear_span_mm:
+                raise ValueError(f"Point load {k} lies beyond the clear span of span {p.span}.")
+        if not self.include_self_weight and not any(r.dead_load_kn_m + r.live_load_kn_m > 0 for r in self.span_table) and not any(
+                p.dead_kn + p.live_kn > 0 for p in self.point_loads):
+            raise ValueError("Enter a load, or include the self-weight.")
         return self
 
 
@@ -154,7 +199,7 @@ def support_shear(kind: str, wd: float, wl: float, l_mm: float) -> float:
 
 @dataclass(frozen=True)
 class SpanSection:
-    kind: Literal["end", "interior"]
+    kind: str  # "end" or "interior"; the elastic method names each span
     bottom: BarGroup
     top: BarGroup  # hangers, or compression steel where the section is doubly reinforced
     d: float
@@ -171,7 +216,7 @@ class SpanSection:
 
 @dataclass(frozen=True)
 class SupportSection:
-    kind: Literal["B", "C"]
+    kind: str  # "B" or "C"; the elastic method numbers each support
     top: BarGroup
     ybar: float  # centroid of the top bars from the top face
     d: float
@@ -286,6 +331,9 @@ def _n(x: float, dp: int = 2) -> str:
 
 
 def design_continuous_beam(inp: ContinuousBeamInput) -> dict[str, Any]:
+    if inp.analysis == "elastic":
+        from app.modules.structural.domain import continuous_elastic
+        return continuous_elastic.design(inp)
     from app.modules.structural.domain import continuous_beam_detailing as detailing
 
     sheet = CalcSheet()

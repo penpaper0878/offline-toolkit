@@ -33,6 +33,10 @@ BASE = dict(
     flange_thickness_mm=120, flange_width_mm=3000, isolated_flange=False, l0_mm=None, fck=25, fy=500, fy_stirrup=500,
     exposure="moderate", clear_cover_mm=None, max_aggregate_mm=20, dead_load_kn_m=25, live_load_kn_m=15, include_self_weight=True,
     unit_weight_kn_m3=25, load_factor=1.5, main_bar_dia_mm=None, hanger_bar_dia_mm=12, stirrup_dia_mm=8, stirrup_legs=2,
+    # the elastic method's inputs (check_continuous_elastic.py), unused by the coefficients
+    analysis="coefficients", redistribution_pct=15.0,
+    span_table=[dict(clear_span_mm=c, dead_load_kn_m=25.0, live_load_kn_m=15.0) for c in (5000.0, 6500.0, 4500.0)],
+    point_loads=[dict(span=2, distance_mm=3000.0, dead_kn=40.0, live_kn=30.0)],
 )
 
 # By hand for BASE: w_d = 1.5 (25 + 25 x 0.3 x 0.5) = 43.125, w_l = 22.5 kN/m; supports 300 < 5000/12, so

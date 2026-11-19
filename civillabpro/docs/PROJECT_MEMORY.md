@@ -17,7 +17,7 @@ Version 0.4.0. Phase 1 is done: beams (rectangular, T and L; simple, cantilever 
 | Platform core (identity, roles, audit, projects) | built, tested on SQLite and PostgreSQL 16 |
 | Shell and client | built, walked through in a browser in light and dark |
 | Structural: beam engine 1.4.0 (rectangular, T, L; curtailment, stirrup zones, anchorage with bends and U-hooks) | built, independent hand check passing; Fig. 6, Cl. 23.1.2(c), (d) and 26.2.3 to compare with the code |
-| Structural: continuous beam engine 1.5.0 (curtailment, zones, anchorage enforced in the bar selection, U-hooks) | built, independent hand check passing; Table 13 and Cl. 22.2(b), 22.4.1, 26.2.3 to compare with the code |
+| Structural: continuous beam engine 1.5.0 (Tables 12 and 13, or elastic analysis of any spans and point loads with redistribution; curtailment, zones, anchorage, U-hooks) | built, independent hand check passing; Table 13 and Cl. 22.2(b), 22.4.1, 26.2.3 to compare with the code |
 | Structural: column engine 1.0.0 | built, independent hand check passing; code text not yet compared (see the code register) |
 | Structural: slab engine 1.0.0 (one-way, two-way) | built, independent hand check passing; Table 26 rows and Annex D extents to compare with the code |
 | Structural: isolated footing engine 1.1.0 | built, independent hand check passing; Cl. 34 wording to compare with the code |
@@ -32,8 +32,8 @@ Test counts at 0.4.0: backend 319 (277 engineering, architecture and hand checks
 ## NEXT STEPS
 
 1. **STR-009, blocked: compare the column, slab and footing clauses with the code text** (the three "To cross-check" lists in the code register). It needs the user: either approval of a direct download of the public copy, or the pages pasted into the session. Do not work around a declined download. Fix anything that differs and re-run every hand check.
-2. **PLAT-010 desktop shell** (Electron on the single-process backend with SQLite), the first item of phase 2's platform completion.
-3. Release 0.5.0 in progress (note `docs/modules/05-anchorage-spans-desktop.md`): STR-038 and STR-037 done; next STR-036 continuous beams of unequal spans and point loads (elastic envelope with Cl. 22.7 redistribution), then PLAT-010.
+2. **PLAT-010 desktop shell** (Electron on the single-process backend with SQLite): the last item of release 0.5.0 (note `docs/modules/05-anchorage-spans-desktop.md`; STR-038, STR-037, STR-039 and STR-036 done). Then the release: version, samples, screenshots, README.
+3. The continuous beam's follow-ups: STR-040 face moments, STR-041 a width and section per span, STR-042 cantilever ends, STR-043 the coefficient method on the per-span path.
 4. Then phase 2's engineering: STR-020 combined and strap footing; and the estimation module and standards library (see ROADMAP.md).
 
 ## Decisions (do not reopen without a reason recorded here)
@@ -70,6 +70,9 @@ Test counts at 0.4.0: backend 319 (277 engineering, architecture and hand checks
 | D28 | Design moments of continuous beams from Table 12; points of inflection from an elastic analysis of the Cl. 22.4.1 arrangements | the coefficients give no moment diagram; combining Table 12 peaks with a span carrying dead load alone is not a real case and over-extends the bars |
 | D29 | Curtailment diagrams of the continuous beam: the elastic envelope scaled up (never down) to the Table 12 and 13 values | consistent with the sections as designed and with the real arrangements of load |
 | D30 | Cl. 26.2.3.2 is one shared function for both beams, trying (a), then (c), then (b) with closer stirrups; curtailment is skipped where it saves nothing | (a) alone rejected most practical cut-offs |
+| D31 | Unequal spans and point loads are a second method of the continuous beam element (`analysis`), with its own per-span engine and detailing beside the coefficient method's | one element and one workspace for continuous beams; the coefficient engine's outputs and hand check stay as released (porting it onto the per-span path is STR-043) |
+| D32 | Lists of records (spans, point loads) are table fields of the input schema: the server inlines their rows' schema, the grid edits them as tables, the report prints a line per row | the registry pattern carries any element's tabular input; no element-specific form code |
+| D33 | The redistribution entered is a maximum: a support whose section cannot meet Cl. 37.1.1(d) with it takes 5 percent less, recorded on the sheet | the designer's intent survives a section that cannot take all of it, instead of a stop |
 
 Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not here.
 
@@ -107,6 +110,12 @@ Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not her
 * Library versions at 0.1.0 are recent majors (React 19, MUI 9, Vite 8, Tailwind 4, TypeScript 7, dockview-react 8, recharts 3, FastAPI 0.16x, SQLAlchemy 2.1). Check the installed typings before assuming an older API.
 
 ## Log
+
+### 0.5.0 in progress (19 November 2026): STR-036 continuous beams by elastic analysis
+
+* Built: the continuous beam's elastic method. Kernel: any spans with uniform and point loads (three-moment equation), the arrangements of Cl. 22.4.1, redistribution by Cl. 37.1.1 per support, envelopes with stations either side of every point load. Engine `continuous_elastic.py`: effective spans, per-span and per-support design with Cl. 37.1.1(b), (c), (d), shear at d (or at the face beside a point load), stirrup bands, curtailment, anchorage, laps of meeting top bars by developed resistance, charts. Detailing `continuous_elastic_detailing.py`: per-span layout, merged schedule, an elevation per span. Table fields in the property grid and the report (D32); a view picker in the drawing panels; charts draw negative values.
+* Found and fixed while building it: the first lap check of meeting top bars took the weaker set without compression steel across the whole overlap and failed 141 of 400 random designs; it is now a check of the developed resistance at every section. The "Number of spans" field had its condition in the unit slot. A section that cannot take all the redistribution entered now takes less instead of stopping (D33).
+* Hand check `check_continuous_elastic.py`: Hardy Cross with point-load fixed-end moments, statics from the left reaction, the resistance diagram against the design envelope (and so 0.7 of the elastic one), anchorage, extents, cut-offs, every stirrup gap; 936 values over 14 cases and 2 stops. Sabotage runs (a point-load term from the wrong end, no redistribution cap, anchorage at the points of inflection switched off, stirrups 10 percent wider) each fail it.
 
 ### 0.5.0 in progress (19 November 2026): STR-038 and STR-037 anchorage completed
 

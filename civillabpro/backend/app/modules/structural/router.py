@@ -28,7 +28,7 @@ router = APIRouter(tags=["structural"])
 def elements(_: User = Depends(require(P.DESIGN_READ))) -> list[ElementOut]:
     return [
         ElementOut(type=e.type, title=e.title, description=e.description, engine_version=e.engine_version, code_basis=list(e.code_basis),
-                   limitations=list(e.limitations), defaults=e.input_model().model_dump(mode="json"), input_schema=e.input_model.model_json_schema())
+                   limitations=list(e.limitations), defaults=e.input_model().model_dump(mode="json"), input_schema=e.input_schema())
         for e in ELEMENTS.values()
     ]
 
@@ -98,7 +98,7 @@ def _filename(design: StructuralDesign, suffix: str) -> str:
 @router.get("/designs/{design_id}/report.pdf", summary="Calculation report (PDF, A4)", response_class=Response)
 def report_pdf(design_id: uuid.UUID, user: User = Depends(require(P.DESIGN_READ)), db: Session = Depends(get_db)) -> Response:
     design = service.get_design(db, user.org_id, design_id)
-    schema = service.element_or_404(design.element_type).input_model.model_json_schema()
+    schema = service.element_or_404(design.element_type).input_schema()
     pdf = build_pdf(_meta(db, user, design), design.inputs, schema, design.result)
     return Response(pdf, media_type="application/pdf", headers={"Content-Disposition": _filename(design, "_report.pdf")})
 

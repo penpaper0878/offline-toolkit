@@ -183,6 +183,46 @@ The code text was not read. Table 12 and the end-support value of Table 13 were 
 * Cl. 26.2.3.3(b): a quarter of the positive steel into continuous supports (a third is used).
 * Cl. 26.2.3.3(c): the wording of M_1 ("all reinforcement at the section stressed to f_d"), the 30 percent increase, and L_0 at a point of inflection.
 
+### Continuous beam engine 1.5.0: elastic analysis with redistribution (STR-036)
+
+The second method of the continuous beam element (`analysis = "elastic"`). The code text was not read; the wording of Cl. 37.1.1 below is as commonly published.
+
+| Clause | Subject | Where |
+|---|---|---|
+| Cl. 22.2(b) | effective span of each span: narrow supports as 22.2(a); wide supports: end spans l_c + min(d/2, w_s/2), interior spans l_c | `continuous_elastic.effective_spans` |
+| Cl. 22.4.1 | arrangements of imposed load with any loads: all spans, alternate spans, each pair of adjacent spans | `engineering/continuous.arrangements` |
+| Cl. 22.6.2 | moments at the face of monolithic supports (not used: the centre line, on the safe side; the sheet says so) | flag |
+| Cl. 22.6.2.1 | shear at d from the face; at the face where a point load lies within d of it | shear section, stirrup bands |
+| Cl. 22.7 | redistribution with an elastic analysis by 37.1.1; none with the coefficients | the two methods |
+| Cl. 37.1.1(a) | equilibrium: the span moments of every arrangement follow by statics from the modified support moments | `engineering/continuous.redistribute`, `envelopes` |
+| Cl. 37.1.1(b) | resistance nowhere below 70 percent of the elastic envelope | `continuous_elastic.Beam` (design envelope) |
+| Cl. 37.1.1(c) | no moment reduced by more than 30 percent of the numerically largest elastic moment in the member | check `redistribution_<support>` |
+| Cl. 37.1.1(d) | x_u/d + dM/100 <= 0.6 where the resistance is below the elastic moment | bar selection, check `xu_redistribution_<section>` |
+| Cl. 26.2.1, 26.2.5.1(c) | top bars of two supports that meet within a span: tension lap, and each set developed in proportion to its embedment | `continuous_elastic_detailing.layout`, `meet_resistance` |
+
+### Continuous beam engine: elastic interpretations
+
+78. **One element, two methods.** The continuous beam element takes `analysis`: Tables 12 and 13 (equal spans, uniform load, unchanged) or elastic analysis. The elastic method takes a table of spans (clear span, dead and imposed uniform load each), a table of point loads (span, distance from the left face, dead and imposed), and a redistribution percentage.
+79. **The model.** Knife-edge supports, the end supports free, one EI. Each span runs between the ends of its effective span (Cl. 22.2(b)), worked out with the greatest effective depth the bars allow (one layer of T12, or of the bar size entered); that gives the longest spans, on the safe side. The faces lie (l - l_c)/2 inside each end, and point loads are placed from the left face. Point loads lie within the clear span.
+80. **Loads.** Dead loads (uniform and point, with the self-weight) on every span; each span's imposed loads (uniform and point together) placed by the arrangements of interpretation 53. Everything is factored by the one load factor entered.
+81. **Redistribution.** In every arrangement the hogging at each interior support is held to (1 - r) of the greatest elastic hogging there; moments below that are left as they are. The span moments follow by statics. The value entered is the most applied: where no arrangement of top bars meets Cl. 37.1.1(d) with it, that support takes 5 percent less and the envelope is worked out again. The sheet and the summary say where.
+82. **Design envelope** = max(redistributed, 0.7 x elastic) at every section, for sagging and hogging (37.1.1(b)). A support's design moment is therefore (1 - r) M_e, never below 0.7 M_e; a span's is the greatest of its design envelope.
+83. **Condition (c)** is checked at each support as r M_e <= 0.3 x the largest elastic moment anywhere in the beam; with r <= 30 percent it always holds, and the check states it.
+84. **Condition (d).** dM = 100 (1 - M_d / M_e) for the section's design moment against its greatest elastic moment. It applies where the resistance provided is below M_e, with x_u of the bars provided (the compression steel counted). The bar selection passes over arrangements that fail it.
+85. **Support moments at the centre lines** of the supports (the analysis nodes), not at the faces: on the safe side, and right where the supports are walls.
+86. **Shear.** V from the redistributed envelope (equilibrium), at d from the face, or at the face where a point load lies within d of it. At each end, tau_c takes the bars certain to reach that section: the first layer, or the continuing part of a single layer. Along the span, closer stirrups go wherever the shear needs a spacing below that of minimum shear steel (0.75 d, 300 mm), with tau_c of the least such steel and the least d of the span and its supports. Every gap between stirrups is the least spacing required anywhere over it.
+87. **Sections.** Each span is designed for its own greatest sagging, each interior support for its own hogging. The support takes the lighter of its two spans' bottom bars as compression steel; curtailment keeps those bars (interpretation 70a).
+88. **Top bars that meet within a span** (no room for a hanger lapped at both ends) each run at least past mid-span, overlapping by a tension lap. At every section of that span the hogging is checked against the bars developed there, each set in proportion to its embedment beyond the section up to L_d, at the centroid of those bars, with the continuing bottom bars as compression steel.
+89. **Deflection** for each span with its own l/d, basic ratio 26. A span with no sagging takes k_t = 2 (Fig. 4 tops out there).
+90. **The schedule** merges alike rows (same role, shape, size, lengths and count) across spans and supports. The drawing has an elevation of every span and cross-sections of the heaviest span and support. The workspace's drawing panels pick among the views when there are more than two.
+
+### Continuous beam engine: elastic, to cross-check against a printed copy
+
+* Cl. 37.1.1: the 30 percent and its base ("the numerically largest moment given anywhere by the elastic maximum moments diagram for the particular member"); (b) 70 percent; (d) x_u/d + dM/100 <= 0.6 and the meaning of dM.
+* Cl. 22.7: redistribution by 37.1.1 with an elastic analysis; none with the coefficients.
+* Cl. 22.6.2: the face moments for monolithic construction.
+* Cl. 22.4.1, note: the arrangement of imposed load on all spans where it does not exceed three quarters of the dead load (all arrangements are used regardless).
+
 ### Column engine 1.0.0: clauses taken
 
 **Read this first.** The text of IS 456:2000 could not be read while the column engine was built. The public copy at law.resource.org was outside the reach of the session's page-fetching tool, and a direct download was declined by the session's permission check. The clauses below are implemented from the code as commonly published, and the key rules were corroborated against secondary sources (listed at the end). Until a printed, fully amended copy has been compared, treat every item in "To cross-check" below as open.

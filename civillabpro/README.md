@@ -7,11 +7,11 @@ An Indian civil engineering operating system: design to Indian Standards, estima
 | Module | State |
 |---|---|
 | Dashboard, projects, users and roles | built |
-| Structural design: RCC beam (rectangular, T, L) to IS 456:2000 | built (engine 1.3.0) |
-| Structural design: RCC continuous beam (Tables 12 and 13) | built (engine 1.2.0) |
+| Structural design: RCC beam (rectangular, T, L) to IS 456:2000 | built (engine 1.4.0) |
+| Structural design: RCC continuous beam (Tables 12 and 13, or elastic analysis of any spans and point loads with redistribution) | built (engine 1.5.0) |
 | Structural design: RCC column to IS 456:2000 | built (engine 1.0.0); clauses still to be compared with the printed code |
 | Structural design: RCC slab (one-way, two-way) to IS 456:2000 | built (engine 1.0.0); Table 26 rows still to be compared with the printed code |
-| Structural design: RCC isolated footing to IS 456:2000 | built (engine 1.0.0) |
+| Structural design: RCC isolated footing to IS 456:2000 | built (engine 1.1.0) |
 | Structural design: combined footing, staircase, retaining wall and others | phase 2 |
 | Estimation, standards library, water, sewerage, highway, laboratory, GIS, project management, AI assistant | designed, not started |
 
@@ -106,6 +106,7 @@ node e2e/walkthrough.js <folder for screenshots>      # both servers running
 | [docs/modules/02-rcc-column.md](docs/modules/02-rcc-column.md) | 0.2.0: column: engineering logic, validation, tests |
 | [docs/modules/03-slab-and-footing.md](docs/modules/03-slab-and-footing.md) | 0.3.0: slab and isolated footing: engineering logic, validation, tests |
 | [docs/modules/04-beam-extensions.md](docs/modules/04-beam-extensions.md) | 0.4.0: T and L beams, continuous beams, curtailment and stirrup zones, anchorage at supports |
+| [docs/modules/05-anchorage-spans-desktop.md](docs/modules/05-anchorage-spans-desktop.md) | 0.5.0: U-hooks, anchorage in the continuous beam's bar selection, continuous beams of any spans and point loads by elastic analysis, the desktop shell |
 
 ## A note on engineering use
 

@@ -28,6 +28,22 @@ class ElementSpec:
     design: Callable[[Any], dict[str, Any]]
     limitations: tuple[str, ...] = ()
 
+    def input_schema(self) -> dict[str, Any]:
+        """The input model's JSON schema with the definitions of list items inlined, as the property grid and the report read it."""
+        schema = self.input_model.model_json_schema()
+        defs = schema.pop("$defs", {})
+
+        def inline(node: Any) -> Any:
+            if isinstance(node, dict):
+                if "$ref" in node:
+                    return inline({**defs[node["$ref"].rsplit("/", 1)[-1]], **{k: v for k, v in node.items() if k != "$ref"}})
+                return {k: inline(v) for k, v in node.items()}
+            if isinstance(node, list):
+                return [inline(v) for v in node]
+            return node
+
+        return inline(schema)  # type: ignore[no-any-return]
+
 
 ELEMENTS: dict[str, ElementSpec] = {
     beam.ELEMENT_TYPE: ElementSpec(
@@ -40,8 +56,8 @@ ELEMENTS: dict[str, ElementSpec] = {
         design=beam.design_beam,
         limitations=(
             "T and L beams take the slab as the flange (Cl. 23.1.2); the slab's own reinforcement is designed with the slab.",
-            "Uniformly distributed load, or factored forces from an external analysis. Continuous beams by force input.",
-            "No curtailment of bars and one stirrup spacing along the span.",
+            "Uniformly distributed load, or factored forces from an external analysis; continuous beams are their own element.",
+            "With forces entered there is no diagram: the bars run the full length and the stirrups are at one spacing.",
             "Deflection by the span/depth rule of Cl. 23.2.1; no calculated deflection or crack width.",
             "Ductile detailing to IS 13920 is not applied.",
         ),
@@ -49,19 +65,20 @@ ELEMENTS: dict[str, ElementSpec] = {
     continuous_beam.ELEMENT_TYPE: ElementSpec(
         type=continuous_beam.ELEMENT_TYPE,
         title="RCC continuous beam",
-        description="Beam over three or more equal spans by the coefficients of Tables 12 and 13: span and support sections, shear, "
-                    "deflection, extents of the top bars, schedule for the whole beam.",
+        description="Beam over two or more spans: by the coefficients of Tables 12 and 13 (equal spans, uniform load), or by elastic "
+                    "analysis with redistribution of moments (any spans, point loads). Span and support sections, shear, deflection, "
+                    "curtailment, anchorage, schedule and drawing for the whole beam.",
         engine_version=continuous_beam.ENGINE_VERSION,
         code_basis=continuous_beam.CODE_BASIS,
         input_model=continuous_beam.ContinuousBeamInput,
         design=continuous_beam.design_continuous_beam,
         limitations=(
-            "Three or more spans of one clear span (enter the longest where they differ by up to 15 percent) and one section; "
-            "uniform dead and imposed load on every span (Cl. 22.5.1).",
-            "No redistribution of moments with the coefficients (Cl. 22.5.1). For other spans or loads, design each span as a beam "
-            "with the forces of an analysis.",
-            "Top bars over the supports run to the extent of the hogging envelope; bottom bars are not curtailed.",
-            "Torsion and ductile detailing to IS 13920 are not covered.",
+            "One section and one support width for the whole beam; supports are knife edges and the end supports are free to rotate.",
+            "Coefficients: three or more spans of one clear span (the longest where they differ by up to 15 percent), uniform load, no "
+            "redistribution (Cl. 22.5.1).",
+            "Elastic analysis: two to twelve spans, uniform and point loads, redistribution up to 30 percent (Cl. 37.1.1); support moments "
+            "at the centre lines of the supports, not the faces.",
+            "Torsion, cantilevers at the ends and ductile detailing to IS 13920 are not covered.",
         ),
     ),
     column.ELEMENT_TYPE: ElementSpec(

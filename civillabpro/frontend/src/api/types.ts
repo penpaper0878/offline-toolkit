@@ -54,6 +54,8 @@ export interface SchemaProp {
   title?: string; description?: string; type?: string; enum?: (string | number)[]; default?: unknown; minimum?: number; maximum?: number;
   exclusiveMinimum?: number; minLength?: number; maxLength?: number; anyOf?: SchemaProp[]; group?: string; unit?: string;
   show_if?: Record<string, unknown>; labels?: Record<string, string>;
+  /** A list of records (a table): its rows' schema, with the definitions inlined by the server. */
+  items?: { properties?: Record<string, SchemaProp>; description?: string }; minItems?: number; maxItems?: number;
 }
 export interface ElementSpec {
   type: string; title: string; description: string; engine_version: string; code_basis: string[]; limitations: string[];

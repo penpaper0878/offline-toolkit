@@ -312,6 +312,10 @@ def chart_drawing(chart: dict[str, Any], width: float, height: float) -> Drawing
     return d
 
 
+def _plain(value: Any) -> str:
+    return fmt(value, 3).rstrip("0").rstrip(".") if isinstance(value, float) else fmt(value, 0)
+
+
 def _input_rows(schema: dict[str, Any], inputs: dict[str, Any]) -> list[tuple[str, list[list[Any]]]]:
     """Group the inputs for the report from the element's own schema; hidden fields are left out."""
     groups: dict[str, list[list[Any]]] = {}
@@ -321,7 +325,14 @@ def _input_rows(schema: dict[str, Any], inputs: dict[str, Any]) -> list[tuple[st
             continue
         value = inputs.get(key)
         labels = prop.get("labels") or {}
-        shown = "-" if value is None else labels.get(str(value), fmt(value, 3).rstrip("0").rstrip(".") if isinstance(value, float) else fmt(value, 0))
+        if isinstance(value, list):  # a table of records: one line per row, each value with its column's title and unit
+            cols = (prop.get("items") or {}).get("properties", {})
+            lines = [f"{i}. " + ", ".join(f"{c.get('title', k).lower()} {_plain(row.get(k))}{(' ' + c['unit']) if c.get('unit') else ''}"
+                                          for k, c in cols.items()) for i, row in enumerate(value, 1)]
+            groups.setdefault(prop.get("group", "Input"), []).append(
+                [Paragraph(fx(prop.get("title", key), prose=True), BODY), Paragraph("<br/>".join(html.escape(x) for x in lines) or "none", BODY), ""])
+            continue
+        shown = "-" if value is None else labels.get(str(value), _plain(value))
         if value is None and prop.get("description"):
             shown = f"- ({prop['description']})"
         groups.setdefault(prop.get("group", "Input"), []).append(

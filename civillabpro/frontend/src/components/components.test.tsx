@@ -85,6 +85,33 @@ describe("property grid", () => {
     fireEvent.click(screen.getByLabelText("Add self-weight"));
     expect(onChange).toHaveBeenLastCalledWith("self", false);
   });
+
+  const SPANS: SchemaProp = {
+    title: "Spans", type: "array", group: "Geometry", minItems: 2, maxItems: 3,
+    items: { properties: {
+      clear_span_mm: { title: "Clear span", type: "number", minimum: 1000, unit: "mm", default: 5000 },
+      span: { title: "Span", type: "integer", minimum: 1 },
+    } },
+  };
+
+  it("validates a table field row by row and against its row limits", () => {
+    expect(validateField(SPANS, [{ clear_span_mm: 5000, span: 1 }])).toBe("At least 2 rows.");
+    expect(validateField(SPANS, [{ clear_span_mm: 5000, span: 1 }, { clear_span_mm: 500, span: 1 }])).toBe("Row 2, clear span: Not less than 1000.");
+    expect(validateField(SPANS, [{ clear_span_mm: 5000, span: 1 }, { clear_span_mm: 4000, span: 1.5 }])).toBe("Row 2, span: Enter a whole number.");
+    expect(validateField(SPANS, [{ clear_span_mm: 5000, span: 1 }, { clear_span_mm: 4000, span: 2 }])).toBeNull();
+  });
+
+  it("edits a table field: cells, added rows copying the last, removed rows", () => {
+    const onChange = vi.fn();
+    const rows = [{ clear_span_mm: 5000, span: 1 }, { clear_span_mm: 6500, span: 2 }];
+    render(<PropertyGrid properties={{ span_table: SPANS }} values={{ span_table: rows }} errors={{}} onChange={onChange} />);
+    expect(screen.getByRole("table", { name: "Spans" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Clear span, row 2"), { target: { value: "7000" } });
+    expect(onChange).toHaveBeenLastCalledWith("span_table", [rows[0], { clear_span_mm: 7000, span: 2 }]);
+    fireEvent.click(screen.getByRole("button", { name: "Add row" }));
+    expect(onChange).toHaveBeenLastCalledWith("span_table", [...rows, { clear_span_mm: 6500, span: 2 }]);
+    expect(screen.getByRole("button", { name: "Remove row 1" })).toBeDisabled(); // two rows is the least allowed
+  });
 });
 
 const SHEET: Sheet = {
@@ -166,5 +193,19 @@ describe("chart view", () => {
     expect(screen.getByText("Capacity")).toBeInTheDocument();
     expect(screen.getByText("Case 2")).toBeInTheDocument();
     expect(screen.getAllByRole("row")).toHaveLength(2 + 3 + 2); // two header rows, three curve points, two design points
+  });
+});
+
+describe("chart view, negative values", () => {
+  it("draws values below zero (hogging moments) rather than clipping them", async () => {
+    const { ChartView } = await import("./ChartView");
+    const chart = {
+      id: "moments", title: "Design moment envelope", x: { label: "x", unit: "m" }, y: { label: "M_u", unit: "kN m" },
+      series: [{ name: "Greatest sagging", kind: "line" as const, points: [[0, 0], [2.5, 130]] as [number, number][] },
+        { name: "Greatest hogging", kind: "line" as const, points: [[0, 0], [5, -270]] as [number, number][] }],
+    };
+    render(<ChartView chart={chart} />);
+    fireEvent.click(screen.getByRole("button", { name: "Table" }));
+    expect(screen.getByText("-270.0")).toBeInTheDocument();
   });
 });
