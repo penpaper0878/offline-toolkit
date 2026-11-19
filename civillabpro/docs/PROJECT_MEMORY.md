@@ -23,7 +23,7 @@ Version 0.4.0. Phase 1 is done: beams (rectangular, T and L; simple, cantilever 
 | Structural: isolated footing engine 1.1.0 | built, independent hand check passing; Cl. 34 wording to compare with the code |
 | Exports: PDF, Excel, DXF | built, reviewed page by page |
 | Deployment | single-process mode verified; Dockerfile and compose file written, compose validated, image not built (no Docker daemon in the build session) |
-| Desktop shell (Electron) | not started (PLAT-010) |
+| Desktop app (Electron) | built: shell, PyInstaller server bundle, Linux AppImage verified here (packaged smoke test, a killed shell's server stops itself); Windows NSIS built and smoke-tested by CI only (`civillabpro-desktop.yml`) |
 | Modules 3 to 11 | designed in ARCHITECTURE.md and DATABASE_SCHEMA.md, not started |
 | Cloud environment | personal environment `offline-toolkit` (allows law.resource.org; setup script installs the venv, npm packages and PostGIS). The script is unproven until a fresh session starts on it. |
 
@@ -32,7 +32,7 @@ Test counts at 0.4.0: backend 319 (277 engineering, architecture and hand checks
 ## NEXT STEPS
 
 1. **STR-009, blocked: compare the column, slab and footing clauses with the code text** (the three "To cross-check" lists in the code register). It needs the user: either approval of a direct download of the public copy, or the pages pasted into the session. Do not work around a declined download. Fix anything that differs and re-run every hand check.
-2. **PLAT-010 desktop shell** (Electron on the single-process backend with SQLite): the last item of release 0.5.0 (note `docs/modules/05-anchorage-spans-desktop.md`; STR-038, STR-037, STR-039 and STR-036 done). Then the release: version, samples, screenshots, README.
+2. **Release 0.5.0** (note `docs/modules/05-anchorage-spans-desktop.md`; STR-038, STR-037, STR-039, STR-036, PLAT-021 and PLAT-010 done): version, samples, screenshots, README, and the desktop workflow green on both platforms.
 3. The continuous beam's follow-ups: STR-040 face moments, STR-041 a width and section per span, STR-042 cantilever ends, STR-043 the coefficient method on the per-span path.
 4. Then phase 2's engineering: STR-020 combined and strap footing; and the estimation module and standards library (see ROADMAP.md).
 
@@ -111,6 +111,12 @@ Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not her
 * Library versions at 0.1.0 are recent majors (React 19, MUI 9, Vite 8, Tailwind 4, TypeScript 7, dockview-react 8, recharts 3, FastAPI 0.16x, SQLAlchemy 2.1). Check the installed typings before assuming an older API.
 
 ## Log
+
+### 0.5.0 in progress (19 November 2026): PLAT-010 desktop app
+
+* Built: `app/serve.py` (migrate with Alembic, then serve with uvicorn; `--parent-pid` stops the server when the shell is gone); `desktop/`: Electron shell (`main.js`: splash, single instance, window locked to the local origin, menu, `--smoke-test`), launcher (`launcher.js`: paths, environment, signing key, kept port, start, health wait, stop), PyInstaller bundle script, electron-builder config (AppImage, NSIS), README; CI workflow building and smoke-testing the packaged app on Ubuntu and Windows.
+* Verified here: launcher tests (8); the shell from a checkout and the packaged app (unpacked and AppImage) pass the smoke test (sign up, every element designed, 18 exports fetched and recognised through the window); a SIGKILLed shell's server shuts down cleanly within seconds. Not verified here: the Windows installer (CI builds and smoke-tests it).
+* Found and fixed (PLAT-021): every route's session committed after the response was sent (FastAPI's default dependency scope), so the smoke test's first read after a write could get "not found". Sessions are now scoped to the path operation, with a test over every route.
 
 ### 0.5.0 in progress (19 November 2026): STR-036 continuous beams by elastic analysis
 

@@ -37,7 +37,8 @@ State: **done**, **next** (the item to start with), **ready** (can be started), 
 | UI-006 | Drawing tabs follow each element's views; vertical text in drawings (0.3.0) |
 | STR-014 | Beam engine 1.1.0: flanged sections (T and L), Annex G-2, Fig. 6, rib quantities and drawing (0.4.0) |
 | UI-007 | Conditional property rows on a list of values (`show_if` with several values) (0.4.0) |
-| PLAT-019 | Database sessions end before the response is sent (`Depends(get_db, scope="function")`), with a test over every route: with FastAPI's default scope a write was committed after its success response, so an immediate read could miss it (a defect since 0.1.0, found by the desktop smoke test) (0.5.0) |
+| PLAT-010 | Desktop app: Electron shell over the one-process server (`app/serve.py`: migrate, then serve, watching the shell), SQLite in the user's data folder, PyInstaller server bundle, Linux AppImage and Windows NSIS installers built and smoke-tested in CI (0.5.0) |
+| PLAT-021 | Database sessions end before the response is sent (`Depends(get_db, scope="function")`), with a test over every route: with FastAPI's default scope a write was committed after its success response, so an immediate read could miss it (a defect since 0.1.0, found by the desktop smoke test) (0.5.0) |
 | UI-008 | Table fields in the property grid: lists of records from the input schema, rows added and removed, validated cell by cell (0.5.0) |
 | STR-015 | Continuous beam 1.0.0: equal spans by Tables 12 and 13, elastic placing of the points of inflection, schedule for the whole beam (0.4.0) |
 | ENG-006 | Continuous beam analysis kernel `continuous.py` (three-moment equation, Cl. 22.4.1 arrangements, envelope) (0.4.0) |
@@ -80,8 +81,9 @@ State: **done**, **next** (the item to start with), **ready** (can be started), 
 
 | ID | Item | State | Notes |
 |---|---|---|---|
-| PLAT-010 | Desktop shell (Electron) with packaged backend and SQLite | ready | backend already runs single-process |
-| PLAT-011 | Installers for Windows and Linux; auto-update | later | after PLAT-010 |
+| PLAT-011 | Auto-update of the desktop app | later | installers exist (PLAT-010); needs a release channel |
+| PLAT-022 | Code-signing of the desktop installers | ready | Windows SmartScreen warns on unsigned installers; needs a certificate |
+| PLAT-023 | macOS build of the desktop app | later | the shell is platform-neutral; needs a Mac runner and notarisation |
 | PLAT-012 | File storage port (S3-compatible and local folder), `files` table | ready | |
 | PLAT-013 | Document control register and transmittals | later | after PLAT-012 |
 | PLAT-014 | Job queue (Redis, Celery) and job status API | later | first needed by WAT-030 |

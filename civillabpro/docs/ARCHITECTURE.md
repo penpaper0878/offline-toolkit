@@ -156,8 +156,8 @@ flowchart TB
 ```
 
 * **Web**: stateless application containers behind a proxy; PostgreSQL holds all state. Built and verified (without the proxy, Redis and workers, which nothing uses yet).
-* **Single-process mode**: with `CLP_STATIC_DIR` set, the API process also serves the built client. This is the small-server deployment and exactly what the desktop shell will start. Built and verified end to end in a browser.
-* **Desktop** (phase 2): an Electron shell that starts the packaged backend against a SQLite file in the user's data folder and opens the client. The backend already runs unchanged on SQLite; the shell itself is not yet written.
+* **Single-process mode**: with `CLP_STATIC_DIR` set, the API process also serves the built client. `python -m app.serve` brings the database to the latest schema and then serves; it is the small-server deployment and exactly what the desktop shell starts. Built and verified end to end in a browser.
+* **Desktop**: an Electron shell (`desktop/`) starts the server bundled by PyInstaller against a SQLite file in the user's data folder, on `127.0.0.1` at a port kept from start to start, and shows the client in its window. The server watches the shell and stops if it dies. Linux AppImage and Windows NSIS installers are built and smoke-tested in CI (`civillabpro-desktop.yml`); see `desktop/README.md`.
 * **PWA**: manifest and service worker are generated at build. The shell loads offline; API calls need the server. Offline editing with sync is a later decision (see section 11).
 
 ### 5.1 Long-running work (designed)

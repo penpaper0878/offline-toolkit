@@ -1,12 +1,13 @@
 # CivilLabPro OS
 
-An Indian civil engineering operating system: design to Indian Standards, estimation, laboratory, GIS and project control in one application, for the web, as a PWA and (planned) as a desktop install.
+An Indian civil engineering operating system: design to Indian Standards, estimation, laboratory, GIS and project control in one application, for the web, as a PWA and as a desktop install for Windows and Linux.
 
 **Version 0.4.0.** Phase 1 is complete: the platform core and five structural engines (beam, continuous beam, column, slab, isolated footing) are built and tested. The remaining modules are designed and scheduled; see the roadmap.
 
 | Module | State |
 |---|---|
 | Dashboard, projects, users and roles | built |
+| Desktop app for Windows and Linux (Electron, offline, SQLite) | built (installers from CI; not code-signed) |
 | Structural design: RCC beam (rectangular, T, L) to IS 456:2000 | built (engine 1.4.0) |
 | Structural design: RCC continuous beam (Tables 12 and 13, or elastic analysis of any spans and point loads with redistribution) | built (engine 1.5.0) |
 | Structural design: RCC column to IS 456:2000 | built (engine 1.0.0); clauses still to be compared with the printed code |
@@ -81,7 +82,7 @@ npm run dev                              # http://127.0.0.1:5173
 
 Create an organisation on the sign-in screen, add a project, then choose **New RCC beam**, **New RCC continuous beam**, **New RCC column**, **New RCC slab** or **New RCC isolated footing**.
 
-SQLite is the default database and needs nothing installed. For PostgreSQL set `CLP_DATABASE_URL` (see `backend/.env.example`). To run the API and the built client as one process: `npm run build` in `frontend`, then start the API with `CLP_STATIC_DIR=../frontend/dist`. Containers: see `deploy/docker-compose.yml`.
+**Desktop:** `desktop/` holds the Electron app (Windows and Linux installers, the data in a SQLite file in the user's folder); see [desktop/README.md](desktop/README.md). SQLite is the default database and needs nothing installed. For PostgreSQL set `CLP_DATABASE_URL` (see `backend/.env.example`). To run the API and the built client as one process: `npm run build` in `frontend`, then start the API with `CLP_STATIC_DIR=../frontend/dist`. Containers: see `deploy/docker-compose.yml`.
 
 ## Check it
 

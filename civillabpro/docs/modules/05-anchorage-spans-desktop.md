@@ -8,7 +8,8 @@ The items left open at 0.4.0, built one at a time: STR-038 and STR-037 finish th
 | STR-037 U-hooks; L_0 measured to the start of the bend | done | beam 1.4.0, continuous beam 1.4.0, footing 1.1.0 |
 | STR-039 curtailment kept off the compression steel of the supports (defect) | done | continuous beam 1.5.0 |
 | STR-036 continuous beams of unequal spans and point loads | done | continuous beam 1.5.0 (elastic method) |
-| PLAT-010 desktop shell | not started | |
+| PLAT-021 sessions committed before the response (defect) | done | platform |
+| PLAT-010 desktop app | done | platform; desktop 0.5.0 |
 
 ## STR-038: anchorage in the continuous beam's bar selection
 
@@ -167,3 +168,53 @@ A 0.6 floor in place of 0.7 changes no result in these cases (it cannot move a p
 | `tests/api/test_structural.py` | 1 new | inlined table schemas, calculation, field errors inside a table (`span_table.1.clear_span_mm`), save, revise, PDF, Excel and DXF |
 | `frontend/src/components/components.test.tsx` | 3 new | a table field validated row by row, edited, rows added and removed; a chart with negative values |
 | `e2e/walkthrough.js` | 1 new leg | switch to the elastic method, edit the span table, add a span, pick a view, charts, save and export, 0 console errors |
+
+## PLAT-021: writes committed before the response (defect fixed)
+
+**Found** by the desktop smoke test. It created a design and at once fetched its report, and got "Design not found". The session dependency committed after `yield`, and with FastAPI's default dependency scope that code runs after the response has been sent. So every write in the API was committed after the client had its success response:
+
+* a client reading straight away could miss its own write, as the UI could when it opens a design it has just saved;
+* a commit that failed would have followed a success response.
+
+TestClient waits for the whole exchange, so the tests could not see it.
+
+**Fix.** Every route takes its session as `Depends(get_db, scope="function")`: the session ends with the path operation, before the response. `tests/api/test_sessions.py` walks every route, included routers too, and fails on any session with another scope (it fails without the fix).
+
+## PLAT-010: the desktop app
+
+### 1. Requirements
+
+**Goal.** The whole platform on one computer, without a network, for Windows and Linux: one install, the data in the user's own folder, the same engines and documents as the web.
+
+### 2. Architecture
+
+| Part | File | What |
+|---|---|---|
+| Server entry | `backend/app/serve.py` | brings the database to the head of the one Alembic history, then serves API and client with uvicorn; `--parent-pid` stops it when the shell is gone |
+| Shell | `desktop/main.js` | single instance; a starting page; the server started and waited for; the window locked to `127.0.0.1:<port>` (other links open in the browser); File, Edit, View and Help menus; `--smoke-test` |
+| Launcher | `desktop/launcher.js` | paths (packaged or checkout), the server's environment (production, SQLite in the data folder, the bundled client, a signing key made once and kept private), a port kept from start to start, start with a log, health wait that fails early, stop (taskkill on Windows) |
+| Bundle | `desktop/scripts/build_server.py` | PyInstaller, one folder: the backend with its migrations, fonts and data; PostgreSQL's driver and uvicorn's optional extras left out (about 160 MB) |
+| Installers | `desktop/package.json` (`build`) | electron-builder: AppImage for Linux, NSIS for Windows (per-user, installation folder selectable, data kept on uninstall) |
+| CI | `.github/workflows/civillabpro-desktop.yml` | client, bundle, launcher tests, package, smoke test of the packaged app, installers kept as artifacts, on Ubuntu and Windows |
+
+Decisions:
+
+* **The port is kept from start to start.** The window's origin carries the sign-in and the saved panel layouts in the browser storage; a new random port each start would lose them.
+* **The server watches the shell.** If the shell is killed, its server would otherwise hold the port and the database.
+* **The four-eyes rule stays on.** A single user adds a reviewer under Users and roles to approve designs.
+
+### 3. Validation
+
+* `tests/api/test_serve.py` (3):
+  * a fresh SQLite file is migrated, and a second start changes nothing;
+  * the server process migrates and serves both the API and the client routes;
+  * it shuts down cleanly when the process it watches ends.
+* `desktop/test/launcher.test.js` (8):
+  * paths on both platforms, SQLite URLs, and the environment (it never takes the developer's own database);
+  * the private key, and the kept port (moved on only when the port is taken);
+  * the splash page, and the arguments passed to the server;
+  * a real start on a fresh data folder;
+  * a server that dies while starting is reported at once.
+* The smoke test, run from a checkout, on the unpacked package and on the AppImage, all passing here. It signs up, makes a project, and designs the beam, both continuous beams, the column, the slab and the footing. It then fetches each design's report, schedule and drawing through the window, and recognises them as PDF, XLSX and DXF.
+* With the packaged app running, the shell was killed with SIGKILL; its server logged a clean shutdown within three seconds.
+* The Windows installer is built and smoke-tested by the CI workflow; it was not run here.

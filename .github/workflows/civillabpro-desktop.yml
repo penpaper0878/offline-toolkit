@@ -1,0 +1,84 @@
+name: CivilLabPro OS desktop
+
+# Builds the desktop installer on each platform it is for (PyInstaller does not cross-compile), tests the shell's
+# launcher, and starts the packaged app with --smoke-test: it signs up, designs every element and fetches every export
+# through its own window.
+on:
+  push:
+    paths:
+      - "civillabpro/desktop/**"
+      - "civillabpro/backend/app/serve.py"
+      - "civillabpro/backend/pyproject.toml"
+      - ".github/workflows/civillabpro-desktop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    name: Desktop installer (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            dist: dist:linux
+            app: dist/linux-unpacked/civillabpro
+            smoke: xvfb-run -a
+            files: civillabpro/desktop/dist/*.AppImage
+          - os: windows-latest
+            dist: dist:win
+            app: dist/win-unpacked/CivilLabPro OS.exe
+            smoke: ""
+            files: civillabpro/desktop/dist/*.exe
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: civillabpro/backend/pyproject.toml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            civillabpro/frontend/package-lock.json
+            civillabpro/desktop/package-lock.json
+      - name: Web client
+        working-directory: civillabpro/frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Server bundle (PyInstaller)
+        working-directory: civillabpro
+        run: |
+          python -m pip install -e "./backend[desktop]"
+          python desktop/scripts/build_server.py
+      - name: Launcher tests
+        working-directory: civillabpro/desktop
+        run: |
+          npm ci --no-audit --no-fund
+          CLP_PYTHON="$(python -c 'import sys; print(sys.executable)')" npm test
+      - name: Package
+        working-directory: civillabpro/desktop
+        run: npm run ${{ matrix.dist }}
+      - name: Smoke test of the packaged app
+        working-directory: civillabpro/desktop
+        timeout-minutes: 10
+        run: |
+          export CLP_DESKTOP_DATA="$RUNNER_TEMP/clp-smoke"
+          ${{ matrix.smoke }} "${{ matrix.app }}" --smoke-test --no-sandbox 2>&1 | tee smoke.log
+          grep -q "SMOKE OK" smoke.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: civillabpro-desktop-${{ runner.os }}
+          path: ${{ matrix.files }}
+          if-no-files-found: error
+          retention-days: 14
