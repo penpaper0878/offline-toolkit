@@ -40,6 +40,7 @@ State: **done**, **next** (the item to start with), **ready** (can be started), 
 | STR-015 | Continuous beam 1.0.0: equal spans by Tables 12 and 13, elastic placing of the points of inflection, schedule for the whole beam (0.4.0) |
 | ENG-006 | Continuous beam analysis kernel `continuous.py` (three-moment equation, Cl. 22.4.1 arrangements, envelope) (0.4.0) |
 | STR-016 | Curtailment (Cl. 26.2.3, with the three conditions of 26.2.3.2) and stirrup zones for the simple and the continuous beam (0.4.0) |
+| STR-017 | Anchorage at simple supports and points of inflection, Cl. 26.2.3.3(c), enforced in bar selection, bends and curtailment (0.4.0) |
 
 ## Epic STR: structural design
 
@@ -50,8 +51,9 @@ State: **done**, **next** (the item to start with), **ready** (can be started), 
 | STR-034 | Footing: sloped and stepped footings | ready | Cl. 34.1.2, 34.4 frustum already in place |
 | STR-035 | Footing: pressure distribution with moments for bending (instead of the uniform maximum) | ready | lighter footings under large moments |
 | STR-036 | Continuous beam: unequal spans, and point loads, by the elastic analysis | ready | `continuous.py` already solves unequal spans; needs the envelope as the design moments (with Cl. 22.7 redistribution) |
-| STR-017 | Beams: anchorage check at simple supports | **next** | Cl. 26.2.3.3(c), L_d <= 1.3 M_1/V + L_0; the last phase 1 item; the continuing bars of STR-016 are the M_1 bars |
 | STR-018 | Beam: calculated deflection and crack width | later | Annex C, Annex F |
+| STR-037 | Beams: U-hooks (16 phi) where a 90 degree bend is not enough for Cl. 26.2.3.3(c) | ready | the schedule and drawing need the hook shape |
+| STR-038 | Continuous beam: Cl. 26.2.3.3(c) in its bar selection (it reports Not OK today if the chosen bars fail) | ready | as the simple beam's `select_bars` |
 | STR-019 | Ductile detailing | later | IS 13920:2016; needs frame context |
 | STR-020 | Combined and strap footing | ready | phase 2; reuses the footing's shear, band and anchorage rules |
 | STR-021 | Pile cap | later | truss and bending methods |

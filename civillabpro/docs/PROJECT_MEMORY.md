@@ -10,14 +10,14 @@ It lives in `civillabpro/` of the `offline-toolkit` repository. The rest of that
 
 ## Current status
 
-Version 0.3.0. Phase 1's exit criterion is met: beam, column, slab and isolated footing are designed, hand-checked and issued from one workspace. Open in phase 1: the beam extensions (STR-014 to STR-017) and the comparison of clauses with the printed code (STR-009, blocked).
+Version 0.4.0. Phase 1 is done: beams (rectangular, T and L; simple, cantilever and continuous, with curtailment, stirrup zones and anchorage at supports), columns, slabs and isolated footings are designed, hand-checked and issued from one workspace. Still open from phase 1: the comparison of the clauses with the printed code (STR-009, blocked on the code text).
 
 | Area | State |
 |---|---|
 | Platform core (identity, roles, audit, projects) | built, tested on SQLite and PostgreSQL 16 |
 | Shell and client | built, walked through in a browser in light and dark |
-| Structural: beam engine 1.1.0 (rectangular, T, L) | built, independent hand check passing; Fig. 6 and Cl. 23.1.2(c), (d) to compare with the code |
-| Structural: continuous beam engine 1.0.0 (new element) | built, independent hand check passing; Table 13 and Cl. 22.2(b), 22.4.1, 26.2.3.4 to compare with the code |
+| Structural: beam engine 1.3.0 (rectangular, T, L; curtailment, stirrup zones, anchorage) | built, independent hand check passing; Fig. 6, Cl. 23.1.2(c), (d) and 26.2.3 to compare with the code |
+| Structural: continuous beam engine 1.2.0 (new element; curtailment, zones, anchorage) | built, independent hand check passing; Table 13 and Cl. 22.2(b), 22.4.1, 26.2.3 to compare with the code |
 | Structural: column engine 1.0.0 | built, independent hand check passing; code text not yet compared (see the code register) |
 | Structural: slab engine 1.0.0 (one-way, two-way) | built, independent hand check passing; Table 26 rows and Annex D extents to compare with the code |
 | Structural: isolated footing engine 1.0.0 | built, independent hand check passing; Cl. 34 wording to compare with the code |
@@ -27,13 +27,13 @@ Version 0.3.0. Phase 1's exit criterion is met: beam, column, slab and isolated 
 | Modules 3 to 11 | designed in ARCHITECTURE.md and DATABASE_SCHEMA.md, not started |
 | Cloud environment | personal environment `offline-toolkit` (allows law.resource.org; setup script installs the venv, npm packages and PostGIS). The script is unproven until a fresh session starts on it. |
 
-Test counts at 0.3.0: backend 256 (216 engineering, architecture and hand checks; 40 API, one of them PostgreSQL-only; the API suite also passed on PostgreSQL 16 with PostGIS); frontend 18; hand checks: beam 334 values over 17 cases, column 471 over 17, slab 379 over 18, footing 384 over 16, with 1 or 2 stop states each; browser walkthrough with beam, column, slab and footing, 0 console errors.
+Test counts at 0.4.0: backend 319 (277 engineering, architecture and hand checks; 42 API, one of them PostgreSQL-only); frontend 19; hand checks: beam 672 values over 25 cases, continuous beam 675 over 12, column 471 over 17, slab 379 over 18, footing 384 over 16, with 1 or 2 stop states each; browser walkthrough with beam, column, slab, footing and continuous beam, 0 console errors.
 
 ## NEXT STEPS
 
 1. **STR-009, blocked: compare the column, slab and footing clauses with the code text** (the three "To cross-check" lists in the code register). It needs the user: either approval of a direct download of the public copy, or the pages pasted into the session. Do not work around a declined download. Fix anything that differs and re-run every hand check.
-2. **STR-017 anchorage at simple supports** (Cl. 26.2.3.3(c), L_d <= 1.3 M_1/V + L_0) for the simple beam and the end supports of the continuous beam; M_1 is the resistance of the bars that reach the support (the continuing bars of STR-016). It closes phase 1; then release 0.4.0 (version, walkthrough legs for T-beam and continuous beam, samples, screenshots, README).
-3. PLAT-010 desktop shell, then phase 2 (STR-020 combined and strap footing; estimation; standards library).
+2. **PLAT-010 desktop shell** (Electron on the single-process backend with SQLite), the first item of phase 2's platform completion.
+3. Then phase 2's engineering: STR-020 combined and strap footing, STR-036 continuous beams of unequal spans by the elastic analysis already in `continuous.py`, STR-038 Cl. 26.2.3.3(c) in the continuous beam's bar selection; and the estimation module and standards library (see ROADMAP.md).
 
 ## Decisions (do not reopen without a reason recorded here)
 
@@ -106,6 +106,12 @@ Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not her
 * Library versions at 0.1.0 are recent majors (React 19, MUI 9, Vite 8, Tailwind 4, TypeScript 7, dockview-react 8, recharts 3, FastAPI 0.16x, SQLAlchemy 2.1). Check the installed typings before assuming an older API.
 
 ## Log
+
+### 0.4.0 (19 November 2026): STR-017 anchorage, release; phase 1 closed
+
+* Built: Cl. 26.2.3.3(c) for both beams (`anchorage_ok`, `anchorage_check`, `is456.moment_at_design_stress`): enforced in the simple beam's bar selection, by bends where straight bars fall short, and by withdrawing curtailment where the continuing bars alone would fail; the continuous beam checks its end supports and the points of inflection. Beam engine 1.3.0, continuous beam 1.2.0. Release 0.4.0: version, walkthrough leg for the continuous beam, samples, screenshots, README.
+* Found and fixed: M_1 was first capped at x_u,max like the moment checks, which is not the clause's "all reinforcement stressed to f_d" and rejected beams that pass; the stop message when only anchorage rejects every arrangement now says so.
+* Test counts at 0.4.0 are in the status section.
 
 ### 0.4.0 in progress (19 November 2026): STR-016 curtailment and stirrup zones
 

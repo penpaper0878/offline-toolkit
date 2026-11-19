@@ -1,5 +1,5 @@
-// End-to-end walkthrough in a real browser: register, create a project, design a beam, a column, a slab
-// and a footing, save, download each report / schedule / drawing, switch theme, search, use the calculator,
+// End-to-end walkthrough in a real browser: register, create a project, design a beam, a column, a slab,
+// a footing and a continuous beam, save, download each report / schedule / drawing, switch theme, search, use the calculator,
 // reload.
 //
 //   1. start the API and the web client (see README.md)
@@ -131,16 +131,18 @@ const BASE = process.argv[3] || process.env.BASE || 'http://127.0.0.1:5173';
   await page.keyboard.press('Alt+t');
   await page.waitForTimeout(300);
 
-  // Slab and footing: the drawing tabs follow the element's views (a plan first, then a section).
+  // Slab, footing and continuous beam: the drawing tabs follow the element's views.
   for (const el of [
-    { name: 'slab', link: /New RCC slab/, key: 'Two-way, Table 26 case 4', second: 'Section across the short span' },
-    { name: 'footing', link: /New RCC isolated footing/, key: '2200 x 2050 x 450', second: 'Section along L' },
+    { name: 'slab', link: /New RCC slab/, key: 'Two-way, Table 26 case 4', first: 'Plan', second: 'Section across the short span' },
+    { name: 'footing', link: /New RCC isolated footing/, key: '2200 x 2050 x 450', first: 'Plan', second: 'Section along L' },
+    { name: 'continuous', link: /New RCC continuous beam/, key: '10-T12 (6+4)', first: 'Elevation: end span and half of span 2',
+      second: 'Sections A-A and B-B' },
   ]) {
     step(el.name);
     await page.locator('[data-ribbon="project"]').click();
     await page.getByRole('link', { name: el.link }).click();
     await page.getByText(el.key).first().waitFor({ timeout: 15000 });
-    await page.getByText('Plan', { exact: true }).first().waitFor({ timeout: 10000 });
+    await page.getByText(el.first, { exact: true }).first().waitFor({ timeout: 10000 });
     await page.waitForTimeout(500);
     await shot(`${el.name}-1-plan`);
     await page.keyboard.press('Control+s');

@@ -4,7 +4,7 @@ The platform is built one module at a time. A module is done when its engines ar
 
 Phases are ordered by what the next one needs, not by size. No dates are given: each phase is planned when the one before it closes.
 
-## Phase 1: platform core and structural design (exit criterion met; beam extensions open)
+## Phase 1: platform core and structural design (done at 0.4.0)
 
 | Item | State |
 |---|---|
@@ -23,10 +23,10 @@ Phases are ordered by what the next one needs, not by size. No dates are given: 
 | Slab rules kernel (Tables 12, 13, 26, 27; Annex D) | done |
 | Slab (one-way, two-way to Annex D, torsion steel) | done, engine 1.0.0; Table 26 rows to compare with the printed code |
 | Isolated footing (uniform depth; plan, shear, central band, anchorage, bearing) | done, engine 1.0.0 |
-| Beam extensions: flanged sections, continuous beams (Table 12 and 13), curtailment, stirrup zones | next |
+| Beam extensions: flanged sections (T, L), continuous beams (Tables 12 and 13), curtailment and stirrup zones, anchorage at supports | done, beam 1.3.0 and continuous beam 1.2.0 |
 | IS 13920 ductile detailing | planned (needs frame context) |
 
-Exit: beam, column, slab and isolated footing designed, hand-checked and issued from one workspace. Met at 0.3.0; the comparison of the column, slab and footing clauses with the printed code (STR-009) is still open.
+Exit: beam, column, slab and isolated footing designed, hand-checked and issued from one workspace. Met at 0.3.0; the beam extensions followed at 0.4.0. The comparison of the clauses with the printed code (STR-009) is still open: it needs the code text.
 
 ## Phase 2: platform completion, estimation and standards library
 

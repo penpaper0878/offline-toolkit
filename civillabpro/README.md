@@ -2,24 +2,25 @@
 
 An Indian civil engineering operating system: design to Indian Standards, estimation, laboratory, GIS and project control in one application, for the web, as a PWA and (planned) as a desktop install.
 
-**Version 0.3.0.** The platform core and four structural engines (beam, column, slab, isolated footing) are built and tested. The remaining modules are designed and scheduled; see the roadmap.
+**Version 0.4.0.** Phase 1 is complete: the platform core and five structural engines (beam, continuous beam, column, slab, isolated footing) are built and tested. The remaining modules are designed and scheduled; see the roadmap.
 
 | Module | State |
 |---|---|
 | Dashboard, projects, users and roles | built |
-| Structural design: RCC beam (rectangular, T, L) to IS 456:2000 | built (engine 1.1.0) |
-| Structural design: RCC continuous beam (Tables 12 and 13) | built (engine 1.0.0) |
+| Structural design: RCC beam (rectangular, T, L) to IS 456:2000 | built (engine 1.3.0) |
+| Structural design: RCC continuous beam (Tables 12 and 13) | built (engine 1.2.0) |
 | Structural design: RCC column to IS 456:2000 | built (engine 1.0.0); clauses still to be compared with the printed code |
 | Structural design: RCC slab (one-way, two-way) to IS 456:2000 | built (engine 1.0.0); Table 26 rows still to be compared with the printed code |
 | Structural design: RCC isolated footing to IS 456:2000 | built (engine 1.0.0) |
-| Structural design: beam extensions, combined footing, staircase, retaining wall and others | next, then phase 2 |
+| Structural design: combined footing, staircase, retaining wall and others | phase 2 |
 | Estimation, standards library, water, sewerage, highway, laboratory, GIS, project management, AI assistant | designed, not started |
 
 ## What works today
 
 * Organisations, users, five roles, an audit trail, tenant isolation.
 * Projects.
-* Beam design: flexure, shear, torsion, deflection and detailing checks, each line with its clause and each limit with a verdict.
+* Beam design: rectangular, T and L sections; flexure, shear, torsion, deflection and detailing checks, each line with its clause and each limit with a verdict; bars curtailed and stirrups zoned along the span, with the anchorage at the supports checked (Cl. 26.2.3).
+* Continuous beam design: three or more equal spans by Tables 12 and 13, top bars placed by an elastic analysis of the load arrangements, one schedule for the whole beam.
 * Column design: effective length, slenderness, minimum eccentricity, additional moments, biaxial bending by strain compatibility, ties and cross-ties, with interaction diagrams.
 * Slab design: one panel by its spans and the condition of its four edges; one-way strips (simply supported or Tables 12 and 13) or two-way panels (Table 26 held down, Table 27 free), flexure, shear, deflection, corner torsion steel, top and bottom steel with Annex D extents.
 * Isolated footing design: plan size from the bearing pressure with moments both ways, depth from bending, one-way and punching shear, central band steel, development length (with end bends where needed), bearing at the column base.
@@ -46,11 +47,16 @@ Column workspace with its interaction diagrams:
 |---|---|
 | ![Slab plan](docs/screenshots/slab-plan.png) | ![Footing plan](docs/screenshots/footing-plan.png) |
 
+Continuous beam: the whole beam in one design, with long and short top bars over the supports and curtailed bottom bars:
+
+![Continuous beam](docs/screenshots/continuous-beam-sections.png)
+
 Sample output of the worked examples, produced by the running application:
 
 | Element | Report | Bar schedule | Drawing |
 |---|---|---|---|
 | Beam B1 | [PDF](docs/samples/beam_B1_R0_report.pdf) | [Excel](docs/samples/beam_B1_R0_bbs.xlsx) | [DXF](docs/samples/beam_B1_R0.dxf) |
+| Continuous beam CB1 | [PDF](docs/samples/continuous_beam_CB1_R0_report.pdf) | [Excel](docs/samples/continuous_beam_CB1_R0_bbs.xlsx) | [DXF](docs/samples/continuous_beam_CB1_R0.dxf) |
 | Column C1 | [PDF](docs/samples/column_C1_R0_report.pdf) | [Excel](docs/samples/column_C1_R0_bbs.xlsx) | [DXF](docs/samples/column_C1_R0.dxf) |
 | Slab S1 | [PDF](docs/samples/slab_S1_R0_report.pdf) | [Excel](docs/samples/slab_S1_R0_bbs.xlsx) | [DXF](docs/samples/slab_S1_R0.dxf) |
 | Footing F1 | [PDF](docs/samples/footing_F1_R0_report.pdf) | [Excel](docs/samples/footing_F1_R0_bbs.xlsx) | [DXF](docs/samples/footing_F1_R0.dxf) |
@@ -73,7 +79,7 @@ npm ci
 npm run dev                              # http://127.0.0.1:5173
 ```
 
-Create an organisation on the sign-in screen, add a project, then choose **New RCC beam**, **New RCC column**, **New RCC slab** or **New RCC isolated footing**.
+Create an organisation on the sign-in screen, add a project, then choose **New RCC beam**, **New RCC continuous beam**, **New RCC column**, **New RCC slab** or **New RCC isolated footing**.
 
 SQLite is the default database and needs nothing installed. For PostgreSQL set `CLP_DATABASE_URL` (see `backend/.env.example`). To run the API and the built client as one process: `npm run build` in `frontend`, then start the API with `CLP_STATIC_DIR=../frontend/dist`. Containers: see `deploy/docker-compose.yml`.
 
@@ -99,6 +105,7 @@ node e2e/walkthrough.js <folder for screenshots>      # both servers running
 | [docs/modules/01-platform-core-and-beam.md](docs/modules/01-platform-core-and-beam.md) | 0.1.0: platform core and beam: endpoints, engineering logic, validation, tests, deployment |
 | [docs/modules/02-rcc-column.md](docs/modules/02-rcc-column.md) | 0.2.0: column: engineering logic, validation, tests |
 | [docs/modules/03-slab-and-footing.md](docs/modules/03-slab-and-footing.md) | 0.3.0: slab and isolated footing: engineering logic, validation, tests |
+| [docs/modules/04-beam-extensions.md](docs/modules/04-beam-extensions.md) | 0.4.0: T and L beams, continuous beams, curtailment and stirrup zones, anchorage at supports |
 
 ## A note on engineering use
 

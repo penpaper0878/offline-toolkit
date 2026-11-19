@@ -1,4 +1,4 @@
-# Release note 0.4.0 (in progress): beam extensions STR-014 to STR-017
+# Release note 0.4.0: beam extensions STR-014 to STR-017
 
 The items that close phase 1, built one at a time. STR-014 extends the beam element; STR-015 adds a continuous beam element on the registry, reusing the beam's section routines. None needs a new endpoint, table, migration or screen. This note grows with each item.
 
@@ -7,7 +7,7 @@ The items that close phase 1, built one at a time. STR-014 extends the beam elem
 | STR-014 flanged sections (T and L) | done | 1.1.0 |
 | STR-015 continuous beams by Tables 12 and 13 | done | continuous beam 1.0.0 (new element) |
 | STR-016 curtailment and stirrup zones | done | beam 1.2.0, continuous beam 1.1.0 |
-| STR-017 anchorage at simple supports | next | |
+| STR-017 anchorage at simple supports | done | beam 1.3.0, continuous beam 1.2.0 |
 
 ## STR-014: flanged sections (T and L)
 
@@ -169,3 +169,38 @@ Two findings on the way. Condition (a) alone rejected most cut-offs in the test 
 | `tests/unit/test_continuous.py` | 1 new | the shear envelope (3wL/8 and 5wL/8 for two spans) |
 | `tests/handcheck/check_beam.py` | cut-offs and zones of every case | the resistance of the continuing bars (stress block, SP 16 Table A), the cut-off by bisection on M(x), condition (b) recomputed, every zone end within the shear resistance |
 | `tests/handcheck/check_continuous_beam.py` | the same for the continuous beam | Hardy Cross envelopes scaled by the same rule; every cut-off, moved back by max(d, 12 phi), within the remaining bars; L_d; zone ends |
+
+## STR-017: anchorage at simple supports and points of inflection
+
+### 1. Requirements
+
+**Goal.** Limit the diameter of the positive bars so that they can develop their stress where the moment falls to zero, as Cl. 26.2.3.3(c) requires: at simple supports and, in continuous beams, at the points of inflection.
+
+### 2. Engineering logic
+
+| Step | Rule | Reference |
+|---|---|---|
+| M_1 | all the bars that reach the point at f_d, neutral axis from equilibrium (no x_u,max limit), a compression flange where there is one | Cl. 26.2.3.3(c) |
+| V | at the face of a simple support; at a point of inflection, from the scaled shear envelope | |
+| L_0 | simple support: w_s/2 - cover, plus 8 phi with a 90 degree bend; point of inflection: the greater of d and 12 phi | Cl. 26.2.3.3(c), 26.2.2.1(b) |
+| Check | L_d <= 1.3 M_1/V + L_0 at simple supports (confined by the reaction); L_d <= M_1/V + L_0 at points of inflection | Cl. 26.2.3.3(c) |
+| Enforcement | simple beam: bar selection rejects diameters that fail even with a bend, the schedule bends bars that need it, curtailment is withdrawn where the continuing bars alone would fail; continuous beam: curtailment withdrawn likewise, a bend added at the end supports, Not OK with the remedy otherwise | |
+
+Worked examples: the simple beam's 2-T16 that reach the supports need L_d = 777 mm against 1.3 M_1/V + L_0 = 1450 mm; a short, heavily loaded 250 x 600 beam on 230 mm supports keeps 7-T20 but needs them bent at the supports (971 against 1206 mm, with the bend's 8 phi); the four-span continuous beam passes at the end supports (777 against 1632 mm) and at the points of inflection (777 against 1577 and 1027 mm).
+
+One correction made while building it: the first M_1 capped the neutral axis at x_u,max, as the moment checks do. For a heavily reinforced section that gives the concrete's capacity, not the "moment of resistance assuming all reinforcement stressed to f_d" the clause defines, and it rejected beams that pass. M_1 now follows the clause.
+
+### 3. Tests
+
+| Suite | Tests | Proves |
+|---|---|---|
+| `tests/unit/test_beam_curtailment.py` | 4 new | the check against a hand value; M_1 without the x_u,max limit; the bend added where straight bars fail; the stop message when nothing can be anchored |
+| `tests/unit/test_continuous_beam.py` | 1 new, 1 changed | end supports with 1.3 and points of inflection without; curtailment withdrawn where the continuing bars could not be anchored |
+| `tests/handcheck/check_beam.py` | every case | M_1 by equilibrium (bisection with a flange), L_0 from the schedule's bend, the check recomputed; 672 values over 25 cases agree |
+| `tests/handcheck/check_continuous_beam.py` | every case | the same at the end supports and the points of inflection, from the Hardy Cross envelopes; 675 values over 12 cases agree |
+
+## Release 0.4.0: phase 1 closed
+
+With STR-017, phase 1's exit criterion and its last items are done: beams (rectangular, T, L; simple, cantilever, continuous), columns, slabs and isolated footings are designed, hand-checked and issued from one workspace. Still open from phase 1: STR-009, the comparison of the clauses with the printed code, which needs the code text.
+
+Integration: no database change; deploy the new image or restart the single process. Saved designs keep the result they were made with; a revision recalculates with the new engines (beam 1.3.0, continuous beam 1.2.0).
