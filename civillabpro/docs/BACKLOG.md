@@ -42,6 +42,7 @@ State: **done**, **next** (the item to start with), **ready** (can be started), 
 | STR-016 | Curtailment (Cl. 26.2.3, with the three conditions of 26.2.3.2) and stirrup zones for the simple and the continuous beam (0.4.0) |
 | STR-017 | Anchorage at simple supports and points of inflection, Cl. 26.2.3.3(c), enforced in bar selection, bends and curtailment (0.4.0) |
 | STR-038 | Continuous beam 1.3.0: Cl. 26.2.3.3(c) in its bar selection, with its own stop message (0.5.0) |
+| STR-039 | Continuous beam 1.5.0: bottom bars are not curtailed where a support uses them as compression steel (a defect of 1.1.0 to 1.4.0) (0.5.0) |
 | STR-037 | Beam 1.4.0, continuous beam 1.4.0: U-hooks (16 phi) where a 90 degree bend is not enough for Cl. 26.2.3.3(c); L_0 measured to the start of the bend or hook (correcting STR-017), and the footing's bend likewise (footing 1.1.0) (0.5.0) |
 
 ## Epic STR: structural design

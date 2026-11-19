@@ -270,3 +270,15 @@ def test_u_hooks_at_the_end_supports():
     assert main["shape"] == "U-hook at the end support" and main["cutting_length_mm"] == main["dims"]["A"] + main["dims"]["hook"]
     elev = next(v for v in r["drawing"]["views"] if v["id"] == "elevation")
     assert any(e["t"] == "polyline" and e["layer"] == "rebar" for e in elev["items"])
+
+
+def test_curtailment_keeps_the_compression_steel_of_the_supports():
+    # shallow beam: support B needs the bottom bars as compression steel, so span 2's bars may not be stopped short of it
+    r = design_continuous_beam(ContinuousBeamInput(depth_mm=400, width_mm=230, dead_load_kn_m=20, live_load_kn_m=15))
+    d, cut = r["data"], r["reinforcement"]["curtailment"]["bottom"]
+    assert d["support_b"]["doubly"]
+    for kind in ("end", "interior"):
+        reach = cut[kind]["continuing"]["area"] if cut[kind] else r["reinforcement"][kind]["bottom"]["area"]
+        assert reach >= d["support_b"]["asc_req"]
+    steps = [i["title"] for s in r["sheet"]["sections"] for i in s["items"] if i["kind"] == "step"]
+    assert any("needs these bars as compression steel" in t for t in steps)

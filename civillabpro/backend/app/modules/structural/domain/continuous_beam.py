@@ -51,7 +51,7 @@ from app.modules.structural.domain.beam import (
 )
 
 ELEMENT_TYPE = "continuous_beam"
-ENGINE_VERSION = "1.4.0"
+ENGINE_VERSION = "1.5.0"
 CODE_BASIS = ("IS 456:2000", "SP 16:1980", "IS 2502:1963")
 REF = is456.CODE
 FIRST_STIRRUP_MM = 50.0

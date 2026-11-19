@@ -6,6 +6,7 @@ The items left open at 0.4.0, built one at a time: STR-038 and STR-037 finish th
 |---|---|---|
 | STR-038 anchorage in the continuous beam's bar selection | done | continuous beam 1.3.0 |
 | STR-037 U-hooks; L_0 measured to the start of the bend | done | beam 1.4.0, continuous beam 1.4.0, footing 1.1.0 |
+| STR-039 curtailment kept off the compression steel of the supports (defect) | done | continuous beam 1.5.0 |
 | STR-036 continuous beams of unequal spans and point loads | in progress | |
 | PLAT-010 desktop shell | not started | |
 
@@ -69,3 +70,11 @@ Worked examples:
 | `tests/handcheck/check_beam.py` | 2 cases, 1 stop | L_0 from the schedule's shape with the IS 2502 radius, and the hook allowance; 716 values over 27 cases agree |
 | `tests/handcheck/check_continuous_beam.py` | 1 case | the same at the end supports; 767 values over 14 cases agree |
 | `tests/handcheck/check_footing.py` | every bent case | the corrected bend, and that 50 mm less plan would not develop T10 |
+
+## STR-039: curtailment kept off the compression steel of the supports (defect fixed)
+
+**Found** while planning STR-036. Each support section of the continuous beam counts the bottom bars that run into it as compression steel, and is doubly reinforced where it needs them. Bottom-bar curtailment (STR-016) then stopped some of those bars short of the support without checking the support again. In 66 of 193 sampled designs the bars that still reached a support were fewer than its A_sc,req, so its moment of resistance was overstated. The hand check's T-beam floor case was one of them; the hand check did not test it.
+
+**Fix.** Before stopping any bottom bars of a span, the engine recomputes each neighbouring support with only the continuing bars as compression steel. If that support would fall short of A_sc,req, become over-reinforced, or resist less than its moment, the span's bars are not curtailed, and the sheet says why. Code register interpretation 70a; continuous beam 1.5.0.
+
+**Tests.** `test_curtailment_keeps_the_compression_steel_of_the_supports`. The hand check now recomputes every support with the bars that actually reach it from each side, by its own stress-block bisection. With the fix reverted it reports the T-beam floor case and the new shallow-beam case. With the fix, 897 values over 15 cases agree.

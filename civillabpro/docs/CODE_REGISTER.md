@@ -123,6 +123,7 @@ The code text was not read (as for the column); the effective-width formulas, An
 68. **One schedule for every interior span.** The governing cut-offs (the longest stopped bars) and the longest stirrup zones over all interior spans, made symmetric; condition (b) bands on both sides.
 69. **Stirrup zones** use tau_c with the least tension steel and the least d among the span's mid-span and support sections.
 70. **Not worth it** as for the simple beam: no curtailment within d of a support, or where (b)'s stirrups weigh as much as the steel saved.
+70a. **Compression steel at the supports.** A support section designed with the bottom bars as compression steel counts only the bars that reach it. Bottom bars are not curtailed where the continuing bars alone would leave a neighbouring support short of A_sc,req, over-reinforced, or below its moment. *Added in continuous beam 1.5.0: until then curtailment could stop bars the support relied on (found in 66 of 193 sampled designs, the T-beam floor case of the hand check among them).*
 
 ### Anchorage at simple supports and points of inflection (STR-017)
 

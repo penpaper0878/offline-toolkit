@@ -263,6 +263,13 @@ def plan(sheet: CalcSheet, inp: Any, cover: float, sections: dict[str, Any], spa
             sheet.step(f"{REF}, Cl. 26.2.3.3", f"{label}: {sec.bottom.label()}, too few bars to curtail", "", "", "", "")
             return None
         cont, cut = split
+        # the support sections were designed with these bars as compression steel: only the continuing ones reach them
+        for sup in ([sup_b] if kind == "end" else [sup_b, *([sup_c] if sup_c else [])]):
+            cap = is456.moment_capacity(fck, fy, b, sup.d, sup.top.area, cont.area, cover + dst + cont.dia / 2.0)
+            if cont.area < sup.fl.asc_req or cap.limited or cap.mu < sup.mu * 1e6:
+                sheet.step(f"{REF}, Cl. 38.1, Annex G-1.2", f"{label}: support {sup.kind} needs these bars as compression steel; {cont.label()} alone "
+                           "would not do: no curtailment", "A_sc,req", "", sup.fl.asc_req, "mm2", 0)
+                return None
         d_c = D - (cover + dst + cont.dia / 2.0)
         if sec.flange is not None:
             m_cont = is456.moment_capacity_flanged(fck, fy, sec.flange.bf, b, sec.flange.df, d_c, cont.area, sec.top.area, sec.d_c).mu / 1e6

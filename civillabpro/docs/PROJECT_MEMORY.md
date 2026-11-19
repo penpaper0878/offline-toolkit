@@ -17,7 +17,7 @@ Version 0.4.0. Phase 1 is done: beams (rectangular, T and L; simple, cantilever 
 | Platform core (identity, roles, audit, projects) | built, tested on SQLite and PostgreSQL 16 |
 | Shell and client | built, walked through in a browser in light and dark |
 | Structural: beam engine 1.4.0 (rectangular, T, L; curtailment, stirrup zones, anchorage with bends and U-hooks) | built, independent hand check passing; Fig. 6, Cl. 23.1.2(c), (d) and 26.2.3 to compare with the code |
-| Structural: continuous beam engine 1.4.0 (curtailment, zones, anchorage enforced in the bar selection, U-hooks) | built, independent hand check passing; Table 13 and Cl. 22.2(b), 22.4.1, 26.2.3 to compare with the code |
+| Structural: continuous beam engine 1.5.0 (curtailment, zones, anchorage enforced in the bar selection, U-hooks) | built, independent hand check passing; Table 13 and Cl. 22.2(b), 22.4.1, 26.2.3 to compare with the code |
 | Structural: column engine 1.0.0 | built, independent hand check passing; code text not yet compared (see the code register) |
 | Structural: slab engine 1.0.0 (one-way, two-way) | built, independent hand check passing; Table 26 rows and Annex D extents to compare with the code |
 | Structural: isolated footing engine 1.1.0 | built, independent hand check passing; Cl. 34 wording to compare with the code |
@@ -112,7 +112,8 @@ Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not her
 
 * Built: STR-038, the continuous beam's bar selection passes over bottom bars that cannot be anchored at the end supports or the points of inflection (continuous beam 1.3.0). STR-037, U-hooks where a bend is not enough, chosen as the least end detail that passes, in both beams' selection, check, schedule and drawing (beam 1.4.0, continuous beam 1.4.0).
 * Found and fixed: L_0 with a bend counted the r + phi of bar inside the bend twice (5 phi too much for deformed bars). STR-017's interpretation 73 and the footing's interpretation 37 are corrected (footing 1.1.0). `rebar.bend_radius` holds the IS 2502 radii for all three.
-* Hand checks: beam 716 values over 27 cases and 3 stops; continuous beam 767 over 14 cases and 3 stops; footing 384 over 16.
+* Found and fixed (STR-039): the continuous beam's bottom-bar curtailment could stop bars that a support section relied on as compression steel (66 of 193 sampled designs). Curtailment is now withdrawn there (continuous beam 1.5.0), and the hand check recomputes each support with the bars that actually reach it; without the fix it fails the T-beam floor case.
+* Hand checks: beam 716 values over 27 cases and 3 stops; continuous beam 897 over 15 cases and 3 stops; footing 384 over 16.
 
 ### 0.4.0 (19 November 2026): STR-017 anchorage, release; phase 1 closed
 

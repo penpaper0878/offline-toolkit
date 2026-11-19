@@ -58,6 +58,7 @@ CASES: list[tuple[str, dict]] = [
     ("light load", dict(dead_load_kn_m=6, live_load_kn_m=3)),
     ("narrow supports, T32: anchorage picks four bars", dict(support_width_mm=150, clear_span_mm=3000, depth_mm=450, dead_load_kn_m=60,
                                                              live_load_kn_m=40, main_bar_dia_mm=32)),
+    ("shallow: doubly reinforced supports keep their compression bars", dict(depth_mm=400, width_mm=230, dead_load_kn_m=20, live_load_kn_m=15)),
     ("narrow supports, T20: U-hooks at the ends", dict(support_width_mm=150, clear_span_mm=2500, depth_mm=450, dead_load_kn_m=80,
                                                        live_load_kn_m=48, main_bar_dia_mm=20)),
 ]
@@ -409,6 +410,28 @@ def check_curtailment(name: str, s: dict, res: dict, h: dict) -> tuple[int, list
     def bars(label: str) -> tuple[int, int]:  # "3-T16" or "10-T12 (6+4)" -> (count, dia)
         c, rest = label.split("-T")
         return int(c), int(rest.split()[0])
+
+    # each support's section counts the bottom bars that reach it as compression steel: with curtailment, only the continuing ones
+    def reaching(kind: str) -> tuple[float, float]:
+        t = cur["bottom"].get(kind)
+        if t:
+            c, dia = bars(t["continuing"])
+            return c * math.pi * dia**2 / 4, cover + dst + dia / 2
+        g = reinf[kind]["bottom"]
+        return g["count"] * math.pi * g["dia"] ** 2 / 4, D - eng[kind]["d"]
+
+    for sup_key, m_sup_h, kinds in (("support_b", h["m_b"], ("end", "interior")), ("support_c", h["m_c"], ("interior",))):
+        if not reinf.get(sup_key):
+            continue
+        top = reinf[sup_key]["top"]
+        a_top = top["count"] * math.pi * top["dia"] ** 2 / 4
+        for kind in kinds:
+            a_c, d_c = reaching(kind)
+            n += 2
+            if a_c < h[f"{sup_key}.asc_req"] * (1 - 3e-3):
+                bad.append(f"{name}: {sup_key} needs {h[sup_key + '.asc_req']:.0f} mm2 of compression steel; {a_c:.0f} reach it from the {kind} span")
+            if resistance(fck, fy, b, h[f"{sup_key}.d"], a_top, a_c, d_c) * tol < abs(m_sup_h):
+                bad.append(f"{name}: {sup_key} with the bottom bars that reach it from the {kind} span resists less than {abs(m_sup_h):.1f} kN m")
 
     # top bars over the supports: at the cut-off, moved back towards the support by max(d, 12 phi), the long bars suffice
     for key, sup_key in (("b", "support_b"), ("c", "support_c")):
