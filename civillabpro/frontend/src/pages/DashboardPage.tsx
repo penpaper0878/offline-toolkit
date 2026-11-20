@@ -2,7 +2,7 @@ import Button from "@mui/material/Button";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { useDashboard } from "../api/hooks";
+import { useDashboard, useElements } from "../api/hooks";
 import type { DashboardSummary } from "../api/types";
 import { Card, Empty, PageHeader } from "../components/Card";
 import { ReviewChip, StatusChip, Utilisation } from "../components/Status";
@@ -102,6 +102,7 @@ function StatusBreakdown({ designs }: { designs: DashboardSummary["designs"] }) 
 export function DashboardPage() {
   useTab("Dashboard");
   const { data, isLoading, error } = useDashboard();
+  const elements = useElements();
   const me = useAuth((s) => s.me);
   const navigate = useNavigate();
 
@@ -110,6 +111,9 @@ export function DashboardPage() {
 
   const active = data.projects.by_status.active ?? 0;
   const ok = data.designs.by_status.ok ?? 0;
+  // "2 beams, 1 combined footing": the registry's titles without the "RCC" every one of them carries
+  const names = Object.fromEntries((elements.data ?? []).map((e) => [e.type, e.title.replace(/^RCC /, "")]));
+  const byType = Object.entries(data.designs.by_type).map(([t, n]) => `${n} ${names[t] ?? t.replace(/_/g, " ")}${n === 1 ? "" : "s"}`).join(", ");
   return (
     <div className="p-5 max-w-[1400px] mx-auto">
       <PageHeader title={`Welcome, ${me?.full_name.split(" ")[0] ?? ""}`} subtitle={me?.organization.name}>
@@ -119,7 +123,7 @@ export function DashboardPage() {
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         <Tile label="Active projects" value={active} note={`${data.projects.total} in the register`} />
-        <Tile label="Designs" value={data.designs.total} note={Object.entries(data.designs.by_type).map(([t, n]) => `${n} ${t}${n === 1 ? "" : "s"}`).join(", ")} />
+        <Tile label="Designs" value={data.designs.total} note={byType} />
         <Tile label="All checks OK" value={data.designs.total ? `${Math.round((ok / data.designs.total) * 100)}%` : "-"} note={data.designs.total ? `${ok} of ${data.designs.total} designs` : "No designs yet"} />
         <Tile label="Awaiting approval" value={data.designs.awaiting_approval} note="Passing designs not yet checked" />
       </div>

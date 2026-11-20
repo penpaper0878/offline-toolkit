@@ -109,6 +109,8 @@ The column (0.2.0) was the first test of this claim: it added a domain module, i
 
 The slab and the footing (0.3.0) were the second test. Each was a domain module, its detailing, a hand check and a registry entry; the slab's tables went into a kernel module (`is456_slabs.py`) that the footing reuses for minimum steel. The shared changes were small and general: the workspace's two drawing tabs now show an element's first and second views and take their titles (a plan for slabs and footings, a section for members), and the drawing model gained vertical text.
 
+The combined footing (0.6.0) was the third: a domain module, its detailing, a hand check and a registry entry, with three drawing views and two charts through the shared contract and no change outside the domain.
+
 Adding a column, slab or footing is therefore: a domain module, a hand check, a registry entry. No endpoint, migration, exporter or screen. The same pattern is the template for the water, sewerage and highway engines.
 
 ## 4. The engineering kernel

@@ -1,6 +1,6 @@
 # Release note 0.6.0: face moments, cantilever ends, backup and restore, combined footing
 
-The next items after 0.5.0, built one at a time. This note grows with each item.
+Released 20 November 2026. Four items after 0.5.0, built one at a time: two extensions of the continuous beam's elastic method, backup and restore, and a new element. The comparison of the column, slab and footing clauses with the printed code (STR-009) is still blocked on the code text, and the installers are still not code-signed (PLAT-022, needs a certificate).
 
 | Item | State | Engine |
 |---|---|---|

@@ -25,6 +25,7 @@ Phases are ordered by what the next one needs, not by size. No dates are given: 
 | Isolated footing (uniform depth; plan, shear, central band, anchorage, bearing) | done, engine 1.0.0 |
 | Beam extensions: flanged sections (T, L), continuous beams (Tables 12 and 13), curtailment and stirrup zones, anchorage at supports | done, beam 1.3.0 and continuous beam 1.2.0 |
 | Continuous beams of any spans and point loads (elastic analysis, Cl. 37.1.1 redistribution); U-hooks | done at 0.5.0, beam 1.4.0 and continuous beam 1.5.0 |
+| Face moments at monolithic supports; cantilever ends of continuous beams | done at 0.6.0, continuous beam 1.6.0 |
 | IS 13920 ductile detailing | planned (needs frame context) |
 
 Exit: beam, column, slab and isolated footing designed, hand-checked and issued from one workspace. Met at 0.3.0; the beam extensions followed at 0.4.0. The comparison of the clauses with the printed code (STR-009) is still open: it needs the code text.
@@ -32,12 +33,13 @@ Exit: beam, column, slab and isolated footing designed, hand-checked and issued 
 ## Phase 2: platform completion, estimation and standards library
 
 * Desktop shell (Electron) for Windows and Linux on the single-process backend with SQLite; installer. **Done at 0.5.0** (installers not yet code-signed; auto-update and macOS later).
+* Backup and restore; projects exported and imported between installations. **Done at 0.6.0** (`docs/OPERATIONS.md`).
 * Files and document control; object storage port; Word export.
 * Per-project membership and custom roles; OIDC single sign-on; refresh token in an httpOnly cookie.
 * Job queue (Redis, Celery) and WebSocket notifications.
 * **Standards library**: register of IS, IRC, CPHEEO, MoRTH and NBC with status and amendments; clause index; search; bookmarks; organisation notes.
 * **Quantity estimation**: SOR import (CPWD DSR, MoRTH, GWSSB, Gujarat R&B first), rate analysis, BOQ, abstract and detailed estimates, measurement book, running and final bills. Quantities flow in from designs.
-* Remaining structural members: combined and strap footing, pile cap, staircase, retaining wall.
+* Remaining structural members: combined footing (**done at 0.6.0**, engine 1.0.0), strap and trapezoidal footing, pile cap, staircase, retaining wall.
 
 Exit: a consultant can design a building frame's members, price them against a state SOR and issue the estimate, on a laptop with no network.
 

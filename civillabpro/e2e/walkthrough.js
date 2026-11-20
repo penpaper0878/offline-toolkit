@@ -94,7 +94,7 @@ const BASE = process.argv[3] || process.env.BASE || 'http://127.0.0.1:5173';
   await shot('09-dark-workspace');
   await page.keyboard.press('Control+k');
   await page.getByPlaceholder(/Search projects and designs/).fill('B1');
-  await page.getByRole('option', { name: /Beam B1/ }).waitFor({ timeout: 8000 });
+  await page.getByRole('option', { name: /beam B1/i }).waitFor({ timeout: 8000 });
   await shot('10-palette');
   await page.keyboard.press('Escape');
   await page.keyboard.press('Alt+c');
@@ -216,6 +216,7 @@ const BASE = process.argv[3] || process.env.BASE || 'http://127.0.0.1:5173';
   if (head !== 'SQLite format 3') throw new Error('the backup is not a database: ' + head);
   console.log('download', db.suggestedFilename(), require('fs').statSync(`${out}/backup.db`).size);
   await shot('16-data-and-backup');
+  await page.getByRole('alert').filter({ hasText: 'Backup saved' }).waitFor({ state: 'hidden', timeout: 10000 }); // not over the dashboard
 
   step('dashboard with data');
   await page.keyboard.press('Alt+1');

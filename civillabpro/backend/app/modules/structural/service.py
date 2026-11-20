@@ -15,7 +15,7 @@ from app.core.errors import Conflict, NotFound, from_pydantic
 from app.modules.identity.models import User
 from app.modules.identity.service import audit
 from app.modules.projects.service import get_project
-from app.modules.structural.domain.registry import ElementSpec, get_element
+from app.modules.structural.domain.registry import ElementSpec, element_title, get_element
 from app.modules.structural.models import StructuralDesign, StructuralDesignRevision
 from app.modules.structural.schemas import DesignSave, DesignUpdate
 
@@ -60,7 +60,7 @@ def save_design(db: Session, actor: User, project_id: uuid.UUID, data: DesignSav
     )
     db.add(design)
     db.flush()
-    audit(db, actor, "design.created", "structural_design", design.id, f"{data.element_type.capitalize()} {design.name} saved in {project.code}",
+    audit(db, actor, "design.created", "structural_design", design.id, f"{element_title(data.element_type)} {design.name} saved in {project.code}",
           {"status": design.status})
     return design
 
@@ -82,7 +82,7 @@ def update_design(db: Session, actor: User, design_id: uuid.UUID, data: DesignUp
     if data.name is not None:
         design.name = data.name.strip()
     design.updated_at = utcnow()
-    audit(db, actor, "design.updated", "structural_design", design.id, f"{design.element_type.capitalize()} {design.name} revised to R{design.revision}",
+    audit(db, actor, "design.updated", "structural_design", design.id, f"{element_title(design.element_type)} {design.name} revised to R{design.revision}",
           {"status": design.status})
     return design
 
@@ -94,13 +94,13 @@ def approve_design(db: Session, actor: User, design_id: uuid.UUID) -> Structural
     if design.designed_by == actor.id and not get_settings().allow_self_approval:
         raise Conflict("A design is checked by someone other than its designer.")
     design.review_status, design.approved_by, design.approved_by_name, design.approved_at = "approved", actor.id, actor.full_name, utcnow()
-    audit(db, actor, "design.approved", "structural_design", design.id, f"{design.element_type.capitalize()} {design.name} R{design.revision} approved")
+    audit(db, actor, "design.approved", "structural_design", design.id, f"{element_title(design.element_type)} {design.name} R{design.revision} approved")
     return design
 
 
 def delete_design(db: Session, actor: User, design_id: uuid.UUID) -> None:
     design = get_design(db, actor.org_id, design_id)
-    audit(db, actor, "design.deleted", "structural_design", design.id, f"{design.element_type.capitalize()} {design.name} deleted")
+    audit(db, actor, "design.deleted", "structural_design", design.id, f"{element_title(design.element_type)} {design.name} deleted")
     db.delete(design)
 
 

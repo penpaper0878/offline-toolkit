@@ -152,3 +152,9 @@ ELEMENTS: dict[str, ElementSpec] = {
 
 def get_element(element_type: str) -> ElementSpec | None:
     return ELEMENTS.get(element_type)
+
+
+def element_title(element_type: str) -> str:
+    """The element's title for messages ("RCC combined footing"), or its type in words where this installation lacks it."""
+    spec = ELEMENTS.get(element_type)
+    return spec.title if spec else element_type.replace("_", " ").capitalize()

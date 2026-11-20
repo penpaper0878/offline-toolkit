@@ -14,6 +14,7 @@ from app.core.deps import require
 from app.modules.identity.models import AuditLog, User
 from app.modules.identity.permissions import P
 from app.modules.projects.models import Project
+from app.modules.structural.domain.registry import element_title
 from app.modules.structural.models import StructuralDesign
 
 router = APIRouter(tags=["dashboard"])
@@ -74,6 +75,6 @@ def search(q: str = Query(..., min_length=1, max_length=100), limit: int = Query
         .where(StructuralDesign.org_id == user.org_id, func.lower(StructuralDesign.name).like(like)).order_by(StructuralDesign.updated_at.desc()).limit(limit)
     ).all()
     for d, code in designs:
-        hits.append({"kind": "design", "id": str(d.id), "title": f"{d.element_type.capitalize()} {d.name}", "subtitle": f"{code}  R{d.revision}  {d.status}",
+        hits.append({"kind": "design", "id": str(d.id), "title": f"{element_title(d.element_type)} {d.name}", "subtitle": f"{code}  R{d.revision}  {d.status}",
                      "project_id": str(d.project_id), "element_type": d.element_type})
     return hits[:limit]

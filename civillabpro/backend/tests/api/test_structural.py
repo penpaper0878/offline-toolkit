@@ -139,7 +139,7 @@ def test_dashboard_and_search_reflect_saved_work(client, team, project, design):
     assert s["designs"]["by_type"] == {"beam": 2} and len(s["recent_designs"]) == 2 and s["recent_designs"][0]["project_code"] == "SC-2026-014"
     assert len(s["design_activity"]) == 14 and s["design_activity"][-1]["count"] == 2 and s["activity"][0]["action"] == "design.created"
     hits = client.get("/api/v1/search", headers=team["viewer"], params={"q": "lintel"}).json()
-    assert [(h["kind"], h["title"]) for h in hits] == [("design", "Beam Lintel L2")]
+    assert [(h["kind"], h["title"]) for h in hits] == [("design", "RCC beam Lintel L2")]
     hits = client.get("/api/v1/search", headers=team["viewer"], params={"q": "ward"}).json()
     assert hits[0]["kind"] == "project" and hits[0]["title"].startswith("SC-2026-014")
     other = register(client, email="o@other.example", org="Other", name="Other Owner")
