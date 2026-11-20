@@ -10,7 +10,7 @@ It lives in `civillabpro/` of the `offline-toolkit` repository. The rest of that
 
 ## Current status
 
-Version 0.4.0. Phase 1 is done: beams (rectangular, T and L; simple, cantilever and continuous, with curtailment, stirrup zones and anchorage at supports), columns, slabs and isolated footings are designed, hand-checked and issued from one workspace. Still open from phase 1: the comparison of the clauses with the printed code (STR-009, blocked on the code text).
+Version 0.5.0. Phase 1 is done: beams (rectangular, T and L; simple, cantilever and continuous, with curtailment, stirrup zones and anchorage at supports), columns, slabs and isolated footings are designed, hand-checked and issued from one workspace. 0.5.0 adds continuous beams of any spans and point loads by elastic analysis with redistribution, U-hooks, and the desktop app for Windows and Linux, and fixes three defects (bend anchorage counted twice, curtailment of compression steel at continuous supports, writes committed after the response). Still open from phase 1: the comparison of the clauses with the printed code (STR-009, blocked on the code text).
 
 | Area | State |
 |---|---|
@@ -27,7 +27,7 @@ Version 0.4.0. Phase 1 is done: beams (rectangular, T and L; simple, cantilever 
 | Modules 3 to 11 | designed in ARCHITECTURE.md and DATABASE_SCHEMA.md, not started |
 | Cloud environment | personal environment `offline-toolkit` (allows law.resource.org; setup script installs the venv, npm packages and PostGIS). The script is unproven until a fresh session starts on it. |
 
-Test counts at 0.4.0: backend 319 (277 engineering, architecture and hand checks; 42 API, one of them PostgreSQL-only); frontend 19; hand checks: beam 672 values over 25 cases, continuous beam 675 over 12, column 471 over 17, slab 379 over 18, footing 384 over 16, with 1 or 2 stop states each; browser walkthrough with beam, column, slab, footing and continuous beam, 0 console errors.
+Test counts at 0.5.0: backend 345 (298 engineering, architecture, hand checks and the server entry; 47 API, one of them PostgreSQL-only); frontend 22; desktop launcher 8; hand checks: beam 716 values over 27 cases, continuous beam 897 over 15, continuous beam by elastic analysis 936 over 14, column 471 over 17, slab 379 over 18, footing 384 over 16, with 1 to 3 stop states each; browser walkthrough with beam, column, slab, footing and continuous beam by both methods, 0 console errors; desktop smoke test of the packaged app (Linux here, Linux and Windows in CI).
 
 ## NEXT STEPS
 

@@ -1,6 +1,6 @@
 [project]
 name = "civillabpro-backend"
-version = "0.4.0"
+version = "0.5.0"
 description = "CivilLabPro OS backend: platform services and Indian-standard engineering engines"
 requires-python = ">=3.11"
 dependencies = [

@@ -24,13 +24,14 @@ Phases are ordered by what the next one needs, not by size. No dates are given: 
 | Slab (one-way, two-way to Annex D, torsion steel) | done, engine 1.0.0; Table 26 rows to compare with the printed code |
 | Isolated footing (uniform depth; plan, shear, central band, anchorage, bearing) | done, engine 1.0.0 |
 | Beam extensions: flanged sections (T, L), continuous beams (Tables 12 and 13), curtailment and stirrup zones, anchorage at supports | done, beam 1.3.0 and continuous beam 1.2.0 |
+| Continuous beams of any spans and point loads (elastic analysis, Cl. 37.1.1 redistribution); U-hooks | done at 0.5.0, beam 1.4.0 and continuous beam 1.5.0 |
 | IS 13920 ductile detailing | planned (needs frame context) |
 
 Exit: beam, column, slab and isolated footing designed, hand-checked and issued from one workspace. Met at 0.3.0; the beam extensions followed at 0.4.0. The comparison of the clauses with the printed code (STR-009) is still open: it needs the code text.
 
 ## Phase 2: platform completion, estimation and standards library
 
-* Desktop shell (Electron) for Windows and Linux on the single-process backend with SQLite; installer.
+* Desktop shell (Electron) for Windows and Linux on the single-process backend with SQLite; installer. **Done at 0.5.0** (installers not yet code-signed; auto-update and macOS later).
 * Files and document control; object storage port; Word export.
 * Per-project membership and custom roles; OIDC single sign-on; refresh token in an httpOnly cookie.
 * Job queue (Redis, Celery) and WebSocket notifications.

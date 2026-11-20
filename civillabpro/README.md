@@ -2,7 +2,7 @@
 
 An Indian civil engineering operating system: design to Indian Standards, estimation, laboratory, GIS and project control in one application, for the web, as a PWA and as a desktop install for Windows and Linux.
 
-**Version 0.4.0.** Phase 1 is complete: the platform core and five structural engines (beam, continuous beam, column, slab, isolated footing) are built and tested. The remaining modules are designed and scheduled; see the roadmap.
+**Version 0.5.0.** Phase 1 is complete: the platform core and five structural engines (beam, continuous beam, column, slab, isolated footing) are built and tested. Release 0.5.0 adds continuous beams of any spans and point loads by elastic analysis with redistribution, U-hooks, and the desktop app for Windows and Linux. The remaining modules are designed and scheduled; see the roadmap.
 
 | Module | State |
 |---|---|
@@ -52,12 +52,19 @@ Continuous beam: the whole beam in one design, with long and short top bars over
 
 ![Continuous beam](docs/screenshots/continuous-beam-sections.png)
 
+Continuous beam by elastic analysis: spans of any length and point loads in tables, redistribution of support moments, an elevation of every span, and the design envelopes:
+
+| Spans, schedule and the elevation of span 4 | Moment and shear envelopes |
+|---|---|
+| ![Elastic method](docs/screenshots/continuous-beam-elastic.png) | ![Envelopes](docs/screenshots/continuous-beam-elastic-charts.png) |
+
 Sample output of the worked examples, produced by the running application:
 
 | Element | Report | Bar schedule | Drawing |
 |---|---|---|---|
 | Beam B1 | [PDF](docs/samples/beam_B1_R0_report.pdf) | [Excel](docs/samples/beam_B1_R0_bbs.xlsx) | [DXF](docs/samples/beam_B1_R0.dxf) |
 | Continuous beam CB1 | [PDF](docs/samples/continuous_beam_CB1_R0_report.pdf) | [Excel](docs/samples/continuous_beam_CB1_R0_bbs.xlsx) | [DXF](docs/samples/continuous_beam_CB1_R0.dxf) |
+| Continuous beam CB2 (elastic, four unequal spans, a point load) | [PDF](docs/samples/continuous_beam_CB2_R0_report.pdf) | [Excel](docs/samples/continuous_beam_CB2_R0_bbs.xlsx) | [DXF](docs/samples/continuous_beam_CB2_R0.dxf) |
 | Column C1 | [PDF](docs/samples/column_C1_R0_report.pdf) | [Excel](docs/samples/column_C1_R0_bbs.xlsx) | [DXF](docs/samples/column_C1_R0.dxf) |
 | Slab S1 | [PDF](docs/samples/slab_S1_R0_report.pdf) | [Excel](docs/samples/slab_S1_R0_bbs.xlsx) | [DXF](docs/samples/slab_S1_R0.dxf) |
 | Footing F1 | [PDF](docs/samples/footing_F1_R0_report.pdf) | [Excel](docs/samples/footing_F1_R0_bbs.xlsx) | [DXF](docs/samples/footing_F1_R0.dxf) |

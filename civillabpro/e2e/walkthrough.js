@@ -164,6 +164,7 @@ const BASE = process.argv[3] || process.env.BASE || 'http://127.0.0.1:5173';
   await page.getByRole('link', { name: /New RCC continuous beam/ }).click();
   await page.getByLabel('Analysis', { exact: true }).waitFor({ timeout: 15000 });
   await page.getByLabel('Analysis', { exact: true }).selectOption('elastic');
+  await page.getByLabel('Member mark').fill('CB2');
   await page.getByRole('table', { name: 'Spans' }).waitFor();
   await page.getByText('Span 1: support 1 to support 2', { exact: true }).first().waitFor({ timeout: 15000 });
   await page.getByLabel('Clear span, row 3').fill('5500');

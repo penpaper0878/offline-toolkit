@@ -218,3 +218,29 @@ Decisions:
 * The smoke test, run from a checkout, on the unpacked package and on the AppImage, all passing here. It signs up, makes a project, and designs the beam, both continuous beams, the column, the slab and the footing. It then fetches each design's report, schedule and drawing through the window, and recognises them as PDF, XLSX and DXF.
 * With the packaged app running, the shell was killed with SIGKILL; its server logged a clean shutdown within three seconds.
 * The Windows installer is built and smoke-tested by the CI workflow; it was not run here.
+
+## Release 0.5.0
+
+Engines: beam 1.4.0, continuous beam 1.5.0 (with the elastic method), footing 1.1.0; column 1.0.0 and slab 1.0.0 unchanged. Platform: sessions committed before the response (PLAT-021); table fields and the drawing view picker in the client; the desktop app.
+
+Integration:
+
+* **Server.** No database change. Deploy the new image or restart the single process; `python -m app.serve` now migrates before serving.
+* **Saved designs.** They keep the result they were made with; a revision recalculates with the new engines. Expect three kinds of change:
+  * beams and continuous beams with bent bars at simple supports show a smaller L_0, corrected by 5 phi (deformed bars);
+  * footings with end bends show a slightly smaller anchorage, by 3 phi;
+  * some continuous beams with doubly reinforced supports lose bottom-bar curtailment.
+* **Desktop.** Installers come from the `civillabpro-desktop` workflow's artifacts: an AppImage for Linux and an NSIS installer for Windows. Neither is code-signed.
+
+Test counts: backend 345 (47 API, one PostgreSQL-only); frontend 22; desktop launcher 8. Hand checks:
+
+| Engine | Values | Cases | Stops |
+|---|---|---|---|
+| Beam | 716 | 27 | 3 |
+| Continuous beam (coefficients) | 897 | 15 | 3 |
+| Continuous beam (elastic) | 936 | 14 | 2 |
+| Column | 471 | 17 | 2 |
+| Slab | 379 | 18 | 1 |
+| Footing | 384 | 16 | 2 |
+
+The browser walkthrough covers every element and the continuous beam by both methods, with 0 console errors. Samples of every worked example, CB2 by elastic analysis among them, are in `docs/samples/`.
