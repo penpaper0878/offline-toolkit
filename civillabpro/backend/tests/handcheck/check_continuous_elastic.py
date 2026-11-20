@@ -37,6 +37,8 @@ BASE = dict(
     exposure="moderate", clear_cover_mm=None, max_aggregate_mm=20, dead_load_kn_m=25, live_load_kn_m=15, include_self_weight=True,
     unit_weight_kn_m3=25, load_factor=1.5, main_bar_dia_mm=None, hanger_bar_dia_mm=12, stirrup_dia_mm=8, stirrup_legs=2,
     redistribution_pct=15.0, support_moments_at="centre",
+    cantilever_left_mm=0.0, cantilever_left_dead_kn_m=20.0, cantilever_left_live_kn_m=10.0, cantilever_left_tip_kn=0.0,
+    cantilever_right_mm=0.0, cantilever_right_dead_kn_m=20.0, cantilever_right_live_kn_m=10.0, cantilever_right_tip_kn=0.0,
     span_table=[dict(clear_span_mm=c, dead_load_kn_m=25.0, live_load_kn_m=15.0) for c in (5000.0, 6500.0, 4500.0)],
     point_loads=[dict(span=2, distance_mm=3000.0, dead_kn=40.0, live_kn=30.0)],
 )
@@ -67,6 +69,9 @@ CASES: list[tuple[str, dict]] = [
     ("monolithic supports: moments at the faces (Cl. 22.6.2)", dict(support_moments_at="faces", support_width_mm=450,
                                                                    span_table=spans(6000, 7000, 5000))),
     ("light load", dict(span_table=spans(4000, 4500, 4000, dl=6, ll=3), point_loads=[])),
+    ("a cantilever at each end", dict(cantilever_left_mm=1500, cantilever_right_mm=2000, cantilever_right_tip_kn=12, depth_mm=550)),
+    ("a long left cantilever, monolithic supports", dict(cantilever_left_mm=2500, cantilever_left_live_kn_m=20, support_moments_at="faces",
+                                                        depth_mm=650, span_table=spans(6000, 5000))),
     ("T32 on 230 mm supports: anchorage picks four bars in the end spans", dict(support_width_mm=230, main_bar_dia_mm=32,
                                                                               span_table=spans(3000, 3500, 3000, dl=80, ll=48), point_loads=[])),
 ]
@@ -93,17 +98,18 @@ def fem(l: float, w: float, pts: list[tuple[float, float]]) -> tuple[float, floa
     return ml, mr
 
 
-def distribute(L: list[float], loads: list[tuple[float, list[tuple[float, float]]]]) -> list[float]:
-    """Bending moments at the supports (sagging positive) by Hardy Cross; the end supports pinned."""
+def distribute(L: list[float], loads: list[tuple[float, list[tuple[float, float]]]], ends: tuple[float, float] = (0.0, 0.0)) -> list[float]:
+    """Bending moments at the supports (sagging positive) by Hardy Cross; the end supports pinned, held at ``ends`` (a cantilever's
+    moment beyond them, known by statics)."""
     n = len(L)
     k = [3 / s if i in (0, n - 1) else 4 / s for i, s in enumerate(L)]
     mem = []
     for i, (s, (w, pts)) in enumerate(zip(L, loads, strict=True)):
         ml, mr = fem(s, w, pts)
         if i == 0 and n > 1:
-            ml, mr = 0.0, mr - ml / 2  # release the end support, carry half over
-        elif i == n - 1:
-            ml, mr = ml - mr / 2, 0.0
+            ml, mr = ends[0], mr + (ends[0] - ml) / 2  # release the end to its known moment, carry half the change over
+        if i == n - 1:  # at a right end the member-end moment is minus the bending moment
+            ml, mr = ml + (-ends[1] - mr) / 2, -ends[1]
         mem.append([ml, mr])
     for _ in range(5000):
         worst = 0.0
@@ -120,7 +126,7 @@ def distribute(L: list[float], loads: list[tuple[float, list[tuple[float, float]
                 mem[j][1] += dr / 2
         if worst < 1e-11:
             break
-    return [0.0] + [mem[j][0] for j in range(1, n)] + [0.0]
+    return [ends[0]] + [mem[j][0] for j in range(1, n)] + [ends[1]]
 
 
 def by_statics(ml: float, mr: float, l: float, w: float, pts: list[tuple[float, float]], x: float) -> tuple[float, float]:  # noqa: E741
@@ -162,10 +168,27 @@ class Hand:
             self.live.append((g * r["live_load_kn_m"], [((self.off[i] + p["distance_mm"]) / 1000, g * p["live_kn"]) for p in pl if p["live_kn"]]))
         pats = [[True] * n, [i % 2 == 0 for i in range(n)], [i % 2 == 1 for i in range(n)]] + [[j in (i, i + 1) for j in range(n)] for i in range(n - 1)]
         Lm = [x / 1000 for x in self.l]
+        # cantilevers (Cl. 22.2(c): length to the centre of the support at the end of a continuous beam), each loaded and not
+        self.cant = {}
+        for j, key in ((0, "left"), (n, "right")):
+            if s.get(f"cantilever_{key}_mm", 0) > 0:
+                lc_c = s[f"cantilever_{key}_mm"]
+                self.cant[j] = dict(lc=lc_c, L=lc_c + sw / 2, wd=g * (s[f"cantilever_{key}_dead_kn_m"] + w_self), wl=g * s[f"cantilever_{key}_live_kn_m"],
+                                    P=g * s[f"cantilever_{key}_tip_kn"])
+
+        def cant_m(j: int, loaded: bool, x_mm: float | None = None) -> float:
+            c = self.cant[j]
+            x = (c["L"] if x_mm is None else x_mm) / 1000
+            return (c["wd"] + (c["wl"] if loaded else 0.0)) * x * x / 2 + c["P"] * x
+
+        self.cant_m = cant_m
+        states = [(a, b) for a in ((True, False) if 0 in self.cant else (False,)) for b in ((True, False) if n in self.cant else (False,))]
         self.cases = []
         for p in pats:
             loads = [(self.dead[i][0] + (self.live[i][0] if p[i] else 0.0), self.dead[i][1] + (self.live[i][1] if p[i] else [])) for i in range(n)]
-            self.cases.append((loads, distribute(Lm, loads)))
+            for a, b in states:
+                ends = (-cant_m(0, a) if 0 in self.cant else 0.0, -cant_m(n, b) if n in self.cant else 0.0)
+                self.cases.append((loads, distribute(Lm, loads, ends)))
         self.me = [max(max(-m[j], 0.0) for _, m in self.cases) for j in range(n + 1)]
         cap = [(1 - fr[j]) * x for j, x in enumerate(self.me)]
         self.red = [(loads, [-min(-m[j], cap[j]) if m[j] < 0 else m[j] for j in range(n + 1)]) for loads, m in self.cases]
@@ -274,10 +297,18 @@ def compare(name: str, s: dict, res: dict) -> tuple[int, list[str]]:
     # the sections the supports are designed for: the centre lines, or the faces where the construction is monolithic (Cl. 22.6.2)
     faces = s.get("support_moments_at") == "faces"
     msec, mesec = list(h.m_sup), list(h.me)
-    for j in range(1, n):
+    tops = [j for j in range(n + 1) if 0 < j < n or j in h.cant]
+    k += 1
+    if [j for j in range(n + 1) if reinf["support"][j] is not None] != tops:
+        bad.append(f"{name}: top bars over supports {[j + 1 for j in range(n + 1) if reinf['support'][j]]}, expected over {[j + 1 for j in tops]}")
+    for j in tops:
         if faces:
-            msec[j] = max(h.hog(j - 1, h.lc[j - 1]), h.hog(j, 0.0))
-            mesec[j] = max(h.hog_e(j - 1, h.lc[j - 1]), h.hog_e(j, 0.0))
+            sides_d = ([h.hog(j - 1, h.lc[j - 1])] if j > 0 else []) + ([h.hog(j, 0.0)] if j < n else [])
+            sides_e = ([h.hog_e(j - 1, h.lc[j - 1])] if j > 0 else []) + ([h.hog_e(j, 0.0)] if j < n else [])
+            if j in h.cant:  # the cantilever's own face
+                sides_d.append(h.cant_m(j, True, h.cant[j]["lc"]))
+                sides_e.append(h.cant_m(j, True, h.cant[j]["lc"]))
+            msec[j], mesec[j] = max(sides_d), max(sides_e)
         near(f"design moment of support {j + 1}", eng["m_sup"][j], msec[j])
         near(f"elastic moment at that section, support {j + 1}", eng["m_sup_elastic"][j], mesec[j])
     # greatest sagging in each span: stations by hand, the engine at its own; a station apart at most
@@ -305,10 +336,10 @@ def compare(name: str, s: dict, res: dict) -> tuple[int, list[str]]:
             bad.append(f"{name}: span {i + 1} steel {ast:.0f}/{asc:.0f} below the hand requirement {a_req:.0f}/{c_req:.0f}")
         if resistance(fck, fy, b, d, ast, asc, dc, bf, s["flange_thickness_mm"]) * 1.003 < m:
             bad.append(f"{name}: span {i + 1} resists less than {m:.1f} kN m")
-    for j in range(1, n):
+    for j in tops:
         sup = reinf["support"][j]
         _, _, ast = bars(sup["top"])
-        lo = min((j - 1, j), key=lambda q: reinf["span"][q]["bottom"]["area"])
+        lo = min((q for q in (j - 1, j) if 0 <= q < n), key=lambda q: reinf["span"][q]["bottom"]["area"])
         _, cdia, asc = bars(reinf["span"][lo]["bottom"])
         d, dc = sup["d"], D - reinf["span"][lo]["d"]
         m = msec[j]
@@ -357,11 +388,42 @@ def compare(name: str, s: dict, res: dict) -> tuple[int, list[str]]:
         if pos[0] != 50 or pos[-1] > lc - 50 + 1e-6:
             bad.append(f"{name}: span {i + 1}: stirrups not set out 50 mm from the faces")
 
+    # the cantilevers: top bars developed between the face and the tip (bent down there), shear, and span/depth (Cl. 23.2.1, basic 7)
+    for j, c in h.cant.items():
+        key = "left" if j == 0 else "right"
+        sup, ec = reinf["support"][j], eng["cantilever"][key]
+        _, tdia, ast = bars(sup["top"])
+        r_b = (2 if fy <= 250 else 4) * tdia
+        avail = c["lc"] - cover - (r_b + tdia) + 8 * tdia
+        near(f"{key} cantilever: length to develop its top bars", ec["available"], avail, 1e-9, 0.01)
+        k += 1
+        if ld(tdia, fck, fy) > avail + 1e-6:
+            bad.append(f"{name}: the {key} cantilever's top bars (T{tdia}) cannot develop between the face and the tip")
+        d = sup["d"]
+        v = (c["wd"] + c["wl"]) * max(c["lc"] - d, 0) / 1000 + c["P"]
+        tc = tau_c(fck, 100 * ast / (b * d))
+        vus = v - tc * b * d / 1e3
+        s_need = min(0.87 * min(s["fy_stirrup"], 415) * s["stirrup_legs"] * math.pi * dst**2 / 4 / (0.4 * b), 0.75 * d, 300.0)
+        if vus > 0:
+            s_need = min(s_need, 0.87 * min(s["fy_stirrup"], 415) * s["stirrup_legs"] * math.pi * dst**2 / 4 * d / (vus * 1e3))
+        k += 1
+        if ec["shear"]["spacing"] > s_need + 1e-6:
+            bad.append(f"{name}: the {key} cantilever's stirrups at {ec['shear']['spacing']:.0f}, the shear asks for {s_need:.0f}")
+        sd = eng["support"][j]
+        fs = 0.58 * fy * max(sd["ast_req"], 1e-9) / ast
+        pt = 100 * ast / (b * d)
+        den = 0.225 + 0.00322 * fs + 0.625 * math.log10(pt)
+        kt = 2.0 if den <= 0.5 else min(2.0, 1 / den)
+        kc = min(1.5, 1 + (pc := 100 * sd["asc_prov"] / (b * d)) / (3 + pc)) if sd["doubly"] else 1.0
+        near(f"{key} cantilever: allowable span/depth", ec["defl"]["allow"], 7 * kt * kc, 0.03)
+        if c["L"] / d > 7 * kt * kc * 1.03 and res["status"] == "ok":
+            bad.append(f"{name}: the {key} cantilever fails the span/depth rule by hand but the engine reports OK")
+
     # extents of the top bars (Cl. 26.2.3.4) and the cut-offs over the supports
-    for j in range(1, n):
+    for j in tops:
         sup, lay = reinf["support"][j], reinf["layout"]
         _, tdia, _ = bars(sup["top"])
-        for side, i, at_left in (("left", j - 1, False), ("right", j, True)):
+        for side, i, at_left in [t for t in (("left", j - 1, False), ("right", j, True)) if 0 <= t[1] < n]:
             lc = h.lc[i]
             prof = [(x, h.hog(i, x if at_left else lc - x)) for x in [lc * q / 800 for q in range(801)]]
             x0 = next((x for x, m in prof if m <= 1e-9), lc)
@@ -443,7 +505,7 @@ def compare(name: str, s: dict, res: dict) -> tuple[int, list[str]]:
         L = ld(gdia, fck, fy)
         main = next(it for it in res["bbs"]["items"] if it["description"].startswith("Bottom bars,") and "curtailed" not in it["description"]
                     and i + 1 in names(it["description"], "span"))
-        for left in ([True] if i == 0 else []) + ([False] if i == n - 1 else []):
+        for left in ([True] if i == 0 and 0 not in h.cant else []) + ([False] if i == n - 1 and n not in h.cant else []):
             v = h.shear(i, 0.0 if left else lc)
             r_b = (2 if fy <= 250 else 4) * gdia
             beyond = sw / 2 - cover
@@ -451,7 +513,7 @@ def compare(name: str, s: dict, res: dict) -> tuple[int, list[str]]:
             k += 1
             if L > 1.3 * m1 / (v * 1e3) + l0 + 1e-6:
                 bad.append(f"{name}: span {i + 1}: L_d {L:.0f} exceeds 1.3 M_1/V + L_0 = {1.3 * m1 / (v * 1e3) + l0:.0f} at the end support")
-        for left in ([True] if i > 0 else []) + ([False] if i < n - 1 else []):
+        for left in ([True] if i in tops else []) + ([False] if i + 1 in tops else []):
             prof = [(x, h.sag(i, x if left else lc - x)) for x in [lc * q / 800 for q in range(801)]]
             x = next((x for x, m in prof if m > 1e-9), None)
             if x is None:

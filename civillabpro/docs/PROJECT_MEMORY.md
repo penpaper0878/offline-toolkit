@@ -17,7 +17,7 @@ Version 0.5.0. Phase 1 is done: beams (rectangular, T and L; simple, cantilever 
 | Platform core (identity, roles, audit, projects) | built, tested on SQLite and PostgreSQL 16 |
 | Shell and client | built, walked through in a browser in light and dark |
 | Structural: beam engine 1.4.0 (rectangular, T, L; curtailment, stirrup zones, anchorage with bends and U-hooks) | built, independent hand check passing; Fig. 6, Cl. 23.1.2(c), (d) and 26.2.3 to compare with the code |
-| Structural: continuous beam engine 1.6.0 (Tables 12 and 13, or elastic analysis of any spans and point loads with redistribution and optional face moments; curtailment, zones, anchorage, U-hooks) | built, independent hand check passing; Table 13 and Cl. 22.2(b), 22.4.1, 26.2.3 to compare with the code |
+| Structural: continuous beam engine 1.6.0 (Tables 12 and 13, or elastic analysis of any spans, point loads and cantilever ends with redistribution and optional face moments; curtailment, zones, anchorage, U-hooks) | built, independent hand check passing; Table 13 and Cl. 22.2(b), 22.4.1, 26.2.3 to compare with the code |
 | Structural: column engine 1.0.0 | built, independent hand check passing; code text not yet compared (see the code register) |
 | Structural: slab engine 1.0.0 (one-way, two-way) | built, independent hand check passing; Table 26 rows and Annex D extents to compare with the code |
 | Structural: isolated footing engine 1.1.0 | built, independent hand check passing; Cl. 34 wording to compare with the code |
@@ -32,7 +32,7 @@ Test counts at 0.5.0: backend 345 (298 engineering, architecture, hand checks an
 ## NEXT STEPS
 
 1. **STR-009, blocked: compare the column, slab and footing clauses with the code text** (the three "To cross-check" lists in the code register). It needs the user: either approval of a direct download of the public copy, or the pages pasted into the session. Do not work around a declined download. Fix anything that differs and re-run every hand check.
-2. **The continuous beam's follow-ups**: STR-042 cantilever ends (in progress), STR-041 a support width and section per span, STR-043 the coefficient method on the per-span path.
+2. **The continuous beam's follow-ups**: STR-041 a support width and section per span, STR-043 the coefficient method on the per-span path.
 3. **Desktop**: PLAT-022 code-signing (needs a certificate), PLAT-018 backup and restore, PLAT-011 auto-update.
 4. **Phase 2's engineering**: STR-020 combined and strap footing; the estimation module and the standards library (see ROADMAP.md).
 
@@ -111,6 +111,12 @@ Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not her
 * Library versions at 0.1.0 are recent majors (React 19, MUI 9, Vite 8, Tailwind 4, TypeScript 7, dockview-react 8, recharts 3, FastAPI 0.16x, SQLAlchemy 2.1). Check the installed typings before assuming an older API.
 
 ## Log
+
+### 0.6.0 in progress (20 November 2026): STR-042 cantilever ends
+
+* Built: cantilevers at either or both ends of a continuous beam (elastic method): known end moments in the analysis, each cantilever loaded and unloaded, the support designed with top bars to the tip, the cantilever's shear, deflection and anchorage, its schedule rows and drawing, uplift warnings. Continuous beam 1.6.0.
+* Found and fixed: a support short of compression steel stopped the design (a left cantilever lightens span 1's bottom bars); the engine now raises the lighter span's bottom bars first, and redistributes less only where that cannot help.
+* Hand check: elastic 1223 values over 17 cases; a sabotaged cantilever length fails it on 47 values.
 
 ### 0.6.0 in progress (20 November 2026): STR-040 face moments
 

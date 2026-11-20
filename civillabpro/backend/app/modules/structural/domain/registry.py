@@ -77,8 +77,9 @@ ELEMENTS: dict[str, ElementSpec] = {
             "Coefficients: three or more spans of one clear span (the longest where they differ by up to 15 percent), uniform load, no "
             "redistribution (Cl. 22.5.1).",
             "Elastic analysis: two to twelve spans, uniform and point loads, redistribution up to 30 percent (Cl. 37.1.1); support moments "
-            "at the centre lines of the supports, not the faces.",
-            "Torsion, cantilevers at the ends and ductile detailing to IS 13920 are not covered.",
+            "at the centre lines of the supports, or at the faces where the construction is monolithic (Cl. 22.6.2).",
+            "Cantilevers at the ends with the elastic method only; their top bars are not curtailed. Torsion and ductile detailing to "
+            "IS 13920 are not covered.",
         ),
     ),
     column.ELEMENT_TYPE: ElementSpec(

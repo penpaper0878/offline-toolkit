@@ -152,21 +152,24 @@ def load_terms(load: SpanLoad, span: float) -> tuple[float, float]:
     return left, right
 
 
-def support_moments_loads(spans: list[float], loads: list[SpanLoad]) -> list[float]:
+def support_moments_loads(spans: list[float], loads: list[SpanLoad], ends: tuple[float, float] = (0.0, 0.0)) -> list[float]:
     """Moments at the n + 1 supports under any loads, by the three-moment equation, the end supports free to rotate.
 
     At support j: M_(j-1) l_(j-1) + 2 M_j (l_(j-1) + l_j) + M_(j+1) l_j = -(6 A x / l of span j-1, x from its left end)
-    - (6 A x / l of span j, x from its right end); solved by the tridiagonal (Thomas) algorithm.
+    - (6 A x / l of span j, x from its right end); solved by the tridiagonal (Thomas) algorithm. ``ends`` are known moments at the
+    end supports (sagging positive): those of cantilevers beyond them, statically determinate, moved to the right-hand side.
     """
     n = len(spans)
     if n < 2:
-        return [0.0] * (n + 1)
+        return [ends[0]] + [0.0] * (n - 1) + [ends[1]] if n else [0.0]
     m = n - 1
     terms = [load_terms(ld, s) for ld, s in zip(loads, spans, strict=True)]
     a = [spans[i] for i in range(m)]
     bdiag = [2.0 * (spans[i] + spans[i + 1]) for i in range(m)]
     c = [spans[i + 1] for i in range(m)]
     rhs = [-(terms[i][0] + terms[i + 1][1]) for i in range(m)]
+    rhs[0] -= ends[0] * spans[0]
+    rhs[m - 1] -= ends[1] * spans[n - 1]
     cp, dp = [0.0] * m, [0.0] * m
     for i in range(m):
         den = bdiag[i] - (a[i] * cp[i - 1] if i else 0.0)
@@ -175,7 +178,7 @@ def support_moments_loads(spans: list[float], loads: list[SpanLoad]) -> list[flo
     x = [0.0] * m
     for i in range(m - 1, -1, -1):
         x[i] = dp[i] - (cp[i] * x[i + 1] if i < m - 1 else 0.0)
-    return [0.0, *x, 0.0]
+    return [ends[0], *x, ends[1]]
 
 
 def free_moment(load: SpanLoad, span: float, x: float) -> float:
@@ -239,14 +242,19 @@ def stations(span: float, load_points: list[float], steps: int = 200) -> list[fl
     return sorted(xs)
 
 
-def envelopes(spans: list[float], cases: list[list[SpanLoad]], fraction: float | list[float], steps: int = 200
-              ) -> tuple[list[SpanEnvelope], list[float], list[float]]:
+def envelopes(spans: list[float], cases: list[list[SpanLoad]], fraction: float | list[float], steps: int = 200,
+              ends: list[tuple[float, float]] | None = None) -> tuple[list[SpanEnvelope], list[float], list[float]]:
     """Moment and shear envelopes of every span over the arrangements, elastic and after redistribution of ``fraction`` (one, or one
-    per support).
+    per support). ``ends``: the known end moments of each arrangement (cantilevers), if any; they are not redistributed.
 
     Returns the envelopes, the greatest elastic hogging at each support and the redistributed one (magnitudes, kN m).
     """
-    elastic = [support_moments_loads(spans, loads) for loads in cases]
+    ends = ends or [(0.0, 0.0)] * len(cases)
+    elastic = [support_moments_loads(spans, loads, e) for loads, e in zip(cases, ends, strict=True)]
+    if isinstance(fraction, list):
+        fraction = [0.0, *fraction[1:-1], 0.0]
+    else:
+        fraction = [0.0] + [fraction] * (len(spans) - 1) + [0.0]  # a cantilever's moment is statically determinate
     modified, caps = redistribute(elastic, fraction)
     hog_e = [max(max(-ms[j], 0.0) for ms in elastic) for j in range(len(spans) + 1)]
     out = []

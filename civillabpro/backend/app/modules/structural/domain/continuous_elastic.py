@@ -30,7 +30,7 @@ from typing import Any
 
 from app.engineering import continuous as analysis
 from app.engineering import is456
-from app.engineering.rebar import BarGroup, bar_area, bar_unit_weight
+from app.engineering.rebar import BarGroup, bar_area, bar_unit_weight, bend_radius
 from app.engineering.trace import CalcSheet
 from app.modules.structural.domain.beam import (
     SECTION_LABELS,
@@ -67,6 +67,7 @@ from app.modules.structural.domain.continuous_beam import (
 
 REF = is456.CODE
 STEPS = 400  # stations per span for the envelopes
+FIRST_STIRRUP = 50.0  # mm from the face
 ELASTIC_FLOOR = 0.7  # Cl. 37.1.1(b)
 
 
@@ -172,13 +173,44 @@ def factored_loads(inp: ContinuousBeamInput, geo: list[SpanGeom], w_self: float)
     return dead, imposed
 
 
+@dataclass(frozen=True)
+class Cantilever:
+    """An overhang beyond an end support (Cl. 22.2(c)): clear projection, length to the centre of the support, factored loads."""
+
+    j: int  # the support it springs from: 0 or n
+    lc: float  # clear projection, mm
+    length: float  # to the centre of the support, mm (Cl. 22.2(c), the end of a continuous beam)
+    wd: float  # factored dead load with self-weight, kN/m
+    wl: float  # factored imposed load, kN/m
+    tip: float  # factored dead load at the tip, kN
+
+    def moment(self, x: float, loaded: bool = True) -> float:
+        """Hogging at x mm from the tip, kN m."""
+        w = self.wd + (self.wl if loaded else 0.0)
+        return w * (x / 1000.0) ** 2 / 2.0 + self.tip * x / 1000.0
+
+    def shear(self, x: float) -> float:
+        """Greatest shear at x mm from the tip, kN."""
+        return (self.wd + self.wl) * x / 1000.0 + self.tip
+
+
+def cantilevers(inp: ContinuousBeamInput, n: int, w_self: float) -> dict[int, Cantilever]:
+    g, sw = inp.load_factor, inp.support_width_mm
+    out = {}
+    for j, lc, dl, ll, tip in ((0, inp.cantilever_left_mm, inp.cantilever_left_dead_kn_m, inp.cantilever_left_live_kn_m, inp.cantilever_left_tip_kn),
+                               (n, inp.cantilever_right_mm, inp.cantilever_right_dead_kn_m, inp.cantilever_right_live_kn_m, inp.cantilever_right_tip_kn)):
+        if lc > 0:
+            out[j] = Cantilever(j, lc, lc + sw / 2.0, g * (dl + w_self), g * ll, g * tip)
+    return out
+
+
 # ----------------------------------------------------------------------------- sections
 
 
 def select_span_bars(inp: ContinuousBeamInput, cover: float, kind: str, mu: float, l_eff: float, m_elastic: float,
-                     ok_anchor: Callable[[BarGroup, float, Flange | None], bool] | None) -> SpanSection | None:
+                     ok_anchor: Callable[[BarGroup, float, Flange | None], bool] | None, min_area: float = 0.0) -> SpanSection | None:
     """Least steel at the section of greatest sagging, judged at the bars' own depth; bars that fail Cl. 37.1.1(d) or could not be
-    anchored (Cl. 26.2.3.3(c)) are passed over."""
+    anchored (Cl. 26.2.3.3(c)) are passed over, and so are bars below ``min_area`` (a support needs them as compression steel)."""
     b, D, fy, dst = inp.width_mm, inp.depth_mm, float(inp.fy), inp.stirrup_dia_mm
     as_max = is456.max_steel(b, D)
     others = sorted(other_candidates(inp, cover), key=lambda g: g.area)  # type: ignore[arg-type]
@@ -189,7 +221,7 @@ def select_span_bars(inp: ContinuousBeamInput, cover: float, kind: str, mu: floa
         if best is not None and ten.area + others[0].area > best[0][0] + 1e-6:
             break
         d = D - ybar
-        if ten.area > as_max or ten.area < is456.min_tension_steel(b, d, fy):
+        if ten.area > as_max or ten.area < is456.min_tension_steel(b, d, fy) or ten.area < min_area:
             continue
         for oth in others:
             if best is not None and ten.area + oth.area > best[0][0] + 1e-6:
@@ -211,9 +243,10 @@ def select_span_bars(inp: ContinuousBeamInput, cover: float, kind: str, mu: floa
     return best[1] if best else None
 
 
-def select_support_bars(inp: ContinuousBeamInput, cover: float, kind: str, mu: float, comp: BarGroup, comp_y: float, m_elastic: float
-                        ) -> SupportSection | None:
-    """Least top steel over a support (the web as a rectangle, the bottom bars as compression steel), with Cl. 37.1.1(d)."""
+def select_support_bars(inp: ContinuousBeamInput, cover: float, kind: str, mu: float, comp: BarGroup, comp_y: float, m_elastic: float,
+                        ok_bar: Callable[[BarGroup], bool] | None = None) -> SupportSection | None:
+    """Least top steel over a support (the web as a rectangle, the bottom bars as compression steel), with Cl. 37.1.1(d); ``ok_bar``
+    passes over bars that could not be developed (a cantilever's top bars within its projection)."""
     b, D, fck, fy = inp.width_mm, inp.depth_mm, float(inp.fck), float(inp.fy)
     as_max = is456.max_steel(b, D)
     red = max(0.0, 1.0 - mu / m_elastic) if m_elastic > 0 else 0.0
@@ -229,6 +262,8 @@ def select_support_bars(inp: ContinuousBeamInput, cover: float, kind: str, mu: f
         if cap.limited or cap.mu < mu * 1e6:
             continue
         if red > 0 and cap.mu < m_elastic * 1e6 and cap.xu / d + red > 0.6 + 1e-9:
+            continue
+        if ok_bar is not None and not ok_bar(top):
             continue
         return SupportSection(kind, top, ybar, d, clear, gap, mu, comp, comp_y, fl, cap)
     return None
@@ -268,21 +303,41 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
                                "(IS 456:2000, Cl. 29), which this engine does not design.")
     dead, imposed = factored_loads(inp, geo, w_self)
     spans_m = [g.l_eff / 1000.0 for g in geo]
-    cases = analysis.arrangements(dead, imposed)
+    cant = cantilevers(inp, n, w_self)
+    tops = [j for j in range(n + 1) if 0 < j < n or j in cant]  # supports with top bars: the interior ones and those of cantilevers
+    # Cl. 22.4.1, with each cantilever's imposed load on or off in every arrangement: its moment at the support is known (statics)
+    states = [(lo, ro) for lo in ((True, False) if 0 in cant else (False,)) for ro in ((True, False) if n in cant else (False,))]
+    cases = [(name, loads, (-cant[0].moment(cant[0].length, lo) if 0 in cant else 0.0, -cant[n].moment(cant[n].length, ro) if n in cant else 0.0))
+             for name, loads in analysis.arrangements(dead, imposed) for lo, ro in states]
     fl_sw = inp.support_width_mm
+    cover_ = cover
+
+    def tip_detail(j: int, g: BarGroup) -> bool:
+        """A cantilever's top bars develop L_d between the face and the tip, bent down there (90 degrees, 8 phi; Cl. 26.2.1, 26.2.2.1(b))."""
+        return is456.development_length(g.dia, fck, fy) <= cant_available(j, g.dia) + 1e-9
+
+    def cant_available(j: int, dia: float) -> float:
+        return cant[j].lc - cover_ - (bend_radius(dia, fy) + dia) + 8.0 * dia
     # the redistribution entered is the most applied: where a support's section cannot meet Cl. 37.1.1(d) with it, that support
     # takes 5 percent less, and the envelope is worked out again
     fr = [0.0] + [frac] * (n - 1) + [0.0]
     stepped: list[tuple[int, float]] = []
+    min_bottom = [0.0] * n  # raised where a support needs more of a span's bottom bars as compression steel
+    grown: dict[int, int] = {}  # span: the support it was raised for
     while True:
-        envs, hog_e, caps = analysis.envelopes(spans_m, [loads for _, loads in cases], fr, STEPS)
+        envs, hog_e, caps = analysis.envelopes(spans_m, [loads for _, loads, _ in cases], fr, STEPS, [e for _, _, e in cases])
         beam = Beam(geo, envs)
         m_span = [beam.sag_peak(i) for i in range(n)]
         m_span_e = [max(e.sag_elastic) for e in envs]
         m_node = [max(caps[j], ELASTIC_FLOOR * hog_e[j]) for j in range(n + 1)]
         if inp.support_moments_at == "faces":  # Cl. 22.6.2: monolithic construction, the greater of the two faces
-            m_sup = [0.0] + [max(beam.hog(j - 1, geo[j - 1].lc), beam.hog(j, 0.0)) for j in range(1, n)] + [0.0]
-            m_sup_e = [0.0] + [max(beam.at("hog_e", j - 1, geo[j - 1].lc), beam.at("hog_e", j, 0.0)) for j in range(1, n)] + [0.0]
+            def face(j: int, col: str, beam: Beam = beam) -> float:
+                sides = ([beam.at(col, j - 1, geo[j - 1].lc)] if j > 0 else []) + ([beam.at(col, j, 0.0)] if j < n else [])
+                if j in cant:
+                    sides.append(cant[j].moment(cant[j].lc))  # the cantilever's own face, statically determinate
+                return max(sides)
+            m_sup = [face(j, "hog") if j in tops else 0.0 for j in range(n + 1)]
+            m_sup_e = [face(j, "hog_e") if j in tops else 0.0 for j in range(n + 1)]
         else:
             m_sup, m_sup_e = m_node, hog_e
 
@@ -290,9 +345,9 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
             return beam.shear(i, 0.0 if left else geo[i].lc)
 
         def anchor_fn(i: int, beam: Beam = beam) -> Callable[[BarGroup, float, Flange | None], bool]:
-            sides = ([True] if i > 0 else []) + ([False] if i < n - 1 else [])
+            sides = ([True] if i in tops else []) + ([False] if i + 1 in tops else [])  # hogging there: a point of inflection
             infl = [(x, beam.shear(i, x if left else geo[i].lc - x)) for left in sides if (x := beam.inflection(i, left)) is not None]
-            ends = ([beam.shear(i, 0.0)] if i == 0 else []) + ([beam.shear(i, geo[i].lc)] if i == n - 1 else [])
+            ends = ([beam.shear(i, 0.0)] if i == 0 and 0 not in tops else []) + ([beam.shear(i, geo[i].lc)] if i == n - 1 and n not in tops else [])
 
             def ok(g: BarGroup, d: float, flg: Flange | None) -> bool:
                 m1 = is456.moment_at_design_stress(fck, fy, b, d, g.area, flg.bf if flg else None, flg.df if flg else 0.0) / 1e6
@@ -303,7 +358,7 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
 
         secs: list[SpanSection] = []
         for i in range(n):
-            sec = select_span_bars(inp, cover, f"span_{i + 1}", m_span[i], geo[i].l_eff, m_span_e[i], anchor_fn(i))
+            sec = select_span_bars(inp, cover, f"span_{i + 1}", m_span[i], geo[i].l_eff, m_span_e[i], anchor_fn(i), min_bottom[i])
             if sec is None:
                 if select_span_bars(inp, cover, f"span_{i + 1}", m_span[i], geo[i].l_eff, m_span_e[i], None) is not None:
                     return _stopped(sheet, f"The bottom bars that carry the moment of span {i + 1} are too large to be anchored at the end supports "
@@ -313,15 +368,31 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
             secs.append(sec)
         sups: list[SupportSection | None] = [None] * (n + 1)
         short = []
-        for j in range(1, n):
-            comp_sec = secs[j - 1] if secs[j - 1].bottom.area <= secs[j].bottom.area else secs[j]  # the lighter bars reach from both sides
-            sups[j] = select_support_bars(inp, cover, f"s{j + 1}", m_sup[j], comp_sec.bottom, comp_sec.ybar, m_sup_e[j])
+        for j in tops:
+            beside = [secs[k] for k in (j - 1, j) if 0 <= k < n]
+            comp_sec = min(beside, key=lambda x: x.bottom.area)  # the lighter bars reach from both sides
+            sups[j] = select_support_bars(inp, cover, f"s{j + 1}", m_sup[j], comp_sec.bottom, comp_sec.ybar, m_sup_e[j],
+                                          (lambda g, j=j: tip_detail(j, g)) if j in cant else None)
             if sups[j] is None:
                 short.append(j)
         if not short:
             break
+        # first give the support more compression steel: the next heavier bottom bars of the lighter span beside it
+        raised = False
+        for j in short:
+            k = min((k for k in (j - 1, j) if 0 <= k < n), key=lambda k: secs[k].bottom.area)
+            more = select_span_bars(inp, cover, f"span_{k + 1}", m_span[k], geo[k].l_eff, m_span_e[k], anchor_fn(k), secs[k].bottom.area + 1e-6)
+            if more is not None:
+                min_bottom[k] = more.bottom.area
+                grown[k] = j
+                raised = True
+        if raised:
+            continue
         if all(fr[j] <= 1e-9 for j in short):
             j = short[0]
+            if j in cant:
+                return _stopped(sheet, f"No arrangement of top bars carries the cantilever's moment at support {j + 1} and develops within its "
+                                       f"{cant[j].lc:.0f} mm projection (Cl. 26.2.1): deepen the section, use a smaller bar size or a higher grade.")
             return _stopped(sheet, f"No arrangement of top bars carries the moment at support {j + 1} with the bottom bars as compression steel "
                                    "within Cl. 26.5.1" + (" and Cl. 37.1.1(d)" if frac > 0 else "") + ": deepen the section or raise the concrete grade.")
         for j in short:
@@ -329,6 +400,7 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
                 fr[j] = max(0.0, round(fr[j] - 0.05, 6))
                 stepped.append((j, fr[j]))
     inner_sups = [s for s in sups if s is not None]
+    cant_label = {0: "left cantilever", n: "right cantilever"}
 
     # ------------------------------------------------------------------ sheet: geometry, loads, analysis
     sheet.section("2. Section, spans and loads")
@@ -354,15 +426,27 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
     for k, p in enumerate(inp.point_loads, 1):
         sheet.step(f"{REF}, Table 18", f"Point load {k}: span {p.span}, {_n(p.distance_mm, 0)} mm from the left face; factored dead and imposed",
                    "P_d, P_l", "", f"{_n(inp.load_factor * p.dead_kn)}, {_n(inp.load_factor * p.live_kn)}", "kN")
+    for j, c in cant.items():
+        sheet.step(f"{REF}, Cl. 22.2(c)", f"The {cant_label[j]} at support {j + 1}: clear projection, and its length to the centre of the support "
+                   "(the end of a continuous beam)", "l_c, l", "", f"{_n(c.lc, 0)}, {_n(c.length, 0)}", "mm")
+        sheet.step(f"{REF}, Table 18", f"The {cant_label[j]}: factored dead load with self-weight, imposed load, and dead load at the tip",
+                   "w_d, w_l, P", "", f"{_n(c.wd)} kN/m, {_n(c.wl)} kN/m, {_n(c.tip)} kN", "")
 
     sheet.section("3. Elastic analysis and redistribution of moments")
-    sheet.step(f"{REF}, Cl. 22.4.1", f"Arrangements: dead load on every span with the imposed load on all spans, on alternate spans and on each "
-               f"pair of adjacent spans ({len(cases)} arrangements); three-moment equation, the end supports free", "", "", len(cases), "", 0)
+    sheet.step(f"{REF}, Cl. 22.4.1", "Arrangements: dead load on every span with the imposed load on all spans, on alternate spans and on each "
+               "pair of adjacent spans" + (", each with every cantilever loaded and unloaded" if cant else "") + f" ({len(cases)} arrangements); "
+               "three-moment equation, the end supports free" + (" but for the cantilevers' moments" if cant else ""), "", "", len(cases), "", 0)
+    for j, c in cant.items():
+        sheet.step("Statics", f"Support {j + 1}: the {cant_label[j]}'s moment, loaded (statically determinate: not redistributed)",
+                   "M = (w_d + w_l) l^2/2 + P l", f"l = {_n(c.length / 1000, 3)} m", c.moment(c.length), "kN m")
     sheet.step(f"{REF}, Cl. 22.7, 37.1.1", "Redistribution: in every arrangement the hogging at each support is held to (1 - r) of its greatest "
                "elastic value; the span moments follow from statics, so equilibrium holds (37.1.1(a))", "r", "", frac * 100.0, "%", 1)
     for j in sorted({j for j, _ in stepped}):
         sheet.step(f"{REF}, Cl. 37.1.1(d)", f"Support {j + 1}: no arrangement of top bars meets x_u/d + dM/100 <= 0.6 with the redistribution "
                    "entered, so less is applied there", "r", "", fr[j] * 100.0, "%", 1)
+    for k, j in sorted(grown.items()):
+        sheet.step(f"{REF}, Annex G-1.2", f"Span {k + 1}: its bottom bars are increased beyond what its own moment needs, to give support {j + 1} "
+                   "the compression steel it needs", "A_st", "", secs[k].bottom.area, "mm2", 0)
     m_member = max([*hog_e, *m_span_e])
     for j in range(1, n):
         sheet.step(f"{REF}, Cl. 37.1.1", f"Support {j + 1}: greatest elastic hogging, and after redistribution", "M_e, (1 - r) M_e", "",
@@ -376,10 +460,10 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
     if inp.support_moments_at == "faces":
         sheet.step(f"{REF}, Cl. 22.6.2", "Monolithic construction: the support sections are designed for the moment at the faces of the "
                    "supports, the greater of the two faces (design envelope; elastic envelope in brackets)", "M_face", "",
-                   "; ".join(f"{_n(m_sup[j])} ({_n(m_sup_e[j])})" for j in range(1, n)), "kN m")
+                   "; ".join(f"{_n(m_sup[j])} ({_n(m_sup_e[j])})" for j in tops), "kN m")
     else:
-        sheet.step("Design moments", "Hogging at the interior supports (design), at their centre lines", "M_sup", "",
-                   ", ".join(_n(m_sup[j]) for j in range(1, n)), "kN m")
+        sheet.step("Design moments", "Hogging at the supports with top bars (design), at their centre lines", "M_sup", "",
+                   ", ".join(f"{j + 1}: {_n(m_sup[j])}" for j in tops), "kN m")
 
     # ------------------------------------------------------------------ flexure
     as_max = is456.max_steel(b, D)
@@ -387,11 +471,11 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
     for i, sec in enumerate(secs):
         _span_steps(sheet, inp, sec, f"Span {i + 1}", fck, fy, b, as_max, bw)
         _redistribution_d(sheet, f"span_{i + 1}", f"Span {i + 1}", sec.mu, m_span_e[i], sec.cap.mu / 1e6, sec.cap.xu, sec.d)
-    sheet.section("5. Flexure at the interior supports (top in tension: the web as a rectangle)")
-    for j in range(1, n):
+    sheet.section("5. Flexure at the supports (top in tension: the web as a rectangle)")
+    for j in tops:
         sup = sups[j]
         assert sup is not None
-        _support_steps(sheet, sup, f"Support {j + 1}", fck, fy, b, as_max, bw)
+        _support_steps(sheet, sup, f"Support {j + 1}" + (f" ({cant_label[j]})" if j in cant else ""), fck, fy, b, as_max, bw)
         _redistribution_d(sheet, f"s{j + 1}", f"Support {j + 1}", sup.mu, m_sup_e[j], sup.cap.mu / 1e6, sup.cap.xu, sup.d)
 
     # ------------------------------------------------------------------ shear
@@ -441,6 +525,37 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
         s_min = min(ends.values())
         stirrups.append({"dia": dst, "legs": legs, "left": ends["left"], "right": ends["right"], "spacing": s_min,
                          "allow": min(limits_all.values()), "label": f"T{dst} {legs}-legged @ {_n(s_min, 0)} c/c"})
+    cant_stirrups: dict[int, dict[str, Any]] = {}
+    for j, c in cant.items():
+        sup = sups[j]
+        assert sup is not None
+        d = sup.d
+        x = max(c.lc - d, 0.0)  # d from the face, measured from the tip
+        v = c.shear(x)
+        tau = v * 1e3 / (b * d)
+        pt = 100.0 * sup.top.area / (b * d)
+        tc = is456.tau_c(fck, pt)
+        label = f"The {cant_label[j]}"
+        sheet.step(f"{REF}, Cl. 22.6.2.1 and 40.1", f"{label}: shear at d from the face of support {j + 1}, nominal stress",
+                   f"tau_v = V/({bw} d)", f"{_n(v)} x 10^3 / ({_n(b, 0)} x {_n(d, 1)})", tau, "N/mm2", 3)
+        sheet.step(f"{REF}, Table 19", f"{label}: tension steel ({sup.top.label()}, all of it to the tip) and tau_c", "p_t, tau_c", "",
+                   f"{_n(pt, 3)} %, {_n(tc, 3)}", "N/mm2")
+        limits = {"0.75 d, Cl. 26.5.1.5": 0.75 * d, "minimum shear steel, Cl. 26.5.1.6": is456.stirrup_spacing_minimum_steel(fyv, asv, b),
+                  "300 mm, Cl. 26.5.1.5": 300.0}
+        vus = v - tc * b * d / 1e3
+        if vus > 0:
+            limits["shear strength, Cl. 40.4(a)"] = is456.stirrup_spacing_for_shear(vus * 1e3, fyv, asv, d)
+        gov = min(limits, key=lambda k: limits[k])
+        sv = practical_spacing(limits[gov])
+        key = "cl" if j == 0 else "cr"
+        sheet.step("Selected", f"{label}: {legs}-legged T{dst} stirrups (governed by {gov})", "s_v", "", sv, "mm", 0)
+        sheet.check(f"tau_max_{key}", f"{REF}, Table 20", f"{label}: maximum shear stress", "tau_v", tau, "<=", "tau_c,max", tc_max, "N/mm2", 3)
+        sheet.check(f"sv_{key}", f"{REF}, Cl. 26.5.1.5 and 40.4", f"{label}: stirrup spacing", "s_v", sv, "<=", "s_v,allow", limits[gov], "mm", 0,
+                    ratio=False)
+        sheet.check(f"sv_min_{key}", "Practice", f"{label}: stirrup spacing workable (75 mm or more)", "s_v", sv, ">=", "s_v,min", 75.0, "mm", 0,
+                    ratio=False)
+        positions = [FIRST_STIRRUP + k * sv for k in range(int(math.floor(max(c.lc - FIRST_STIRRUP - cover, 0.0) / sv + 1e-9)) + 1)]
+        cant_stirrups[j] = {"spacing": sv, "allow": limits[gov], "v": v, "tau": tau, "tc": tc, "positions": positions}
 
     # ------------------------------------------------------------------ deflection
     sheet.section("7. Deflection control (span to effective depth)")
@@ -463,6 +578,21 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
         sheet.check(f"deflection_{i + 1}", f"{REF}, Cl. 23.2.1", f"Span {i + 1}: span to effective depth ratio", "l/d", sec.l_eff / sec.d, "<=",
                     "allowable", allow, "", 2)
         defl.append({"ratio": sec.l_eff / sec.d, "allow": allow, "kt": kt, "kc": kc, "kf": kf, "fs": fs, "pt": pt})
+    cant_defl: dict[int, dict[str, float]] = {}
+    for j, c in cant.items():
+        sup = sups[j]
+        assert sup is not None
+        fs = is456.service_steel_stress(fy, max(sup.fl.ast_req, 1e-9), sup.top.area)
+        pt = 100.0 * sup.top.area / (b * sup.d)
+        kt = is456.tension_modification_factor(fs, pt)
+        kc = is456.compression_modification_factor(100.0 * sup.compression.area / (b * sup.d)) if sup.fl.doubly else 1.0
+        allow = is456.BASIC_SPAN_DEPTH["cantilever"] * kt * kc
+        sheet.step(f"{REF}, Cl. 23.2.1, Fig. 4" + (", 5" if sup.fl.doubly else ""), f"The {cant_label[j]}: allowable ratio, cantilever "
+                   f"(f_s = {_n(fs, 1)} N/mm2, p_t = {_n(pt, 3)} % on {bw} d; the flange in tension adds nothing)", "7 k_t k_c",
+                   f"7 x {_n(kt, 3)} x {_n(kc, 3)}", allow, "", 2)
+        sheet.check(f"deflection_{'cl' if j == 0 else 'cr'}", f"{REF}, Cl. 23.2.1", f"The {cant_label[j]}: length to the centre of the support "
+                    "over effective depth", "l/d", c.length / sup.d, "<=", "allowable", allow, "", 2)
+        cant_defl[j] = {"ratio": c.length / sup.d, "allow": allow, "kt": kt, "kc": kc, "fs": fs, "pt": pt}
 
     # ------------------------------------------------------------------ detailing checks
     sheet.section("8. Detailing")
@@ -486,11 +616,20 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
 
     # extents of the top bars: beyond the point of inflection by the greatest of d, 12 phi and l_c/16, at least L_d (Cl. 26.2.3.4)
     ext: list[dict[str, float]] = [{} for _ in range(n + 1)]
-    for j in range(1, n):
+    for j in tops:
         sup = sups[j]
         assert sup is not None
         ld = is456.development_length(sup.top.dia, fck, fy)
-        for side, i, at_left in (("left", j - 1, False), ("right", j, True)):
+        if j in cant:
+            c = cant[j]
+            ext[j]["left" if j == 0 else "right"] = c.lc - cover  # to the tip less cover, bent down there
+            avail = cant_available(j, sup.top.dia)
+            sheet.step(f"{REF}, Cl. 26.2.1, 26.2.2.1(b)", f"The {cant_label[j]}: every top bar runs to the tip and is bent down there; length to "
+                       "develop it beyond the face: straight to the start of the bend, plus 8 phi", "l_c - c - (r + phi) + 8 phi", "", avail, "mm", 0)
+            if not sheet.check(f"anchorage_{'cl' if j == 0 else 'cr'}", f"{REF}, Cl. 26.2.1", f"The {cant_label[j]}: top bars ({sup.top.label()}) "
+                               "developed between the face and the tip", "L_d", ld, "<=", "available", avail, "mm", 0):
+                sheet.flag("error", f"The {cant_label[j]} is too short to develop its top bars: use smaller bars.", f"{REF}, Cl. 26.2.1")
+        for side, i, at_left in [t for t in (("left", j - 1, False), ("right", j, True)) if 0 <= t[1] < n]:
             lc = geo[i].lc
             x0 = beam.hog_extent(i, at_left)
             a = min(max(x0 + max(sup.d, 12.0 * sup.top.dia, lc / 16.0), ld), lc)
@@ -503,7 +642,7 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
     if D > 750.0:
         from app.modules.structural.domain.beam_detailing import side_face_bars
         side = side_face_bars(inp, cover, max((s.bottom for s in secs), key=lambda g: g.area), max((s.top for s in inner_sups), key=lambda g: g.area),
-                              torsion=False)
+                              torsion=False)  # type: ignore[arg-type]
         if side:
             sheet.step(f"{REF}, Cl. 26.5.1.3", "Side face reinforcement: 0.1 % of the web area, half on each face", "A_s = 0.001 b D", "",
                        0.001 * b * D, "mm2", 0)
@@ -512,8 +651,10 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
         "method": "elastic", "spans": n, "cover": cover,
         "span": [{"bottom": _grp(s.bottom), "top": _grp(s.top), "gap": s.gap, "doubly": s.fl.doubly, "lc": geo[i].lc, "l": geo[i].l_eff,
                   "d": s.d, "ybar": s.ybar} for i, s in enumerate(secs)],
-        "support": [None] + [{"top": _grp(s.top), "gap": s.gap, "doubly": s.fl.doubly, "d": s.d, "into_left": ext[j]["left"],
-                              "into_right": ext[j]["right"]} for j, s in enumerate(sups) if s is not None] + [None],
+        "support": [({"top": _grp(s.top), "gap": s.gap, "doubly": s.fl.doubly, "d": s.d, "into_left": ext[j].get("left", 0.0),
+                      "into_right": ext[j].get("right", 0.0)} if s is not None else None) for j, s in enumerate(sups)],
+        "cantilever": {("left" if j == 0 else "right"): {"lc": c.lc, "length": c.length, "spacing": cant_stirrups[j]["spacing"],
+                                                         "positions": cant_stirrups[j]["positions"]} for j, c in cant.items()},
         "stirrups": stirrups,
         "side_face": side,
         "section": {"kind": inp.section, "bw": b, "D": D} | (
@@ -527,7 +668,7 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
             sheet.step(f"{REF}, Cl. 26.2.3.4", f"Span {i + 1}: no room for a lapped hanger, so the top bars over the interior support run on to the "
                        "end support", "", "", "", "")
 
-    cut_plan = plan(sheet, inp, cover, beam, geo, secs, sups, lay, stirrups)
+    cut_plan = plan(sheet, inp, cover, beam, geo, secs, sups, lay, stirrups, tops, set(cant))
     reinforcement["curtailment"] = cut_plan["record"]
     meets = [i for i, s_ in enumerate(lay) if s_["kind"] == "meet"]
     if meets:
@@ -546,7 +687,21 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
     bbs = detailing.bar_schedule(inp, reinforcement, sheet)
     quantities = detailing.quantities(inp, bbs)
     drawing = detailing.drawing(inp, reinforcement, bbs)
-    charts = _charts(inp, beam, geo)
+    charts = _charts(inp, beam, geo, cant)
+    # uplift: a support whose reaction turns downward in some arrangement must be held down (the analysis assumes it is)
+    lifts = set()
+    for _, loads, e in cases:
+        ms = analysis.support_moments_loads(spans_m, loads, e)
+        for j in range(n + 1):
+            r = (analysis.shear_in(ms[j], ms[j + 1], loads[j], spans_m[j], 0.0) if j < n else 0.0) - (
+                analysis.shear_in(ms[j - 1], ms[j], loads[j - 1], spans_m[j - 1], spans_m[j - 1]) if j > 0 else 0.0)
+            if j in cant:
+                r += cant[j].shear(cant[j].length)
+            if r < -1e-6:
+                lifts.add(j)
+    for j in sorted(lifts):
+        sheet.flag("warning", f"Support {j + 1} is pulled upward in some arrangement of the imposed load: the beam must be held down there "
+                              "(the analysis assumes it is).", f"{REF}, Cl. 22.4.1")
 
     if frac > 0:
         applied = ", ".join(f"{100 * fr[j]:.0f}" for j in range(1, n))
@@ -570,7 +725,7 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
     checks = sheet.checks()
     utils = [c.util for c in checks if c.util is not None]
     ok = sheet.all_ok() and not any(f.level == "error" for f in sheet.flags)
-    j_max = max(range(1, n), key=lambda j: m_sup[j])
+    j_max = max(tops, key=lambda j: m_sup[j])
     i_max = max(range(n), key=lambda i: m_span[i])
     key_results = [
         {"label": f"Greatest span moment (span {i_max + 1})", "sym": "M_span", "value": round(m_span[i_max], 2), "unit": "kN m", "dp": 2},
@@ -590,15 +745,22 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
         "m_sup": [round(m, 4) for m in m_sup], "m_sup_elastic": [round(m, 4) for m in m_sup_e],
         "m_sup_node": [round(m, 4) for m in m_node], "m_sup_elastic_node": [round(m, 4) for m in hog_e],
         "v_end": [round(shear_at_end(0, True), 4), round(shear_at_end(n - 1, False), 4)],
+        "cantilever": {("left" if j == 0 else "right"): {"lc": c.lc, "length": c.length, "wd": round(c.wd, 4), "wl": round(c.wl, 4),
+                                                         "tip": round(c.tip, 4), "m_node": round(c.moment(c.length), 4),
+                                                         "m_face": round(c.moment(c.lc), 4), "available": round(cant_available(j, sups[j].top.dia), 2),
+                                                         "defl": {k: round(v, 5) for k, v in cant_defl[j].items()},
+                                                         "shear": {k: (round(v, 4) if isinstance(v, float) else v) for k, v in cant_stirrups[j].items()
+                                                                   if k != "positions"}}
+                       for j, c in cant.items() if sups[j] is not None},
         "ext": [{k: round(v, 1) for k, v in e.items()} for e in ext],
         "defl": [{k: round(v, 5) for k, v in x.items()} for x in defl],
         "span": [{"d": round(s.d, 2), "d_c": round(s.d_c, 2), "ast_req": round(s.fl.ast_req, 2), "asc_req": round(s.fl.asc_req, 2),
                   "ast_prov": round(s.bottom.area, 2), "asc_prov": round(s.top.area, 2), "capacity": round(s.cap.mu / 1e6, 4),
                   "xu": round(s.cap.xu, 3), "xu_max": round(s.fl.xu_max, 3), "doubly": s.fl.doubly,
                   "bf": round(s.flange.bf, 2) if s.flange else None} for s in secs],
-        "support": [None] + [{"d": round(s.d, 2), "d_c": round(s.d_c, 2), "ast_req": round(s.fl.ast_req, 2), "asc_req": round(s.fl.asc_req, 2),
-                              "ast_prov": round(s.top.area, 2), "asc_prov": round(s.compression.area, 2), "capacity": round(s.cap.mu / 1e6, 4),
-                              "xu": round(s.cap.xu, 3), "xu_max": round(s.fl.xu_max, 3), "doubly": s.fl.doubly} for s in inner_sups] + [None],
+        "support": [({"d": round(s.d, 2), "d_c": round(s.d_c, 2), "ast_req": round(s.fl.ast_req, 2), "asc_req": round(s.fl.asc_req, 2),
+                      "ast_prov": round(s.top.area, 2), "asc_prov": round(s.compression.area, 2), "capacity": round(s.cap.mu / 1e6, 4),
+                      "xu": round(s.cap.xu, 3), "xu_max": round(s.fl.xu_max, 3), "doubly": s.fl.doubly} if s is not None else None) for s in sups],
         "stirrups": [{"left": s["left"], "right": s["right"]} for s in stirrups],
         "curtailment": cut_plan["summary"],
     }
@@ -649,11 +811,15 @@ def _redistribution_d(sheet: CalcSheet, key: str, label: str, md: float, me: flo
 
 
 def plan(sheet: CalcSheet, inp: ContinuousBeamInput, cover: float, beam: Beam, geo: list[SpanGeom], secs: list[SpanSection],
-         sups: list[SupportSection | None], lay: list[dict[str, Any]], stirrups: list[dict[str, Any]]) -> dict[str, Any]:
-    """Stirrup bands, cut-offs of the top and bottom bars, and the anchorage of the bottom bars, from the design envelope."""
+         sups: list[SupportSection | None], lay: list[dict[str, Any]], stirrups: list[dict[str, Any]], tops: list[int] | None = None,
+         cant: set[int] | None = None) -> dict[str, Any]:
+    """Stirrup bands, cut-offs of the top and bottom bars, and the anchorage of the bottom bars, from the design envelope. ``tops``: the
+    supports with top bars; ``cant``: those a cantilever springs from (for the bottom bars, interior supports)."""
     n, b, D, dst = len(geo), inp.width_mm, inp.depth_mm, inp.stirrup_dia_mm
     fck, fy, fyv = float(inp.fck), float(inp.fy), is456.shear_fy(inp.fy_stirrup)
     asv = inp.stirrup_legs * bar_area(dst)
+    tops = list(range(1, n)) if tops is None else tops
+    cant = cant or set()
 
     def tc_of(area: float, d: float) -> float:
         return is456.tau_c(fck, 100.0 * area / (b * d))
@@ -717,12 +883,12 @@ def plan(sheet: CalcSheet, inp: ContinuousBeamInput, cover: float, beam: Beam, g
     def end_shear(i: int, left: bool) -> float:
         return beam.shear(i, 0.0 if left else geo[i].lc)
 
-    def end_sides(i: int) -> list[bool]:
-        return ([True] if i == 0 else []) + ([False] if i == n - 1 else [])
+    def end_sides(i: int) -> list[bool]:  # simple supports at the beam's ends (not those of cantilevers)
+        return ([True] if i == 0 and 0 not in tops else []) + ([False] if i == n - 1 and n not in tops else [])
 
     def infl_sides(i: int) -> list[tuple[bool, float, float]]:
         lc, out = geo[i].lc, []
-        for left in ([True] if i > 0 else []) + ([False] if i < n - 1 else []):
+        for left in ([True] if i in tops else []) + ([False] if i + 1 in tops else []):
             x = beam.inflection(i, left)
             if x is not None:
                 out.append((left, x, beam.shear(i, x if left else lc - x)))
@@ -811,6 +977,10 @@ def plan(sheet: CalcSheet, inp: ContinuousBeamInput, cover: float, beam: Beam, g
         sup = sups[j]
         assert sup is not None
         label = f"Top bars over support {j + 1}"
+        if j in cant:
+            sheet.step(f"{REF}, Cl. 26.2.3.4", f"{label}: the cantilever's moment falls to nothing only at the tip, so every bar runs to the tip "
+                       "and into the span beyond the point of inflection: no curtailment", "", "", "", "")
+            return None
         split = split_for_curtailment(sup.top)
         if split is None:
             sheet.step(f"{REF}, Cl. 26.2.3.4", f"{label}: {sup.top.label()}, too few bars to curtail; all run to the point of inflection", "", "", "", "")
@@ -862,8 +1032,8 @@ def plan(sheet: CalcSheet, inp: ContinuousBeamInput, cover: float, beam: Beam, g
                     "A_st,long", long_.area, ">=", "A_st/3", sup.top.area / 3.0, "mm2", 0, ratio=False)
         return res
 
-    tops: list[dict[str, Any] | None] = [None] + [top_cut(j) for j in range(1, n)] + [None]
-    for res in tops:
+    cuts: list[dict[str, Any] | None] = [top_cut(j) if j in tops else None for j in range(n + 1)]
+    for res in cuts:
         for i, z in (res or {}).get("bands", []):
             zones[i]["cut_bands"].append(z)
 
@@ -894,7 +1064,7 @@ def plan(sheet: CalcSheet, inp: ContinuousBeamInput, cover: float, beam: Beam, g
                                     "use smaller bars or wider supports.", f"{REF}, Cl. 26.2.3.3(c)")
         sides = infl_sides(i)
         if not sides:
-            if i not in (0, n - 1) or n == 1:
+            if i in tops or i + 1 in tops:
                 sheet.step(f"{REF}, Cl. 26.2.3.3(c)", f"Span {i + 1}: no sagging, so no point of inflection for the bottom bars", "", "", "", "")
             continue
         left, x, v = max(sides, key=lambda t: t[2])
@@ -914,7 +1084,7 @@ def plan(sheet: CalcSheet, inp: ContinuousBeamInput, cover: float, beam: Beam, g
         return g.label() if g else None
 
     record = {
-        "top": [({"long": _grp(t["long"]), "short": _grp(t["short"]), "cut": t["cut"]} if t else None) for t in tops],
+        "top": [({"long": _grp(t["long"]), "short": _grp(t["short"]), "cut": t["cut"]} if t else None) for t in cuts],
         "bottom": [({"continuing": _grp(r["cont"]), "curtailed": _grp(r["cut"]), "left": r["left"], "right": r["right"]} if r else None)
                    for r in bottoms],
         "zones": [{"s_mid": z["s_mid"], "bands": z["bands"], "positions": z["positions"]} for z in zones],
@@ -922,7 +1092,7 @@ def plan(sheet: CalcSheet, inp: ContinuousBeamInput, cover: float, beam: Beam, g
     }
     summary = {
         "top": [({"long": grp_label(t["long"]), "short": grp_label(t["short"]), "cut": t["cut"], "conditions": t["conditions"],
-                  "d_long": round(t["d_long"], 2), "m_long": round(t["m_long"], 4)} if t else None) for t in tops],
+                  "d_long": round(t["d_long"], 2), "m_long": round(t["m_long"], 4)} if t else None) for t in cuts],
         "bottom": [({"continuing": grp_label(r["cont"]), "curtailed": grp_label(r["cut"]), "left": r["left"], "right": r["right"],
                      "conditions": r["conditions"], "d_cont": round(r["d_cont"], 2), "m_cont": round(r["m_cont"], 4)} if r else None)
                    for r in bottoms],
@@ -936,11 +1106,31 @@ def plan(sheet: CalcSheet, inp: ContinuousBeamInput, cover: float, beam: Beam, g
 # ------------------------------------------------------------------------------ charts
 
 
-def _charts(inp: ContinuousBeamInput, beam: Beam, geo: list[SpanGeom]) -> list[dict[str, Any]]:
-    """Design envelopes along the beam, x from the face of the first support."""
-    sw = inp.support_width_mm
-    sag, hog, shear = [], [], []
+def _charts(inp: ContinuousBeamInput, beam: Beam, geo: list[SpanGeom], cant: dict[int, Cantilever] | None = None) -> list[dict[str, Any]]:
+    """Design envelopes along the beam, x from the face of the first support (or the tip of a left cantilever)."""
+    sw, n = inp.support_width_mm, len(geo)
+    cant = cant or {}
+    sag: list[list[float]] = []
+    hog: list[list[float]] = []
+    shear: list[list[float]] = []
+
+    def cantilever(c: Cantilever, x0: float, left: bool) -> None:
+        for k in range(21):
+            t = c.lc * k / 20.0  # from the tip
+            x = round((x0 + (t if left else c.lc - t)) / 1000.0, 3)
+            row = (x, round(-c.moment(t), 2), round(c.shear(t), 2))
+            sag.append([x, 0.0])
+            hog.append([x, row[1]])
+            shear.append([x, row[2]])
+        if not left:
+            sag.sort()
+            hog.sort()
+            shear.sort()
+
     x0 = 0.0
+    if 0 in cant:
+        cantilever(cant[0], 0.0, True)
+        x0 = cant[0].lc + sw
     for i, g in enumerate(geo):
         for k in range(41):
             xf = g.lc * k / 40.0
@@ -949,12 +1139,15 @@ def _charts(inp: ContinuousBeamInput, beam: Beam, geo: list[SpanGeom]) -> list[d
             hog.append([x, round(-beam.hog(i, xf), 2)])
             shear.append([x, round(beam.shear(i, xf), 2)])
         x0 += g.lc + sw
+    if n in cant:
+        cantilever(cant[n], x0, False)
+    where = "x from the tip of the left cantilever" if 0 in cant else "x from the face of the first support"
     return [
         {"id": "moments", "title": "Design moment envelope (after redistribution, not below 0.7 of the elastic)",
          "x": {"label": "x", "unit": "m"}, "y": {"label": "M_u", "unit": "kN m"},
          "series": [{"name": "Greatest sagging", "kind": "line", "points": sag}, {"name": "Greatest hogging", "kind": "line", "points": hog}],
-         "note": "Clear spans only, x from the face of the first support; hogging drawn negative. The supports lie between the spans."},
+         "note": f"Clear spans and cantilevers only, {where}; hogging drawn negative. The supports lie between them."},
         {"id": "shear", "title": "Design shear envelope", "x": {"label": "x", "unit": "m"}, "y": {"label": "V_u", "unit": "kN"},
          "series": [{"name": "Greatest shear", "kind": "line", "points": shear}],
-         "note": "Greatest shear in any arrangement after redistribution, clear spans only."},
+         "note": "Greatest shear in any arrangement after redistribution, clear spans and cantilevers only."},
     ]

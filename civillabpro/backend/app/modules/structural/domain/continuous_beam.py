@@ -125,6 +125,21 @@ class ContinuousBeamInput(BaseModel):
                                       description="Characteristic; the imposed part is placed with the span's imposed load (Cl. 22.4.1)")
     redistribution_pct: float = _f(15, "Redistribution of support moments", "Loading", "%", _ELASTIC, ge=0, le=30,
                                    description="Cl. 37.1.1: at most 30 percent; the sections must then satisfy x_u/d + dM/100 <= 0.6")
+
+    cantilever_left_mm: float = _f(0, "Left cantilever, projection", "Cantilevers", "mm", _ELASTIC, ge=0, le=5000,
+                                   description="Clear, beyond the face of support 1; 0 for none")
+    cantilever_left_dead_kn_m: float = _f(20, "Left cantilever, dead load", "Cantilevers", "kN/m", _ELASTIC, ge=0, le=5000,
+                                          description="Characteristic, uniform, excluding self-weight")
+    cantilever_left_live_kn_m: float = _f(10, "Left cantilever, imposed load", "Cantilevers", "kN/m", _ELASTIC, ge=0, le=5000)
+    cantilever_left_tip_kn: float = _f(0, "Left cantilever, dead load at the tip", "Cantilevers", "kN", _ELASTIC, ge=0, le=5000,
+                                       description="A parapet or wall at the free end, characteristic")
+    cantilever_right_mm: float = _f(0, "Right cantilever, projection", "Cantilevers", "mm", _ELASTIC, ge=0, le=5000,
+                                    description="Clear, beyond the face of the last support; 0 for none")
+    cantilever_right_dead_kn_m: float = _f(20, "Right cantilever, dead load", "Cantilevers", "kN/m", _ELASTIC, ge=0, le=5000,
+                                           description="Characteristic, uniform, excluding self-weight")
+    cantilever_right_live_kn_m: float = _f(10, "Right cantilever, imposed load", "Cantilevers", "kN/m", _ELASTIC, ge=0, le=5000)
+    cantilever_right_tip_kn: float = _f(0, "Right cantilever, dead load at the tip", "Cantilevers", "kN", _ELASTIC, ge=0, le=5000,
+                                        description="A parapet or wall at the free end, characteristic")
     include_self_weight: bool = _f(True, "Add self-weight", "Loading")
     unit_weight_kn_m3: float = _f(25, "Unit weight of concrete", "Loading", "kN/m3", ge=20, le=30, description="IS 875 (Part 1)")
     load_factor: float = _f(1.5, "Load factor", "Loading", "", ge=1.0, le=2.0, description="On DL + LL, IS 456 Table 18")
@@ -146,6 +161,9 @@ class ContinuousBeamInput(BaseModel):
                 raise ValueError("Enter a dead or imposed load, or include the self-weight.")
             return self
         n = len(self.span_table)
+        for side, proj in (("left", self.cantilever_left_mm), ("right", self.cantilever_right_mm)):
+            if 0 < proj < 300:
+                raise ValueError(f"The {side} cantilever projects less than 300 mm: enter 0 for none.")
         for k, p in enumerate(self.point_loads, 1):
             if p.span > n:
                 raise ValueError(f"Point load {k} is on span {p.span}, but the beam has {n} spans.")

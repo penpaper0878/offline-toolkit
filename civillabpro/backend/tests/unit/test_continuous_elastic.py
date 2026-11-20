@@ -163,8 +163,19 @@ def test_sweep_is_json_safe_and_never_raises():
     assert "ok" in statuses
 
 
-def test_redistribution_steps_down_where_condition_d_allows_no_more():
-    r = elastic(redistribution_pct=30.0)  # 500 deep: support 3 cannot keep x_u/d within 0.3
+def test_redistribution_keeps_its_value_by_raising_the_compression_steel():
+    r = elastic(redistribution_pct=30.0)  # 500 deep: support 3 needs more compression steel to keep x_u/d within 0.3
+    assert r["status"] == "ok" and r["data"]["redistribution_applied"] == [0.0, 0.3, 0.3, 0.0]
+    steps = [i["title"] for s in r["sheet"]["sections"] for i in s["items"] if i["kind"] == "step"]
+    assert any(t.startswith("Span 3: its bottom bars are increased") and "support 3" in t for t in steps)
+    assert checks(r)["xu_redistribution_s3"]["ok"]
+
+
+def test_redistribution_steps_down_where_no_heavier_bars_can_help(monkeypatch):
+    from app.modules.structural.domain import continuous_elastic as ce
+    plain = ce.select_span_bars
+    monkeypatch.setattr(ce, "select_span_bars", lambda *a, **k: None if (a[7] if len(a) > 7 else k.get("min_area", 0.0)) > 0 else plain(*a, **k))
+    r = elastic(redistribution_pct=30.0)
     fr = r["data"]["redistribution_applied"]
     assert r["status"] == "ok" and fr[0] == fr[-1] == 0.0 and fr[1] == pytest.approx(0.30) and fr[2] < 0.30
     d = r["data"]
@@ -187,3 +198,65 @@ def test_monolithic_supports_are_designed_for_the_face_moments():
     steps = [i["ref"] for s in faces["sheet"]["sections"] for i in s["items"] if i["kind"] == "step"]
     assert any(r.endswith("Cl. 22.6.2") for r in steps)
     assert any("faces of the supports (Cl. 22.6.2)" in f["message"] for f in faces["sheet"]["flags"])
+
+
+# ----------------------------------------------------------------------------- cantilever ends (STR-042)
+
+
+def test_kernel_takes_a_cantilevers_moment_at_the_end_support():
+    # two equal spans with a known moment at A: M_0 l + 4 M_B l = -w l^3 / 2
+    s, w, m0 = 5.0, 10.0, -30.0
+    ms = an.support_moments_loads([s, s], [an.SpanLoad(w), an.SpanLoad(w)], (m0, 0.0))
+    assert ms[0] == m0 and ms[1] == pytest.approx((-w * s**3 / 2 - m0 * s) / (4 * s)) and ms[2] == 0.0
+
+
+def test_a_cantilever_at_each_end():
+    r = elastic(cantilever_left_mm=1500, cantilever_right_mm=2000, cantilever_right_tip_kn=12, depth_mm=550)
+    d, reinf = r["data"], r["reinforcement"]
+    assert r["status"] == "ok"
+    sw = 300
+    for j, key, lc, tip in ((0, "left", 1500, 0.0), (3, "right", 2000, 12.0)):
+        c = d["cantilever"][key]
+        assert c["length"] == lc + sw / 2  # Cl. 22.2(c): to the centre of the support
+        w = 1.5 * (20 + 25 * 0.3 * 0.55) + 1.5 * 10
+        assert c["m_node"] == pytest.approx(w * (c["length"] / 1000) ** 2 / 2 + 1.5 * tip * c["length"] / 1000, rel=1e-4)
+        assert d["m_sup_node"][j] == pytest.approx(c["m_node"], rel=1e-6)  # statically determinate, not redistributed
+        assert d["redistribution_applied"][j] == 0.0
+        assert reinf["support"][j] is not None  # the end support now has top bars
+    ch = checks(r)
+    for key in ("cl", "cr"):
+        assert ch[f"anchorage_{key}"]["ok"] and ch[f"deflection_{key}"]["ok"] and ch[f"sv_{key}"]["ok"]
+        assert ch[f"deflection_{key}"]["rhs"] < 15  # basic ratio 7 times the modification factors
+    # the end spans' bottom bars meet no simple support: no end detail, a point of inflection near each end instead
+    assert "anchorage_end_left" not in ch and "anchorage_end_right" not in ch
+    assert "anchorage_inflection_1" in ch and "anchorage_inflection_3" in ch
+    shapes = {i["shape"] for i in r["bbs"]["items"]}
+    assert "L-bend at the cantilever tip" in shapes and "U-hook at the end support" not in shapes
+    assert any(v["id"] == "cantilever_left" for v in r["drawing"]["views"]) and any(v["id"] == "cantilever_right" for v in r["drawing"]["views"])
+    assert r["quantities"]["length_m"] == pytest.approx((5000 + 6500 + 4500 + 1500 + 2000 + 4 * 300) / 1000)
+    moments = r["charts"][0]["series"][1]["points"]
+    assert moments[0][0] == 0.0 and moments[0][1] == 0.0  # the left tip
+    json.dumps(r, allow_nan=False)
+
+
+def test_a_cantilever_too_short_for_its_bars_takes_smaller_ones():
+    r = elastic(cantilever_left_mm=600, cantilever_left_dead_kn_m=40, cantilever_left_live_kn_m=20, cantilever_left_tip_kn=30, depth_mm=550)
+    top = r["reinforcement"]["support"][0]["top"]
+    from app.engineering import is456
+    assert is456.development_length(top["dia"], 25, 500) <= r["data"]["cantilever"]["left"]["available"]
+    assert checks(r)["anchorage_cl"]["ok"]
+
+
+def test_a_supports_compression_steel_raises_a_spans_bottom_bars():
+    # with a left cantilever span 1 needs less sagging steel, but support 2 needs its bottom bars as compression steel
+    r = elastic(cantilever_left_mm=1500)
+    assert r["status"] == "ok"
+    steps = [i["title"] for s in r["sheet"]["sections"] for i in s["items"] if i["kind"] == "step"]
+    assert any(t.startswith("Span 1: its bottom bars are increased") for t in steps)
+    sup = r["data"]["support"][1]
+    assert r["reinforcement"]["span"][0]["bottom"]["area"] >= sup["asc_req"]
+
+
+def test_cantilever_inputs_are_checked():
+    with pytest.raises(ValidationError, match="less than 300 mm"):
+        ContinuousBeamInput(analysis="elastic", cantilever_right_mm=200)

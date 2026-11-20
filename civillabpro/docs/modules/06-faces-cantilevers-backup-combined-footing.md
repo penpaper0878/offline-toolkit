@@ -5,7 +5,7 @@ The next items after 0.5.0, built one at a time. This note grows with each item.
 | Item | State | Engine |
 |---|---|---|
 | STR-040 support moments at the faces of monolithic supports | done | continuous beam 1.6.0 |
-| STR-042 cantilevers at the ends of a continuous beam | in progress | |
+| STR-042 cantilevers at the ends of a continuous beam | done | continuous beam 1.6.0 |
 | PLAT-018 backup and restore | not started | |
 | STR-020 combined footing | not started | |
 
@@ -41,3 +41,47 @@ The next items after 0.5.0, built one at a time. This note grows with each item.
   * Cl. 37.1.1(b) holds at the face;
   * the steel falls;
   * the sheet and the notes cite Cl. 22.6.2.
+
+## STR-042: cantilevers at the ends of a continuous beam
+
+**Goal.** Balcony and canopy beams: a continuous beam that overhangs one or both of its end supports. This is part of the elastic method; the coefficients of Table 12 have no cantilever.
+
+**Inputs.** For each end: the clear projection (0 for none, else at least 300 mm), dead and imposed uniform load, and a dead load at the tip (a parapet or wall).
+
+**Logic.**
+
+| Step | Rule | Reference |
+|---|---|---|
+| Length | to the centre of the support, the end of a continuous beam | Cl. 22.2(c) |
+| Analysis | the cantilever's moment, (w_d + w_l) l^2/2 + P l, is a known end moment in the three-moment equation; each cantilever loaded and unloaded in every arrangement | Cl. 22.4.1 |
+| Redistribution | none at a cantilever's support: its moment is statically determinate | Cl. 37.1.1 |
+| Support | designed like an interior support; top bars run to the tip and bend down, and must develop L_d beyond the face (the selection passes over bars that would not) | Cl. 26.2.1, 26.2.2.1(b) |
+| Cantilever | shear at d from the face with one stirrup spacing; deflection by the basic ratio 7 with k_t of the top bars | Cl. 22.6.2.1, 40.4, 23.2.1 |
+| End span | its bottom bars meet no simple support next to a cantilever: anchored at the point of inflection instead | Cl. 26.2.3.3(c) |
+| Uplift | a support whose reaction turns downward in any arrangement is flagged | |
+
+**Found and fixed while building it.** With a left cantilever, span 1 sags less, so its bottom bars shrank. Support 2 then lacked the compression steel it needed, and the default beam stopped. The engine now gives a support more compression steel first, raising the bottom bars of the lighter span beside it. Only where no heavier bars help does it redistribute less. As a result, the 30 percent case of the worked example now keeps 30 percent at both supports (span 3's bottom bars rise to 6-T12) instead of taking 25 percent at support 3.
+
+**Output.** Each cantilever gets:
+
+* its own elevation, with the top bars bent down at the tip, the bottom bars and the stirrups;
+* rows in the schedule: the top bars over the support and the cantilever (an L-bend at the tip), its bottom bars and its stirrups;
+* its length in the quantities;
+* its stretch in the envelope charts, x then measured from the left tip.
+
+**Validation.** The elastic hand check now carries cantilevers:
+
+* Hardy Cross with the cantilever's moment held at the end joint and half the change carried over;
+* the arrangements with each cantilever loaded and unloaded;
+* the cantilever's own face moment where the supports are monolithic.
+
+On each cantilever it checks the length available to develop the top bars, the stirrup spacing the shear asks for, and the span/depth allowance. Two new cases (a cantilever at each end; a 2.5 m left cantilever with monolithic supports) bring it to 1223 values over 17 cases. With the cantilever's length shortened to its clear projection, it reports 47 disagreements.
+
+**Tests.** `tests/unit/test_continuous_elastic.py`:
+
+* the kernel with a known end moment;
+* a cantilever at each end: lengths, moments, no redistribution at its support, its checks, no end details, schedule shapes, views, quantities, charts;
+* a short cantilever taking smaller bars;
+* compression steel raising a span's bars;
+* input limits;
+* redistribution kept by raising the compression steel, and stepped down where no heavier bars can help.

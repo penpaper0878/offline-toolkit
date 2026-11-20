@@ -114,7 +114,9 @@ def bar_schedule(inp: ContinuousBeamInput, reinf: dict[str, Any], sheet: CalcShe
         left_sup, right_sup = reinf["support"][i], reinf["support"][i + 1]
         run = lc + 2.0 * embed + comp_ext(dia, left_sup) + comp_ext(dia, right_sup)
         role = f"Bottom bars, {run_g['label']}" + (" continuing" if cut else "")
-        ends = ([cp["end_detail"]["left"]] if i == 0 else []) + ([cp["end_detail"]["right"]] if i == n - 1 else [])
+        # the end details belong to simple end supports; a cantilever's support takes the bars on like an interior one
+        ends = ([cp["end_detail"]["left"]] if i == 0 and left_sup is None else []) + (
+            [cp["end_detail"]["right"]] if i == n - 1 and right_sup is None else [])
         ld3 = is456.development_length(dia, fck, fy) / 3.0
         if "hook" in ends:
             h_al = _ceil5(hook_allowance(dia, fy))
@@ -130,9 +132,22 @@ def bar_schedule(inp: ContinuousBeamInput, reinf: dict[str, Any], sheet: CalcShe
             c_len = lc - cut["left"] - cut["right"]
             add(f"Bottom bars, curtailed, {cut['curtailed']['label']}, {cut['left']:.0f} and {cut['right']:.0f} from the left and right faces",
                 "span", i + 1, "straight", cut["curtailed"]["dia"], cut["curtailed"]["count"], {"A": c_len}, c_len, "A = clear span - both cut-off distances")
-    # ---- top bars over each interior support
-    for j in range(1, n):
+    # ---- top bars over each support that has them; over a cantilever's support they run to the tip and are bent down there
+    cants = reinf.get("cantilever", {})
+    tip_leg = _ceil5(D - 2.0 * (cover + st[0]["dia"]))
+    for j in range(n + 1):
         sup, tc = reinf["support"][j], cp["top"][j]
+        if sup is None:
+            continue
+        side = "left" if j == 0 else "right" if j == n else None
+        if side is not None:
+            a_c = cants[side]["lc"] - cover
+            a_s = lay[0]["a_left"] if j == 0 else lay[n - 1]["a_right"]
+            length = sw + a_c + a_s
+            add(f"Top bars over the support and the {side} cantilever, {sup['top']['label']}, to the tip and {a_s:.0f} into the span", "support",
+                j + 1, "L-bend at the cantilever tip", sup["top"]["dia"], sup["top"]["count"], {"A": length, "B": tip_leg},
+                length + tip_leg - 2.0 * sup["top"]["dia"], "A + B - 2d (bent down at the tip)")
+            continue
         a_l, a_r = lay[j - 1]["a_right"], lay[j]["a_left"]
         long_ = tc["long"] if tc else sup["top"]
         length = sw + a_l + a_r
@@ -149,6 +164,13 @@ def bar_schedule(inp: ContinuousBeamInput, reinf: dict[str, Any], sheet: CalcShe
             role = "compression bars" if sp["doubly"] else "hangers"
             add(f"Top {role}, {sp['top']['label']}", "span", i + 1, "straight", sp["top"]["dia"], sp["top"]["count"], {"A": s_["hanger"]},
                 s_["hanger"], "A = span - support bar extents + laps (to the end support in an end span)")
+    # ---- the cantilevers' bottom bars (two, the hanger size) and stirrups
+    for side, c in cants.items():
+        j = 0 if side == "left" else n
+        hd = inp.hanger_bar_dia_mm
+        run_c = c["lc"] - cover + sw - cover
+        add(f"Bottom bars of the {side} cantilever, 2-T{hd}, from the tip into the support", "support", j + 1, "straight", hd, 2, {"A": run_c},
+            run_c, "A = projection + support - 2 x cover")
     # ---- side face bars
     side = reinf.get("side_face")
     if side:
@@ -177,6 +199,20 @@ def bar_schedule(inp: ContinuousBeamInput, reinf: dict[str, Any], sheet: CalcShe
             a_in = _ceil5((n1 - 3) * pitch + first["dia"] + 2.0 * dst)
             add(f"Inner stirrups, T{dst}, with the stirrups, {per} per span", "span", i + 1, "closed stirrup, 135 deg hooks", dst, per,
                 {"A": a_in, "B": h_st, "hook": hook}, 2.0 * (a_in + h_st) + 2.0 * hook - 12.0 * dst, formula)
+
+    for side, c in cants.items():
+        per = len(c["positions"])
+        counts.append(per)
+        num = (0 if side == "left" else n) + 1
+        add(f"Stirrups of the {side} cantilever, T{dst} {inp.stirrup_legs}-legged at {c['spacing']:.0f} c/c, {per}", "support", num,
+            "closed stirrup, 135 deg hooks", dst, per, {"A": a_st, "B": h_st, "hook": hook}, 2.0 * (a_st + h_st) + 2.0 * hook - 12.0 * dst, formula)
+        if inp.stirrup_legs == 4:
+            first = reinf["support"][num - 1]["top"]
+            n1 = first["layers"][0]
+            pitch = (a_st - 2.0 * dst - first["dia"]) / max(n1 - 1, 1)
+            a_in = _ceil5(max(n1 - 3, 1) * pitch + first["dia"] + 2.0 * dst)
+            add(f"Inner stirrups of the {side} cantilever, T{dst}, with the stirrups, {per}", "support", num, "closed stirrup, 135 deg hooks", dst,
+                per, {"A": a_in, "B": h_st, "hook": hook}, 2.0 * (a_in + h_st) + 2.0 * hook - 12.0 * dst, formula)
 
     # ---- merge alike rows across spans and supports
     merged: dict[tuple[Any, ...], dict[str, Any]] = {}
@@ -218,7 +254,7 @@ def quantities(inp: ContinuousBeamInput, bbs: dict[str, Any]) -> dict[str, Any]:
     n = len(rows)
     flanged = inp.section != "rectangular"
     rib = D - inp.flange_thickness_mm if flanged else D
-    clear = sum(r.clear_span_mm for r in rows)
+    clear = sum(r.clear_span_mm for r in rows) + inp.cantilever_left_mm + inp.cantilever_right_mm
     length = clear + (n + 1) * sw
     concrete = b * rib * length * 1e-9
     sides = rib + D if inp.section == "l_beam" else 2.0 * rib
@@ -229,7 +265,7 @@ def quantities(inp: ContinuousBeamInput, bbs: dict[str, Any]) -> dict[str, Any]:
         "steel_kg": round(steel, 1), "steel_kg_per_m3": round(steel / concrete, 1) if concrete > 0 else None,
         "basis": [
             "Concrete over the whole length, the supports included" + ("; the rib below the slab only." if flanged else "."),
-            "Formwork: soffit and sides over the clear spans" + (" (an L-beam's outer face to the full depth)." if inp.section == "l_beam" else "."),
+            "Formwork: soffit and sides over the clear spans and the cantilevers" + (" (an L-beam's outer face to the full depth)." if inp.section == "l_beam" else "."),
             "Steel from the bar bending schedule, the whole beam.",
         ],
     }
@@ -261,8 +297,9 @@ def drawing(inp: ContinuousBeamInput, reinf: dict[str, Any], bbs: dict[str, Any]
         bot = sp["bottom"]
         y_b = cover + dst + bot["dia"] / 2.0
         # bottom bars, with the end detail at an end support
-        x0, x1 = (cover if i == 0 else 0.0), (total - cover if i == n - 1 else total)
-        detail = (cp["end_detail"]["left"] if i == 0 else None, cp["end_detail"]["right"] if i == n - 1 else None)
+        simple_l, simple_r = i == 0 and left is None, i == n - 1 and right is None  # simple end supports (no cantilever beyond)
+        x0, x1 = (cover if simple_l else 0.0), (total - cover if simple_r else total)
+        detail = (cp["end_detail"]["left"] if simple_l else None, cp["end_detail"]["right"] if simple_r else None)
         dia = (cut["continuing"] if cut else bot)["dia"]
         rad = bend_radius(dia, inp.fy) + dia / 2.0
         for at_left, d_ in ((True, detail[0]), (False, detail[1])):
@@ -328,6 +365,34 @@ def drawing(inp: ContinuousBeamInput, reinf: dict[str, Any], bbs: dict[str, Any]
         el.text(sw + lc / 2.0, -sh - 5.0 * te, f"{bot['label']} bottom; stirrups {st[i]['label'].split(' @ ')[0]} @ {z['s_mid']:.0f}"
                 + (f", closer {band_text}" if band_text else ""), te, "middle")
 
+    # ------------------------------------------------------------------ cantilevers
+    for side, c in reinf.get("cantilever", {}).items():
+        j = 0 if side == "left" else n
+        sup = reinf["support"][j]
+        lc = c["lc"]
+        total = sw + lc
+        te = min(max(total / 55.0, 0.08 * D), 0.25 * D)
+        el = model.view(f"cantilever_{side}", f"The {side} cantilever at support {j + 1}", "to scale")
+        # drawn with the support on the left whichever end it is; the free end on the right
+        el.rect(0, -sh, sw, sh, "support")
+        el.rect(0, 0, total, D, "concrete")
+        if flanged:
+            el.line(0, D - shape["df"], total, D - shape["df"], "centerline")
+        y_t = D - (cover + dst + sup["top"]["dia"] / 2.0)
+        leg = _ceil5(D - 2.0 * (cover + dst))
+        el.line(0.0, y_t, total - cover, y_t, "rebar")
+        el.line(total - cover, y_t, total - cover, y_t - leg + sup["top"]["dia"], "rebar")
+        hd = inp.hanger_bar_dia_mm
+        y_b = cover + dst + hd / 2.0
+        el.line(cover, y_b, total - cover, y_b, "rebar")
+        for x in c["positions"]:
+            el.line(sw + x, cover, sw + x, D - cover, "stirrup")
+        el.dim(sw, -sh, total, -sh, -2.0 * te, f"{lc:.0f} projection", te)
+        el.dim(0, -sh, sw, -sh, -2.0 * te, f"{sw:.0f}", te)
+        el.dim(total, 0, total, D, 2.0 * te, f"{D:.0f}", te)
+        el.text(sw / 2.0, D + 2.6 * te, f"{sup['top']['label']} top, to the tip and bent down; into the span as shown there", te, "start")
+        el.text(sw + lc / 2.0, -sh - 5.0 * te, f"2-T{hd} bottom; stirrups T{dst} {inp.stirrup_legs}-legged @ {c['spacing']:.0f}", te, "middle")
+
     # ------------------------------------------------------------------ cross-sections: the heaviest span and support
     sec = model.view("sections", "Sections A-A and B-B", "to scale")
     i_a = max(range(n), key=lambda k: reinf["span"][k]["bottom"]["area"])
@@ -340,9 +405,9 @@ def drawing(inp: ContinuousBeamInput, reinf: dict[str, Any], bbs: dict[str, Any]
     if flanged:
         tee = shape["kind"] == "t_beam"
         e_l = min((shape["bf"] - b) / (2.0 if tee else 1.0), max(1.2 * b, 300.0))
-    j_b = max(range(1, n), key=lambda k: reinf["support"][k]["top"]["area"])
+    j_b = max((k for k in range(n + 1) if reinf["support"][k] is not None), key=lambda k: reinf["support"][k]["top"]["area"])
     sup = reinf["support"][j_b]
-    lo = min((j_b - 1, j_b), key=lambda k: reinf["span"][k]["bottom"]["area"])
+    lo = min((k for k in (j_b - 1, j_b) if 0 <= k < n), key=lambda k: reinf["span"][k]["bottom"]["area"])
     cross_section(sec, right_x + e_l + 4.0 * th, b, D, cover, stir, sup["top"], reinf["span"][lo]["bottom"], sup["gap"], reinf["span"][lo]["gap"],
                   shape, reinf.get("side_face"), inner_a, f"B-B: over support {j_b + 1}")
 
