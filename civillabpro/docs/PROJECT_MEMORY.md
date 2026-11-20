@@ -32,9 +32,9 @@ Test counts at 0.5.0: backend 345 (298 engineering, architecture, hand checks an
 ## NEXT STEPS
 
 1. **STR-009, blocked: compare the column, slab and footing clauses with the code text** (the three "To cross-check" lists in the code register). It needs the user: either approval of a direct download of the public copy, or the pages pasted into the session. Do not work around a declined download. Fix anything that differs and re-run every hand check.
-2. **Release 0.5.0** (note `docs/modules/05-anchorage-spans-desktop.md`; STR-038, STR-037, STR-039, STR-036, PLAT-021 and PLAT-010 done): version, samples, screenshots, README, and the desktop workflow green on both platforms.
-3. The continuous beam's follow-ups: STR-040 face moments, STR-041 a width and section per span, STR-042 cantilever ends, STR-043 the coefficient method on the per-span path.
-4. Then phase 2's engineering: STR-020 combined and strap footing; and the estimation module and standards library (see ROADMAP.md).
+2. **The continuous beam's follow-ups**: STR-040 face moments at monolithic supports, STR-041 a support width and section per span, STR-042 cantilever ends, STR-043 the coefficient method on the per-span path.
+3. **Desktop**: PLAT-022 code-signing (needs a certificate), PLAT-018 backup and restore, PLAT-011 auto-update.
+4. **Phase 2's engineering**: STR-020 combined and strap footing; the estimation module and the standards library (see ROADMAP.md).
 
 ## Decisions (do not reopen without a reason recorded here)
 
@@ -111,6 +111,11 @@ Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not her
 * Library versions at 0.1.0 are recent majors (React 19, MUI 9, Vite 8, Tailwind 4, TypeScript 7, dockview-react 8, recharts 3, FastAPI 0.16x, SQLAlchemy 2.1). Check the installed typings before assuming an older API.
 
 ## Log
+
+### 0.5.0 released (20 November 2026)
+
+* Released: version 0.5.0, samples and screenshots regenerated, README and roadmap updated. CI green on the release commit: backend (SQLite and PostgreSQL), frontend, and the desktop workflow on Ubuntu and Windows. The Windows packaged app passed the smoke test in CI: every element designed, 18 exports recognised. The NSIS installer and the AppImage are kept as build artifacts.
+* Found and fixed: the first Windows run failed two launcher tests, which asked for Linux paths on a Windows host; `paths()` now uses the path rules of the platform asked about.
 
 ### 0.5.0 in progress (19 November 2026): PLAT-010 desktop app
 
