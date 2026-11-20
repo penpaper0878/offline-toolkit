@@ -1,5 +1,5 @@
 // End-to-end walkthrough in a real browser: register, create a project, design a beam, a column, a slab,
-// a footing and a continuous beam (by coefficients and by elastic analysis), save, export and import a project, back up the database, download each report / schedule / drawing, switch theme, search, use the calculator,
+// an isolated and a combined footing, a continuous beam (by coefficients and by elastic analysis), save, export and import a project, back up the database, download each report / schedule / drawing, switch theme, search, use the calculator,
 // reload.
 //
 //   1. start the API, on a fresh database (the backup step needs one organisation alone), and the web client (see README.md)
@@ -131,10 +131,11 @@ const BASE = process.argv[3] || process.env.BASE || 'http://127.0.0.1:5173';
   await page.keyboard.press('Alt+t');
   await page.waitForTimeout(300);
 
-  // Slab, footing and continuous beam: the drawing tabs follow the element's views.
+  // Slab, footings and continuous beam: the drawing tabs follow the element's views.
   for (const el of [
     { name: 'slab', link: /New RCC slab/, key: 'Two-way, Table 26 case 4', first: 'Plan', second: 'Section across the short span' },
     { name: 'footing', link: /New RCC isolated footing/, key: '2200 x 2050 x 450', first: 'Plan', second: 'Section along L' },
+    { name: 'combined-footing', link: /New RCC combined footing/, key: '6100 x 1950 x 900', first: 'Plan', second: 'Section along the footing' },
     { name: 'continuous', link: /New RCC continuous beam/, key: '10-T12 (6+4)', first: 'Elevation: end span and half of span 2',
       second: 'Sections A-A and B-B' },
   ]) {

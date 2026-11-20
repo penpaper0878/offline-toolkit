@@ -21,6 +21,7 @@ Version 0.5.0. Phase 1 is done: beams (rectangular, T and L; simple, cantilever 
 | Structural: column engine 1.0.0 | built, independent hand check passing; code text not yet compared (see the code register) |
 | Structural: slab engine 1.0.0 (one-way, two-way) | built, independent hand check passing; Table 26 rows and Annex D extents to compare with the code |
 | Structural: isolated footing engine 1.1.0 | built, independent hand check passing; Cl. 34 wording to compare with the code |
+| Structural: combined footing engine 1.0.0 (two columns, rectangular, uniform depth) | built (0.6.0), independent hand check passing; the band width across is an interpretation (no clause) |
 | Exports: PDF, Excel, DXF | built, reviewed page by page |
 | Deployment | single-process mode verified; Dockerfile and compose file written, compose validated, image not built (no Docker daemon in the build session) |
 | Desktop app (Electron) | built: shell, PyInstaller server bundle, Linux AppImage verified here (packaged smoke test, a killed shell's server stops itself); Windows NSIS built and smoke-tested by CI only (`civillabpro-desktop.yml`) |
@@ -35,7 +36,8 @@ Test counts at 0.5.0: backend 345 (298 engineering, architecture, hand checks an
 1. **STR-009, blocked: compare the column, slab and footing clauses with the code text** (the three "To cross-check" lists in the code register). It needs the user: either approval of a direct download of the public copy, or the pages pasted into the session. Do not work around a declined download. Fix anything that differs and re-run every hand check.
 2. **The continuous beam's follow-ups**: STR-041 a support width and section per span, STR-043 the coefficient method on the per-span path.
 3. **Desktop**: PLAT-022 code-signing (needs a certificate), PLAT-011 auto-update.
-4. **Phase 2's engineering**: STR-020 combined and strap footing; the estimation module and the standards library (see ROADMAP.md).
+4. **Footings**: STR-044 strap and trapezoidal footings, STR-045 column moments on combined footings.
+5. **Phase 2's engineering**: the estimation module and the standards library (see ROADMAP.md).
 
 ## Decisions (do not reopen without a reason recorded here)
 
@@ -76,6 +78,7 @@ Test counts at 0.5.0: backend 345 (298 engineering, architecture, hand checks an
 | D34 | Every route takes its session as `Depends(get_db, scope="function")`; a test walks all routes | the commit, and any error it raises, must come before the client hears of success |
 | D33 | The redistribution entered is a maximum: a support whose section cannot meet Cl. 37.1.1(d) with it takes 5 percent less, recorded on the sheet | the designer's intent survives a section that cannot take all of it, instead of a stop |
 | D35 | A project travels as a JSON archive and is imported as calculated, never recalculated, by a `transfer` context that copies rows across the projects and structural tables (the second sanctioned exception after the dashboard); the client's backup is offered only for SQLite holding one organisation | an issued calculation must arrive with the numbers it was issued with; the structural service would recalculate and revise; no owner may download another tenant's rows |
+| D36 | A combined footing with its plan left to the engine is centred on the resultant with the left end that balances the greatest sagging and hogging along it, among footings no wider than they are long, and the least width the bearing allows; its bands across are the column's depth plus 0.75 d each side | least concrete always pushed a column to the footing's end; balanced moments is the textbook economy and gives the least steel in the worked example; the band width is the middle of the published range (b + d to b + 2d) |
 
 Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not here.
 
@@ -113,6 +116,12 @@ Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not her
 * Library versions at 0.1.0 are recent majors (React 19, MUI 9, Vite 8, Tailwind 4, TypeScript 7, dockview-react 8, recharts 3, FastAPI 0.16x, SQLAlchemy 2.1). Check the installed typings before assuming an older API.
 
 ## Log
+
+### 0.6.0 in progress (20 November 2026): STR-020 combined footing
+
+* Built: the `combined_footing` element (engine 1.0.0, a domain module, detailing, hand check and registry entry). Two columns on a rectangular footing of uniform depth, centred on the loads or from a property line; bending along (sagging at the faces, hogging between) and across (bands under the columns); one-way shear along and across; punching cut by the edges or merged; development at the stress of each section; bearing; charts, schedule, three drawing views. Interpretations 95 to 103 (D36).
+* Rejected on the way: choosing the left end for the least concrete always drove column 1 to the end of the footing; the left end now balances the sagging and hogging (D36).
+* Hand check: 75 values of the worked example and 1467 over 21 cases, 1 stop; six sabotages each fail it.
 
 ### 0.6.0 in progress (20 November 2026): PLAT-018 backup, restore and project transfer
 

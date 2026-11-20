@@ -7,7 +7,7 @@ The next items after 0.5.0, built one at a time. This note grows with each item.
 | STR-040 support moments at the faces of monolithic supports | done | continuous beam 1.6.0 |
 | STR-042 cantilevers at the ends of a continuous beam | done | continuous beam 1.6.0 |
 | PLAT-018 backup and restore | done | platform |
-| STR-020 combined footing | not started | |
+| STR-020 combined footing | done | combined footing 1.0.0 |
 
 ## STR-040: support moments at the faces of monolithic supports
 
@@ -121,6 +121,68 @@ The archive is not signed. A consistency check catches damage and careless edits
   * refusals of an unknown element, an altered result and a cross-tenant export;
   * the backup opened as a database, refused to a non-owner, and refused where two organisations share it.
 * `desktop/test/launcher.test.js`: the file check, the swap with its kept files, and undo.
-* The desktop smoke test, on each packaged app in CI, follows the whole cycle: back up, add a project, restore, then check the project is gone and the six designs are back.
-* The browser walkthrough exports the project, imports it as `-2` with its six designs, and downloads a backup whose header it checks.
+* The desktop smoke test, on each packaged app in CI, follows the whole cycle: back up, add a project, restore, then check the project is gone and every design is back.
+* The browser walkthrough exports the project, imports it as `-2` with all its designs, and downloads a backup whose header it checks.
+
+## STR-020: combined footing
+
+A new element, `combined_footing`: a rectangular footing of uniform depth under two rectangular columns on its long axis. It is a domain module, its detailing, a hand check and a registry entry; no endpoint, table or screen was added. The clauses and interpretations 95 to 103 are in the code register.
+
+**Plan.** The resultant of the two service loads fixes the centre of the footing, so that the pressure is uniform but for the 50 mm rounding of the length.
+
+* The left end may be fixed, at a property line for example; the length follows.
+* Or the length is fixed and the left end follows, or both are fixed and the pressure varies as it must.
+* Left blank, the engine takes the left end whose greatest sagging and hogging along the footing are nearest equal, the classic economy, keeping to footings no wider than they are long.
+* The width is the least the bearing pressure allows.
+* A heavier column at a restricted end cannot be centred on any rectangle: the input is refused with the remedy (a trapezoidal or strap footing, STR-044).
+
+Least concrete was tried first as the criterion and rejected. The depth falls as the footing grows shorter and wider, so it always pushed column 1 to the very end of the footing, a property line nobody had asked for.
+
+**Design, with the net factored pressure from the column loads**, varying linearly along:
+
+| Along | Across | Shear | Elsewhere |
+|---|---|---|---|
+| a beam on the pressure: sagging at the column faces and in the overhangs, the greatest hogging between the columns where the shear is nil; bottom and top bars over the whole width, full length | a band under each column, its depth plus 0.75 d each side: the column's load spread across the width, the moment at the column face; the minimum elsewhere | one-way at d from every column face along (with the bars in tension there) and in each band across; punching at d/2 round each column, cut by the footing's edges, one outline round both where the perimeters overlap | development of each set at the stress of its sections, with bends where needed; bearing at both column bases; edge thickness; cover |
+
+The depth is the least in 50 mm steps that needs neither compression steel nor shear reinforcement. Each set of bars takes the smallest size that fits at 100 mm or more and develops.
+
+**Output.**
+
+* Charts of the bending moment and shear along the footing.
+* A schedule of the bars along (bottom, top), across in the bands (one row where both bands match) and across outside them.
+* Quantities.
+* A plan, a section along and a section across under column 2.
+
+**Validation.**
+
+* `tests/handcheck/check_combined_footing.py` works by its own routes:
+  * point loads on a trapezoid of pressure;
+  * the point of zero shear from a quadratic;
+  * steel areas by bisection of the stress block;
+  * SP 16's tau_c formula;
+  * punching by cases and, where the perimeters overlap, by inclusion and exclusion;
+  * its own scan for the balanced left end.
+
+  It agrees on 75 values of the worked example and 1467 values over 21 other cases, with 1 stop. The cases include a property line, an eccentric plan, close columns, end bends on each set and a width grown to anchor the bars across.
+* Six sabotaged engines each fail it, with 18 to 476 disagreements:
+  * a band 0.5 d each side;
+  * uniform pressure that ignores the eccentricity;
+  * punching without the pressure inside the perimeter;
+  * bands developed at the full stress;
+  * shear taken at the faces;
+  * the left end balanced on sagging alone.
+* `tests/unit/test_combined_footing.py` covers:
+  * the statics closing, and equal to point loads outside the columns;
+  * the property line with its three-sided perimeter;
+  * every validation;
+  * the least depth;
+  * the balancing and the longer-than-wide rule;
+  * the merged outline;
+  * bends and widening;
+  * the outputs;
+  * a sweep of 72 inputs. What does not pass there is the bearing under small, heavily loaded columns, reported with its remedy.
+* An API life-cycle test.
+* The browser walkthrough and the desktop smoke test each design one.
+
+**Limits.** Axial loads only (column moments and horizontal loads are STR-045). Rigid footing, no settlement. No shear reinforcement. Bars along uncurtailed. Two columns.
 

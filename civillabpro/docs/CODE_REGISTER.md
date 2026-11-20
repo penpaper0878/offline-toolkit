@@ -358,6 +358,53 @@ As for the slab, the code text was not read; Cl. 34.1.2, 34.3.1, 34.4 and 26.4.2
 * Cl. 31.6.3.1: k_s and 0.25 sqrt(f_ck).
 * Whether Amendments 1 to 6 change any of the clauses above.
 
+### Combined footing engine 1.0.0: clauses taken (STR-020)
+
+IS 456 has no clause for combined footings as such. Section 34 is applied to them as to any footing, and the gaps are interpretations 95 to 103.
+
+| Clause | Subject | Where |
+|---|---|---|
+| Cl. 26.4.2.2 | cover in footings at least 50 mm | `effective_cover`, check `cover` |
+| Cl. 34.1.2 | thickness at the edge at least 150 mm on soil | check `edge` |
+| Cl. 34.2.3.2 | bending at the faces of the columns, along and across | `Statics`, `trial`, checks `mulim_*` |
+| Cl. 34.2.4.1(a), Table 19 | one-way shear at d from the faces of the columns, along and in the bands across | `trial`, checks `shear_<x>`, `shear_band<i>` |
+| Cl. 34.2.4.1(b), Cl. 31.6.1, 31.6.3.1 | punching at d/2; k_s 0.25 sqrt(f_ck) | `punching_zones`, checks `punching_<columns>` |
+| Cl. 26.2.1, 34.2.4.3 | development of every set at the stress of its critical sections | checks `anchor_bottom_<x>`, `anchor_top`, `anchor_band<i>` |
+| Cl. 26.2.2.1(b) | anchorage value of a 90 degree bend: 8 diameters | `footing.bent_value` |
+| Cl. 26.5.2.1, 26.3.3(b), 26.3.2(a) | minimum steel each way; spacing at most 3 d and 300 mm; clear spacing | `trial`, checks `as_*`, `spacing_*` |
+| Cl. 34.4, 34.4.3 | bearing at the base of each column; dowels at least 0.5 percent | checks `bearing<i>`, steps |
+| Table 18 | the load factor for the design of the concrete | `Statics` |
+
+### Combined footing engine: interpretations
+
+95. **Rigid footing.** The net factored pressure, from the column loads only (the own weight acts against its own reaction), varies linearly along the footing so that it balances them, and is uniform across. The service pressures add the own-weight allowance at the centre. Along, the footing is a beam carrying that pressure up and each column's load down, spread over the column's depth (outside the columns this is the same as a point load at the centre).
+96. **Bands across.** IS 456 sets no width for the steel across under a column. The engine takes the column's depth along the footing plus 0.75 d each side, cut at the footing's ends and at the middle of the gap between the columns. References use from b + d to b + 2d; this is the middle of that range. The column's factored load is spread across the width, giving M = (P_u / B) a^2 / 2 at the face of the column. Outside the bands the steel across is the minimum of Cl. 26.5.2.1, at the spacing for main bars.
+97. **Plan.**
+    * The left end may be entered, for example at a property line; the length is then centred on the resultant, rounded up to 50 mm.
+    * With the length entered, the left end centres it, to 25 mm. With both entered they are kept, and the pressure varies as it must.
+    * With neither, the engine takes the left end, on a 25 mm grid, whose greatest sagging and hogging along are nearest equal (the classic economy). It first keeps to plans no wider than they are long, so that close columns still get a footing along their line.
+    * The width is the least, in 50 mm steps and at least 50 mm beyond the wider column each side, that keeps the service pressure within the safe bearing pressure with no loss of contact. It grows in 50 mm steps where the bars across cannot be developed. A heavier column at a restricted end, which no centred rectangle can carry, is refused with the remedy (STR-044).
+98. **Development at the stress of the section.** Each set is developed at its critical sections at the stress there: L_d x A_s for the moment / A_s provided (Cl. 26.2.1 defines L_d with sigma_s at the section). The sections are:
+    * for the bottom bars along, each column face where the footing sags, to the nearer end;
+    * for the top bars, each side of the greatest hogging;
+    * for the bars across, the column faces.
+
+    Bends of 8 diameters are used where straight bars fall short. This differs from the isolated footing, which takes the full stress (interpretation 37): at a property line the full stress would ask for anchorage of bars that carry no moment there.
+99. **Bars.**
+    * Every set takes the smallest bar size that fits at a practical spacing (100 mm or more) and develops, straight bars before bent ones.
+    * The bars along run the full length, uncurtailed, bottom and top, each at least the minimum of Cl. 26.5.2.1 over B x D.
+    * Layers: the bars across lowest, the bars along the bottom resting on them, the top bars at the cover.
+100. **One-way shear along** at d from each column face: outer faces with d of the bottom bars, inner faces with d of the top bars. tau_c is that of the bars in tension at the section, found by the sign of the moment there. A section beyond the footing's end, or past the other column's face where the gap is less than d, is not checked. **Across**, in each band at d from the column face, over the band's width.
+101. **Punching** on the perimeter at d/2 from the column faces, with d the mean of the two bottom layers. Sides that would fall on or outside the footing's edges are dropped, so a column at a property line has three. Where the two columns' perimeters overlap, they are checked as one outline round both, with both loads, the pressure within the outline and the lesser k_s.
+102. **Bearing** A_1 at each column: the base of the largest frustum concentric and similar to the column within the footing at 1 in 2. sqrt(A_1/A_2) = min(2 min(x, L - x)/D_c, B/b_c, 1 + 4 D/max(b_c, D_c), 2).
+103. **Depth**: the least in 50 mm steps that needs no compression steel and no shear reinforcement. An entered depth is checked as it is.
+
+### Combined footing engine: to cross-check against a printed copy
+
+* That IS 456 indeed has no rule for the width of the band across under a column of a combined footing (Cl. 34.3.1 covers isolated footings).
+* Cl. 26.2.1: sigma_s "at the section considered" for the development length, as used for the stress at each section.
+* Cl. 34.2.4.1(b) applied to a perimeter cut by the footing's edge.
+
 ## SP 16:1980, Design aids for reinforced concrete to IS 456:1978
 
 Handbook, not a code; still the standard reference for IS 456:2000 flexure and shear aids. Used for: Table A (steel stress at strain, in both hand checks), Table E (limiting moment factors, in tests), Table F (compression steel stress, in tests), Cl. 2.3.2 (doubly reinforced sections), Cl. 4.1 (closed form behind Table 19, in tests and the hand check).

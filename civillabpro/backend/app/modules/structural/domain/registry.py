@@ -14,7 +14,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from app.modules.structural.domain import beam, column, continuous_beam, footing, slab
+from app.modules.structural.domain import beam, column, combined_footing, continuous_beam, footing, slab
 
 
 @dataclass(frozen=True)
@@ -127,7 +127,24 @@ ELEMENTS: dict[str, ElementSpec] = {
             "Service loads and moments from the column, with an allowance for own weight; one load case.",
             "The largest factored pressure is used over the whole footing, which is on the safe side with moments.",
             "Safe bearing pressure from the soil investigation; settlement is not checked.",
-            "Combined, strap and pile footings are separate elements (backlog).",
+            "Combined footings are their own element; strap and pile footings are in the backlog.",
+        ),
+    ),
+    combined_footing.ELEMENT_TYPE: ElementSpec(
+        type=combined_footing.ELEMENT_TYPE,
+        title="RCC combined footing",
+        description="Rectangular footing of uniform depth under two columns: plan centred on the loads (or from a property line), bending "
+                    "and shear along and across, punching around each column, bands of steel under the columns.",
+        engine_version=combined_footing.ENGINE_VERSION,
+        code_basis=combined_footing.CODE_BASIS,
+        input_model=combined_footing.CombinedFootingInput,
+        design=combined_footing.design_combined_footing,
+        limitations=(
+            "Two rectangular columns on the footing's long axis, axial service loads only (no column moments or horizontal loads); one load case.",
+            "Rigid footing: the pressure varies linearly along it and is uniform across it. Settlement is not checked.",
+            "Uniform depth and no shear reinforcement: the depth is chosen for shear. The width is the least the bearing pressure allows; enter "
+            "a wider one for a shallower footing.",
+            "Bars along run the full length uncurtailed. Trapezoidal and strap footings, for a heavier column at a property line, are in the backlog.",
         ),
     ),
 }

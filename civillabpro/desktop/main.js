@@ -91,7 +91,7 @@ async function smoke(health) {
     const magic = { 'report.pdf': '%PDF', 'bbs.xlsx': 'PK', 'drawing.dxf': '  0' };
     const designs = {};
     for (const [type, inputs] of [['beam', {}], ['continuous_beam', {}], ['continuous_beam', { analysis: 'elastic' }], ['column', {}], ['slab', {}],
-                                  ['footing', {}]]) {
+                                  ['footing', {}], ['combined_footing', {}]]) {
       const d = await (await api('/projects/' + project.id + '/designs', { method: 'POST', headers: { ...auth, ...json },
         body: JSON.stringify({ element_type: type, name: type + (inputs.analysis ? '-' + inputs.analysis : ''), inputs }) })).json();
       if (d.status !== 'ok') throw new Error(type + ' designed ' + d.status);
@@ -105,7 +105,7 @@ async function smoke(health) {
     }
     return { path: location.pathname, title: document.title, designs, token: reg.access_token, project: project.id };
   })()`);
-  const restored = await smokeRestore(seen.token, seen.project);
+  const restored = await smokeRestore(seen.token, seen.project, Object.keys(seen.designs).length);
   delete seen.token;
   console.log('SMOKE OK', JSON.stringify({ server: health, window: seen, restore: restored, data: paths.dataDir }));
   quitting = true;
@@ -184,7 +184,7 @@ async function restoreFrom(file) {
 }
 
 /** The smoke test's second half: a backup, a project added after it, a restore, and the project gone with the designs back. */
-async function smokeRestore(token, projectId) {
+async function smokeRestore(token, projectId, expected) {
   const fs = require('node:fs');
   const os = require('node:os');
   const path = require('node:path');
@@ -202,7 +202,7 @@ async function smokeRestore(token, projectId) {
   const projects = await (await call('/projects')).json();
   const designs = await (await call(`/projects/${projectId}/designs`)).json();
   if (projects.items.some((p) => p.code === 'AFTER-BACKUP')) throw new Error('restore: the project made after the backup is still there');
-  if (designs.length !== 6) throw new Error(`restore: ${designs.length} designs after the restore, 6 before`);
+  if (designs.length !== expected) throw new Error(`restore: ${designs.length} designs after the restore, ${expected} before`);
   return { backup_bytes: bytes.length, projects: projects.total, designs: designs.length };
 }
 
