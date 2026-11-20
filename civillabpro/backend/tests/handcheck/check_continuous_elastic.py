@@ -36,7 +36,7 @@ BASE = dict(
     flange_thickness_mm=120, flange_width_mm=3000, isolated_flange=False, l0_mm=None, fck=25, fy=500, fy_stirrup=500,
     exposure="moderate", clear_cover_mm=None, max_aggregate_mm=20, dead_load_kn_m=25, live_load_kn_m=15, include_self_weight=True,
     unit_weight_kn_m3=25, load_factor=1.5, main_bar_dia_mm=None, hanger_bar_dia_mm=12, stirrup_dia_mm=8, stirrup_legs=2,
-    redistribution_pct=15.0,
+    redistribution_pct=15.0, support_moments_at="centre",
     span_table=[dict(clear_span_mm=c, dead_load_kn_m=25.0, live_load_kn_m=15.0) for c in (5000.0, 6500.0, 4500.0)],
     point_loads=[dict(span=2, distance_mm=3000.0, dead_kn=40.0, live_kn=30.0)],
 )
@@ -64,6 +64,8 @@ CASES: list[tuple[str, dict]] = [
                                              stirrup_dia_mm=10, fck=30, support_width_mm=450,
                                              point_loads=[dict(span=2, distance_mm=5000.0, dead_kn=150.0, live_kn=100.0)])),
     ("fixed bar size T20", dict(main_bar_dia_mm=20, depth_mm=550)),
+    ("monolithic supports: moments at the faces (Cl. 22.6.2)", dict(support_moments_at="faces", support_width_mm=450,
+                                                                   span_table=spans(6000, 7000, 5000))),
     ("light load", dict(span_table=spans(4000, 4500, 4000, dl=6, ll=3), point_loads=[])),
     ("T32 on 230 mm supports: anchorage picks four bars in the end spans", dict(support_width_mm=230, main_bar_dia_mm=32,
                                                                               span_table=spans(3000, 3500, 3000, dl=80, ll=48), point_loads=[])),
@@ -267,8 +269,17 @@ def compare(name: str, s: dict, res: dict) -> tuple[int, list[str]]:
     for i in range(n):
         near(f"l_eff {i + 1}", eng["l_eff"][i], h.l[i], 1e-9)
     for j in range(n + 1):
-        near(f"elastic hogging at support {j + 1}", eng["m_sup_elastic"][j], h.me[j])
-        near(f"design hogging at support {j + 1}", eng["m_sup"][j], h.m_sup[j])
+        near(f"elastic hogging at support {j + 1}", eng["m_sup_elastic_node"][j], h.me[j])
+        near(f"design hogging at support {j + 1}", eng["m_sup_node"][j], h.m_sup[j])
+    # the sections the supports are designed for: the centre lines, or the faces where the construction is monolithic (Cl. 22.6.2)
+    faces = s.get("support_moments_at") == "faces"
+    msec, mesec = list(h.m_sup), list(h.me)
+    for j in range(1, n):
+        if faces:
+            msec[j] = max(h.hog(j - 1, h.lc[j - 1]), h.hog(j, 0.0))
+            mesec[j] = max(h.hog_e(j - 1, h.lc[j - 1]), h.hog_e(j, 0.0))
+        near(f"design moment of support {j + 1}", eng["m_sup"][j], msec[j])
+        near(f"elastic moment at that section, support {j + 1}", eng["m_sup_elastic"][j], mesec[j])
     # greatest sagging in each span: stations by hand, the engine at its own; a station apart at most
     for i in range(n):
         xs = h.xs(i)
@@ -300,7 +311,7 @@ def compare(name: str, s: dict, res: dict) -> tuple[int, list[str]]:
         lo = min((j - 1, j), key=lambda q: reinf["span"][q]["bottom"]["area"])
         _, cdia, asc = bars(reinf["span"][lo]["bottom"])
         d, dc = sup["d"], D - reinf["span"][lo]["d"]
-        m = h.m_sup[j]
+        m = msec[j]
         a_req, c_req = steel(m, b, d, fck, fy, dc)
         mr = resistance(fck, fy, b, d, ast, asc, dc)
         k += 3
@@ -308,8 +319,8 @@ def compare(name: str, s: dict, res: dict) -> tuple[int, list[str]]:
             bad.append(f"{name}: support {j + 1} steel {ast:.0f}/{asc:.0f} below the hand requirement {a_req:.0f}/{c_req:.0f}")
         if mr * 1.003 < m:
             bad.append(f"{name}: support {j + 1} resists {mr:.1f}, less than {m:.1f} kN m")
-        if fr[j] > 0 and mr < h.me[j] and m < h.me[j]:
-            red = 1 - m / h.me[j]
+        if fr[j] > 0 and mr < mesec[j] and m < mesec[j]:
+            red = 1 - m / mesec[j]
             xu = eng["support"][j]["xu"]
             if xu / d + red > 0.6 + 1e-6:
                 bad.append(f"{name}: support {j + 1}: x_u/d + dM/100 = {xu / d + red:.3f} > 0.6 (Cl. 37.1.1(d))")

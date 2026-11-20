@@ -45,6 +45,7 @@ State: **done**, **next** (the item to start with), **ready** (can be started), 
 | STR-016 | Curtailment (Cl. 26.2.3, with the three conditions of 26.2.3.2) and stirrup zones for the simple and the continuous beam (0.4.0) |
 | STR-017 | Anchorage at simple supports and points of inflection, Cl. 26.2.3.3(c), enforced in bar selection, bends and curtailment (0.4.0) |
 | STR-038 | Continuous beam 1.3.0: Cl. 26.2.3.3(c) in its bar selection, with its own stop message (0.5.0) |
+| STR-040 | Continuous beam 1.6.0: support sections designed for the moments at the faces of monolithic supports (Cl. 22.6.2), an option of the elastic method (0.6.0) |
 | STR-036 | Continuous beam 1.5.0: elastic analysis of two to twelve spans of any length, uniform and point loads, redistribution by Cl. 37.1.1; every span and support designed, detailed, curtailed and drawn; table inputs in the property grid and the report; a view picker for drawings of many views (0.5.0) |
 | STR-039 | Continuous beam 1.5.0: bottom bars are not curtailed where a support uses them as compression steel (a defect of 1.1.0 to 1.4.0) (0.5.0) |
 | STR-037 | Beam 1.4.0, continuous beam 1.4.0: U-hooks (16 phi) where a 90 degree bend is not enough for Cl. 26.2.3.3(c); L_0 measured to the start of the bend or hook (correcting STR-017), and the footing's bend likewise (footing 1.1.0) (0.5.0) |
@@ -57,7 +58,6 @@ State: **done**, **next** (the item to start with), **ready** (can be started), 
 | STR-033 | Slab: unequal support moments of adjacent panels (Annex D-1.1 distribution) | ready | needs a panel group: several slabs sharing edges |
 | STR-034 | Footing: sloped and stepped footings | ready | Cl. 34.1.2, 34.4 frustum already in place |
 | STR-035 | Footing: pressure distribution with moments for bending (instead of the uniform maximum) | ready | lighter footings under large moments |
-| STR-040 | Continuous beam: moments at the faces of monolithic supports (Cl. 22.6.2) as an option | ready | the centre-line moment is used now, on the safe side |
 | STR-041 | Continuous beam: a support width and a section for each span | ready | the elastic method's tables can take them; the schedule already works per span |
 | STR-042 | Continuous beam: cantilevers at the ends | ready | elastic method only; anchorage and curtailment rules of the cantilever beam |
 | STR-043 | Continuous beam: the coefficient method on the per-span pipeline of the elastic method | ready | one detailing and curtailment path instead of two; outputs per span |

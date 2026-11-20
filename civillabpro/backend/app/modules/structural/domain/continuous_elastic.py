@@ -279,7 +279,12 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
         beam = Beam(geo, envs)
         m_span = [beam.sag_peak(i) for i in range(n)]
         m_span_e = [max(e.sag_elastic) for e in envs]
-        m_sup = [max(caps[j], ELASTIC_FLOOR * hog_e[j]) for j in range(n + 1)]
+        m_node = [max(caps[j], ELASTIC_FLOOR * hog_e[j]) for j in range(n + 1)]
+        if inp.support_moments_at == "faces":  # Cl. 22.6.2: monolithic construction, the greater of the two faces
+            m_sup = [0.0] + [max(beam.hog(j - 1, geo[j - 1].lc), beam.hog(j, 0.0)) for j in range(1, n)] + [0.0]
+            m_sup_e = [0.0] + [max(beam.at("hog_e", j - 1, geo[j - 1].lc), beam.at("hog_e", j, 0.0)) for j in range(1, n)] + [0.0]
+        else:
+            m_sup, m_sup_e = m_node, hog_e
 
         def shear_at_end(i: int, left: bool, beam: Beam = beam) -> float:
             return beam.shear(i, 0.0 if left else geo[i].lc)
@@ -310,7 +315,7 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
         short = []
         for j in range(1, n):
             comp_sec = secs[j - 1] if secs[j - 1].bottom.area <= secs[j].bottom.area else secs[j]  # the lighter bars reach from both sides
-            sups[j] = select_support_bars(inp, cover, f"s{j + 1}", m_sup[j], comp_sec.bottom, comp_sec.ybar, hog_e[j])
+            sups[j] = select_support_bars(inp, cover, f"s{j + 1}", m_sup[j], comp_sec.bottom, comp_sec.ybar, m_sup_e[j])
             if sups[j] is None:
                 short.append(j)
         if not short:
@@ -368,7 +373,13 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
                "resistance provided is nowhere below 70 percent of the elastic moment", "M_d = max(M_r, 0.7 M_e)", "", "", "")
     sheet.step("Design moments", "Greatest sagging in each span (design envelope), and in the elastic envelope", "M_span", "",
                "; ".join(f"{_n(m)} ({_n(e)})" for m, e in zip(m_span, m_span_e, strict=True)), "kN m")
-    sheet.step("Design moments", "Hogging at the interior supports (design)", "M_sup", "", ", ".join(_n(m_sup[j]) for j in range(1, n)), "kN m")
+    if inp.support_moments_at == "faces":
+        sheet.step(f"{REF}, Cl. 22.6.2", "Monolithic construction: the support sections are designed for the moment at the faces of the "
+                   "supports, the greater of the two faces (design envelope; elastic envelope in brackets)", "M_face", "",
+                   "; ".join(f"{_n(m_sup[j])} ({_n(m_sup_e[j])})" for j in range(1, n)), "kN m")
+    else:
+        sheet.step("Design moments", "Hogging at the interior supports (design), at their centre lines", "M_sup", "",
+                   ", ".join(_n(m_sup[j]) for j in range(1, n)), "kN m")
 
     # ------------------------------------------------------------------ flexure
     as_max = is456.max_steel(b, D)
@@ -381,7 +392,7 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
         sup = sups[j]
         assert sup is not None
         _support_steps(sheet, sup, f"Support {j + 1}", fck, fy, b, as_max, bw)
-        _redistribution_d(sheet, f"s{j + 1}", f"Support {j + 1}", sup.mu, hog_e[j], sup.cap.mu / 1e6, sup.cap.xu, sup.d)
+        _redistribution_d(sheet, f"s{j + 1}", f"Support {j + 1}", sup.mu, m_sup_e[j], sup.cap.mu / 1e6, sup.cap.xu, sup.d)
 
     # ------------------------------------------------------------------ shear
     sheet.section("6. Shear (critical section at d from the face of the support)")
@@ -543,8 +554,12 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
                            + (f" ({inp.redistribution_pct:.0f} entered; less where Cl. 37.1.1(d) allows no more)" if stepped else "")
                            + "; the span moments rise to keep equilibrium, and nowhere is the resistance below 70 percent of the elastic moment.",
                    f"{REF}, Cl. 37.1.1")
-    sheet.flag("info", "Support moments are taken at the centre line of each support, on the safe side; the face moments of Cl. 22.6.2 "
-                       "would be smaller where the beam is monolithic with its supports.", f"{REF}, Cl. 22.6.2")
+    if inp.support_moments_at == "faces":
+        sheet.flag("info", "Support sections are designed for the moments at the faces of the supports (Cl. 22.6.2): the beam must be cast "
+                           "monolithically with its supports.", f"{REF}, Cl. 22.6.2")
+    else:
+        sheet.flag("info", "Support moments are taken at the centre line of each support, on the safe side; the face moments of Cl. 22.6.2 "
+                           "would be smaller where the beam is monolithic with its supports.", f"{REF}, Cl. 22.6.2")
     if flanged:
         sheet.flag("info", "Where the slab spans parallel to this beam, provide transverse bars over the beam, at least 60 percent of the "
                            "slab's mid-span steel, so that the slab acts as the flange.", f"{REF}, Cl. 23.1.1(b)")
@@ -571,7 +586,9 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
         "redistribution_applied": [round(x, 6) for x in fr],
         "l_eff": [round(g.l_eff, 2) for g in geo], "rules": [g.rule for g in geo],
         "m_span": [round(m, 4) for m in m_span], "m_span_elastic": [round(m, 4) for m in m_span_e],
-        "m_sup": [round(m, 4) for m in m_sup], "m_sup_elastic": [round(m, 4) for m in hog_e],
+        "support_moments_at": inp.support_moments_at,
+        "m_sup": [round(m, 4) for m in m_sup], "m_sup_elastic": [round(m, 4) for m in m_sup_e],
+        "m_sup_node": [round(m, 4) for m in m_node], "m_sup_elastic_node": [round(m, 4) for m in hog_e],
         "v_end": [round(shear_at_end(0, True), 4), round(shear_at_end(n - 1, False), 4)],
         "ext": [{k: round(v, 1) for k, v in e.items()} for e in ext],
         "defl": [{k: round(v, 5) for k, v in x.items()} for x in defl],

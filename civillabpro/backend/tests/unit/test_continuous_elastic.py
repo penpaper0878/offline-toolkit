@@ -70,7 +70,7 @@ def test_envelopes_have_stations_either_side_of_a_point_load():
 def test_worked_example():
     r = elastic()
     d, ch = r["data"], checks(r)
-    assert r["status"] == "ok" and r["engine_version"] == "1.5.0"
+    assert r["status"] == "ok" and r["engine_version"] == "1.6.0"
     # support moments: 15 percent below the elastic greatest, not below 70 percent of it (Cl. 37.1.1)
     for j in (1, 2):
         assert d["m_sup"][j] == pytest.approx(0.85 * d["m_sup_elastic"][j], rel=1e-6)
@@ -172,3 +172,18 @@ def test_redistribution_steps_down_where_condition_d_allows_no_more():
     steps = [i["title"] for s in r["sheet"]["sections"] for i in s["items"] if i["kind"] == "step"]
     assert any(t.startswith("Support 3: no arrangement of top bars meets x_u/d + dM/100 <= 0.6") for t in steps)
     assert r["key_results"][2]["label"] == "Redistribution, least at a support" and r["key_results"][2]["value"] == pytest.approx(100 * fr[2])
+
+
+def test_monolithic_supports_are_designed_for_the_face_moments():
+    centre = elastic()
+    faces = elastic(support_moments_at="faces")
+    dc, df = centre["data"], faces["data"]
+    assert dc["support_moments_at"] == "centre" and dc["m_sup"] == dc["m_sup_node"]
+    for j in (1, 2):
+        assert df["m_sup"][j] < df["m_sup_node"][j]  # the face moment is less than the centre-line moment
+        assert df["m_sup_node"][j] == pytest.approx(dc["m_sup"][j])  # the analysis is the same
+        assert df["m_sup"][j] >= 0.7 * df["m_sup_elastic"][j] - 1e-6  # Cl. 37.1.1(b) at the face too
+    assert faces["quantities"]["steel_kg"] < centre["quantities"]["steel_kg"]
+    steps = [i["ref"] for s in faces["sheet"]["sections"] for i in s["items"] if i["kind"] == "step"]
+    assert any(r.endswith("Cl. 22.6.2") for r in steps)
+    assert any("faces of the supports (Cl. 22.6.2)" in f["message"] for f in faces["sheet"]["flags"])

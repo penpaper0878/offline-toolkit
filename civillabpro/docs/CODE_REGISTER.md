@@ -191,7 +191,7 @@ The second method of the continuous beam element (`analysis = "elastic"`). The c
 |---|---|---|
 | Cl. 22.2(b) | effective span of each span: narrow supports as 22.2(a); wide supports: end spans l_c + min(d/2, w_s/2), interior spans l_c | `continuous_elastic.effective_spans` |
 | Cl. 22.4.1 | arrangements of imposed load with any loads: all spans, alternate spans, each pair of adjacent spans | `engineering/continuous.arrangements` |
-| Cl. 22.6.2 | moments at the face of monolithic supports (not used: the centre line, on the safe side; the sheet says so) | flag |
+| Cl. 22.6.2 | moments at the face of monolithic supports: an option (`support_moments_at`); otherwise the centre line, on the safe side | `continuous_elastic.design` |
 | Cl. 22.6.2.1 | shear at d from the face; at the face where a point load lies within d of it | shear section, stirrup bands |
 | Cl. 22.7 | redistribution with an elastic analysis by 37.1.1; none with the coefficients | the two methods |
 | Cl. 37.1.1(a) | equilibrium: the span moments of every arrangement follow by statics from the modified support moments | `engineering/continuous.redistribute`, `envelopes` |
@@ -209,7 +209,7 @@ The second method of the continuous beam element (`analysis = "elastic"`). The c
 82. **Design envelope** = max(redistributed, 0.7 x elastic) at every section, for sagging and hogging (37.1.1(b)). A support's design moment is therefore (1 - r) M_e, never below 0.7 M_e; a span's is the greatest of its design envelope.
 83. **Condition (c)** is checked at each support as r M_e <= 0.3 x the largest elastic moment anywhere in the beam; with r <= 30 percent it always holds, and the check states it.
 84. **Condition (d).** dM = 100 (1 - M_d / M_e) for the section's design moment against its greatest elastic moment. It applies where the resistance provided is below M_e, with x_u of the bars provided (the compression steel counted). The bar selection passes over arrangements that fail it.
-85. **Support moments at the centre lines** of the supports (the analysis nodes), not at the faces: on the safe side, and right where the supports are walls.
+85. **Support moments at the centre lines** of the supports (the analysis nodes) by default: on the safe side, and right where the supports are walls. With `support_moments_at = "faces"` (monolithic construction, Cl. 22.6.2, continuous beam 1.6.0) each support is designed for the greater of the design envelope's hogging at its two faces, and Cl. 37.1.1(d) compares that with the elastic envelope at the same face. The redistribution itself is still worked at the nodes (interpretation 81), and the extents and cut-offs of the top bars come from the envelope as before.
 86. **Shear.** V from the redistributed envelope (equilibrium), at d from the face, or at the face where a point load lies within d of it. At each end, tau_c takes the bars certain to reach that section: the first layer, or the continuing part of a single layer. Along the span, closer stirrups go wherever the shear needs a spacing below that of minimum shear steel (0.75 d, 300 mm), with tau_c of the least such steel and the least d of the span and its supports. Every gap between stirrups is the least spacing required anywhere over it.
 87. **Sections.** Each span is designed for its own greatest sagging, each interior support for its own hogging. The support takes the lighter of its two spans' bottom bars as compression steel; curtailment keeps those bars (interpretation 70a).
 88. **Top bars that meet within a span** (no room for a hanger lapped at both ends) each run at least past mid-span, overlapping by a tension lap. At every section of that span the hogging is checked against the bars developed there, each set in proportion to its embedment beyond the section up to L_d, at the centroid of those bars, with the continuing bottom bars as compression steel.
@@ -220,7 +220,7 @@ The second method of the continuous beam element (`analysis = "elastic"`). The c
 
 * Cl. 37.1.1: the 30 percent and its base ("the numerically largest moment given anywhere by the elastic maximum moments diagram for the particular member"); (b) 70 percent; (d) x_u/d + dM/100 <= 0.6 and the meaning of dM.
 * Cl. 22.7: redistribution by 37.1.1 with an elastic analysis; none with the coefficients.
-* Cl. 22.6.2: the face moments for monolithic construction.
+* Cl. 22.6.2: the face moments for monolithic construction, and whether the greater of the two faces is meant where they differ (used).
 * Cl. 22.4.1, note: the arrangement of imposed load on all spans where it does not exceed three quarters of the dead load (all arrangements are used regardless).
 
 ### Column engine 1.0.0: clauses taken

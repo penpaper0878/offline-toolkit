@@ -51,7 +51,7 @@ from app.modules.structural.domain.beam import (
 )
 
 ELEMENT_TYPE = "continuous_beam"
-ENGINE_VERSION = "1.5.0"
+ENGINE_VERSION = "1.6.0"
 CODE_BASIS = ("IS 456:2000", "SP 16:1980", "IS 2502:1963")
 REF = is456.CODE
 FIRST_STIRRUP_MM = 50.0
@@ -96,6 +96,10 @@ class ContinuousBeamInput(BaseModel):
                               description="Spans may differ by up to 15 percent of the longest (Cl. 22.5.1): enter the longest")
     span_table: list[SpanRow] = _f([SpanRow(clear_span_mm=5000), SpanRow(clear_span_mm=6500), SpanRow(clear_span_mm=4500)], "Spans", "Geometry", "",
                                    _ELASTIC, min_length=2, max_length=12, description="Two to twelve spans, left to right")
+    support_moments_at: Literal["centre", "faces"] = _f(
+        "centre", "Support moments taken at", "Geometry", "", _ELASTIC,
+        labels={"centre": "Centre lines of the supports", "faces": "Faces of the supports (monolithic, Cl. 22.6.2)"},
+        description="Faces only where the beam is cast with its supports (columns, monolithic walls)")
     support_width_mm: float = _f(300, "Support width", "Geometry", "mm", ge=100, le=2000, description="Along the beam, each support")
     section: Literal["rectangular", "t_beam", "l_beam"] = _f("rectangular", "Section", "Geometry", labels=SECTION_LABELS)
     width_mm: float = _f(300, "Width b", "Geometry", "mm", ge=150, le=2000, description="The web width b_w of a T or L beam")

@@ -34,7 +34,7 @@ BASE = dict(
     exposure="moderate", clear_cover_mm=None, max_aggregate_mm=20, dead_load_kn_m=25, live_load_kn_m=15, include_self_weight=True,
     unit_weight_kn_m3=25, load_factor=1.5, main_bar_dia_mm=None, hanger_bar_dia_mm=12, stirrup_dia_mm=8, stirrup_legs=2,
     # the elastic method's inputs (check_continuous_elastic.py), unused by the coefficients
-    analysis="coefficients", redistribution_pct=15.0,
+    analysis="coefficients", redistribution_pct=15.0, support_moments_at="centre",
     span_table=[dict(clear_span_mm=c, dead_load_kn_m=25.0, live_load_kn_m=15.0) for c in (5000.0, 6500.0, 4500.0)],
     point_loads=[dict(span=2, distance_mm=3000.0, dead_kn=40.0, live_kn=30.0)],
 )
