@@ -15,19 +15,20 @@ const { spawn, spawnSync } = require('node:child_process');
  */
 function paths({ packaged, resourcesPath, appDir, dataDir, platform, env }) {
   const win = platform === 'win32';
-  const backendDir = path.resolve(appDir, '..', 'backend');
-  const python = env.CLP_PYTHON || path.join(backendDir, '.venv', win ? 'Scripts' : 'bin', win ? 'python.exe' : 'python');
-  const serverDir = packaged ? path.join(resourcesPath, 'server') : backendDir;
+  const P = win ? path.win32 : path.posix; // the path rules of the platform asked about, whatever this one is
+  const backendDir = P.resolve(appDir, '..', 'backend');
+  const python = env.CLP_PYTHON || P.join(backendDir, '.venv', win ? 'Scripts' : 'bin', win ? 'python.exe' : 'python');
+  const serverDir = packaged ? P.join(resourcesPath, 'server') : backendDir;
   return {
     dataDir,
-    logDir: path.join(dataDir, 'logs'),
-    serverLog: path.join(dataDir, 'logs', 'server.log'),
-    database: path.join(dataDir, 'civillabpro.db'),
-    secretFile: path.join(dataDir, 'secret.key'),
-    stateFile: path.join(dataDir, 'desktop.json'),
-    staticDir: packaged ? path.join(resourcesPath, 'web') : path.resolve(appDir, '..', 'frontend', 'dist'),
+    logDir: P.join(dataDir, 'logs'),
+    serverLog: P.join(dataDir, 'logs', 'server.log'),
+    database: P.join(dataDir, 'civillabpro.db'),
+    secretFile: P.join(dataDir, 'secret.key'),
+    stateFile: P.join(dataDir, 'desktop.json'),
+    staticDir: packaged ? P.join(resourcesPath, 'web') : P.resolve(appDir, '..', 'frontend', 'dist'),
     server: packaged
-      ? { command: path.join(serverDir, win ? 'clp-server.exe' : 'clp-server'), args: [], cwd: serverDir }
+      ? { command: P.join(serverDir, win ? 'clp-server.exe' : 'clp-server'), args: [], cwd: serverDir }
       : { command: python, args: ['-m', 'app.serve'], cwd: serverDir },
   };
 }
