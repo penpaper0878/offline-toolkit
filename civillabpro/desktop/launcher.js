@@ -149,4 +149,42 @@ font:14px system-ui,-apple-system,"Segoe UI",sans-serif}.b{text-align:center}.t{
 <div class="s">Starting the calculation server&hellip; ${String(version).replace(/[^0-9a-z.+-]/gi, '')}</div></div></body></html>`;
 }
 
-module.exports = { paths, sqliteUrl, ensureSecret, serverEnv, choosePort, startServer, waitForHealth, stopServer, splashHtml };
+const SQLITE_HEADER = Buffer.from('SQLite format 3\0', 'latin1');
+
+/** Whether a file starts as an SQLite database does (a backup made by the app is one). */
+function isSqlite(file) {
+  try {
+    const fd = fs.openSync(file, 'r');
+    const head = Buffer.alloc(SQLITE_HEADER.length);
+    const n = fs.readSync(fd, head, 0, head.length, 0);
+    fs.closeSync(fd);
+    return n === head.length && head.equals(SQLITE_HEADER);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Put a backup in the database's place, with the server stopped. The current database (and its -wal and -shm files) is kept
+ * beside it as civillabpro.before-restore-<stamp>.db; undo() puts it back. Throws, changing nothing, if the file is no database.
+ */
+function restoreDatabase(p, backupFile, stamp) {
+  if (!isSqlite(backupFile)) throw new Error('That file is not a CivilLabPro OS backup: it is not a database.');
+  const kept = path.join(p.dataDir, `civillabpro.before-restore-${stamp}.db`);
+  const moved = [];
+  for (const suffix of ['', '-wal', '-shm']) {
+    const f = p.database + suffix;
+    if (fs.existsSync(f)) {
+      fs.renameSync(f, kept + suffix);
+      moved.push([f, kept + suffix]);
+    }
+  }
+  fs.copyFileSync(backupFile, p.database);
+  const undo = () => {
+    for (const suffix of ['', '-wal', '-shm']) fs.rmSync(p.database + suffix, { force: true });
+    for (const [f, k] of moved) fs.renameSync(k, f);
+  };
+  return { kept: moved.length ? kept : null, undo };
+}
+
+module.exports = { paths, sqliteUrl, ensureSecret, serverEnv, choosePort, startServer, waitForHealth, stopServer, splashHtml, isSqlite, restoreDatabase };

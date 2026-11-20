@@ -4,6 +4,7 @@ import AutoAwesomeOutlined from "@mui/icons-material/AutoAwesomeOutlined";
 import EventNoteOutlined from "@mui/icons-material/EventNoteOutlined";
 import FolderOpenOutlined from "@mui/icons-material/FolderOpenOutlined";
 import ManageAccountsOutlined from "@mui/icons-material/ManageAccountsOutlined";
+import SaveAltOutlined from "@mui/icons-material/SaveAltOutlined";
 import MapOutlined from "@mui/icons-material/MapOutlined";
 import MenuBookOutlined from "@mui/icons-material/MenuBookOutlined";
 import PlumbingOutlined from "@mui/icons-material/PlumbingOutlined";
@@ -38,6 +39,7 @@ const row = "flex items-center gap-2.5 h-8 px-3 mx-1.5 rounded text-[13px] white
 export function Sidebar() {
   const collapsed = useUi((s) => s.sidebarCollapsed);
   const canManageUsers = useAuth((s) => s.can("user:manage"));
+  const canData = useAuth((s) => s.can("project:write"));
   const available = MODULES.filter((m) => m.status === "available");
   const planned = MODULES.filter((m) => m.status === "planned").sort((a, b) => a.phase - b.phase);
 
@@ -81,10 +83,11 @@ export function Sidebar() {
         ))}
       </div>
 
-      {canManageUsers && (
+      {(canManageUsers || canData) && (
         <div className="mt-auto pt-2">
           <div className="mb-2 mx-3 border-t border-[var(--clp-border)]" />
-          {link("/admin/users", <ManageAccountsOutlined fontSize="small" />, "Users and roles", "People, roles and the audit trail")}
+          {canData && link("/admin/data", <SaveAltOutlined fontSize="small" />, "Data and backup", "Back up the database; move projects between installations")}
+          {canManageUsers && link("/admin/users", <ManageAccountsOutlined fontSize="small" />, "Users and roles", "People, roles and the audit trail")}
         </div>
       )}
     </nav>

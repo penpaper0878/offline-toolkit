@@ -39,6 +39,7 @@ export function CommandPalette() {
       { id: "c-struct", title: "Go to Structural design", icon: <BoltOutlined fontSize="small" />, group: "Commands", run: go("/structural") },
       ...(can("project:write") ? [{ id: "c-new", title: "New project", icon: <BoltOutlined fontSize="small" />, group: "Commands", run: go("/projects?new=1") }] : []),
       ...(can("user:manage") ? [{ id: "c-users", title: "Users and roles", icon: <BoltOutlined fontSize="small" />, group: "Commands", run: go("/admin/users") }] : []),
+      ...(can("project:write") ? [{ id: "c-data", title: "Data and backup", icon: <BoltOutlined fontSize="small" />, group: "Commands", run: go("/admin/data") }] : []),
       { id: "c-calc", title: "Open calculator", icon: <BoltOutlined fontSize="small" />, group: "Commands", run: () => setCalculatorOpen(true) },
       { id: "c-theme", title: theme.dark ? "Switch to light theme" : "Switch to dark theme", icon: <BoltOutlined fontSize="small" />, group: "Commands", run: theme.toggle },
       { id: "c-side", title: "Toggle sidebar", icon: <BoltOutlined fontSize="small" />, group: "Commands", run: toggleSidebar },

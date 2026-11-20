@@ -115,6 +115,7 @@ node e2e/walkthrough.js <folder for screenshots>      # both servers running
 | [docs/modules/03-slab-and-footing.md](docs/modules/03-slab-and-footing.md) | 0.3.0: slab and isolated footing: engineering logic, validation, tests |
 | [docs/modules/04-beam-extensions.md](docs/modules/04-beam-extensions.md) | 0.4.0: T and L beams, continuous beams, curtailment and stirrup zones, anchorage at supports |
 | [docs/modules/05-anchorage-spans-desktop.md](docs/modules/05-anchorage-spans-desktop.md) | 0.5.0: U-hooks, anchorage in the continuous beam's bar selection, continuous beams of any spans and point loads by elastic analysis, the desktop shell |
+| [docs/OPERATIONS.md](docs/OPERATIONS.md) | Backup, restore and moving projects between installations |
 
 ## A note on engineering use
 

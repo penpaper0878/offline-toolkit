@@ -82,6 +82,7 @@ Pydantic is allowed in the domain: it is the value-object and validation library
 | projects | project register (the aggregate every module references) | built |
 | structural | member designs, revisions, approval, reports | built for beams |
 | dashboard | read models and search across contexts (queries only) | built |
+| transfer | project archives (export, import) and the database backup | built |
 | standards | code register, clause index, search, bookmarks | designed |
 | estimation | SOR, rate analysis, BOQ, measurement, bills | designed |
 | water | demand, networks, reservoirs, pumping, treatment | designed |
@@ -92,7 +93,7 @@ Pydantic is allowed in the domain: it is the value-object and validation library
 | pm | schedule, resources, DPR, RFI, quality, safety, documents | designed |
 | assistant | retrieval over standards, calculation review, drafting | designed |
 
-Contexts talk through application services and IDs, never through each other's tables. The one sanctioned exception is the dashboard context, which is read-only by definition.
+Contexts talk through application services and IDs, never through each other's tables. Two exceptions are sanctioned. The dashboard context is read-only by definition. The transfer context copies a project's rows as they are, which no other context's service offers on purpose: going through the structural service would recalculate and revise every design (D35). A context that later owns project data adds its own section to the project archive.
 
 ### 3.3 The element registry (how a module grows without new plumbing)
 
@@ -173,6 +174,7 @@ Full schema: [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md).
 * **Documents beside columns.** A design's inputs and full result are JSON documents; the columns beside them (status, utilisation, revision, review state) are what lists and dashboards query. New element types need no migration.
 * **Revisions, not overwrites.** Saving new inputs archives the previous state. An issued calculation can always be reproduced.
 * **Audit trail.** An append-only log of who did what, written in the same transaction as the change.
+* **Backup and transfer.** A project travels between installations as one JSON archive (format `civillabpro.project`, version 1) with its designs, revisions and review record, imported as calculated. A single-organisation SQLite database is backed up from the client by `VACUUM INTO`; PostgreSQL by `pg_dump`. Procedures: [OPERATIONS.md](OPERATIONS.md).
 * **Spatial data** (designed): PostGIS geometry columns on PostgreSQL; on SQLite the same features are stored as GeoJSON with bounding-box columns, which is enough for the desktop viewer.
 * **Files** (designed): object storage (S3-compatible on servers, a folder on desktop) behind one port; the database stores keys and hashes, not blobs.
 
@@ -274,6 +276,7 @@ civillabpro/
           exports/               pdf_report, bbs_xlsx, dxf
           models, schemas, service, router
         dashboard/               router (read models, search)
+        transfer/                schemas, service, router (project archive, database backup)
         models_registry.py
     tests/  unit/  api/  handcheck/
   frontend/

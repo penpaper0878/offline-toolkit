@@ -1,8 +1,8 @@
 // End-to-end walkthrough in a real browser: register, create a project, design a beam, a column, a slab,
-// a footing and a continuous beam (by coefficients and by elastic analysis), save, download each report / schedule / drawing, switch theme, search, use the calculator,
+// a footing and a continuous beam (by coefficients and by elastic analysis), save, export and import a project, back up the database, download each report / schedule / drawing, switch theme, search, use the calculator,
 // reload.
 //
-//   1. start the API and the web client (see README.md)
+//   1. start the API, on a fresh database (the backup step needs one organisation alone), and the web client (see README.md)
 //   2. node e2e/walkthrough.js <folder for screenshots> [base URL, default http://127.0.0.1:5173]
 //
 // Needs the `playwright` package and a Chromium it can launch. Exits non-zero on any failure
@@ -190,6 +190,31 @@ const BASE = process.argv[3] || process.env.BASE || 'http://127.0.0.1:5173';
   await page.getByText('Bar schedule', { exact: true }).first().click();
   await page.waitForTimeout(500);
   await shot('continuous-elastic-3-bbs');
+
+  step('export a project and import it again');
+  await page.locator('[data-ribbon="project"]').click();
+  await page.getByRole('button', { name: 'Export project' }).waitFor();
+  const [archive] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), page.getByRole('button', { name: 'Export project' }).click()]);
+  const archivePath = `${out}/export-project.clp.json`;
+  await archive.saveAs(archivePath);
+  const designsIn = JSON.parse(require('fs').readFileSync(archivePath, 'utf8')).designs.length;
+  console.log('download', archive.suggestedFilename(), designsIn, 'designs');
+  await page.goto(BASE + '/projects');
+  await page.getByLabel('Project archive file').setInputFiles(archivePath);
+  await page.getByText(/Imported as job number .*-2 /).first().waitFor({ timeout: 15000 });
+  await page.waitForURL('**/projects/*');
+  await page.waitForTimeout(500);
+  await shot('15-imported-project');
+
+  step('back up the database');
+  await page.goto(BASE + '/admin/data');
+  await page.getByRole('heading', { name: 'Data and backup' }).waitFor();
+  const [db] = await Promise.all([page.waitForEvent('download', { timeout: 30000 }), page.getByRole('button', { name: 'Download a backup' }).click()]);
+  await db.saveAs(`${out}/backup.db`);
+  const head = require('fs').readFileSync(`${out}/backup.db`).subarray(0, 15).toString('latin1');
+  if (head !== 'SQLite format 3') throw new Error('the backup is not a database: ' + head);
+  console.log('download', db.suggestedFilename(), require('fs').statSync(`${out}/backup.db`).size);
+  await shot('16-data-and-backup');
 
   step('dashboard with data');
   await page.keyboard.press('Alt+1');

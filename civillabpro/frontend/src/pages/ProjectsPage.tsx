@@ -14,6 +14,7 @@ import { api, type ApiError } from "../api/client";
 import { useInvalidatingMutation, useProjects } from "../api/hooks";
 import type { Project } from "../api/types";
 import { Card, Empty, PageHeader } from "../components/Card";
+import { ImportProjectButton } from "../components/ImportProject";
 import { fmtDate, titleCase } from "../lib/format";
 import { useTab } from "../shell/hooks";
 import { useAuth } from "../stores/auth";
@@ -79,6 +80,7 @@ export function ProjectsPage() {
   const [status, setStatus] = useState("");
   const { data, isLoading, error } = useProjects(q, status);
   const canWrite = useAuth((s) => s.can("project:write"));
+  const canDesign = useAuth((s) => s.can("design:write"));
   const navigate = useNavigate();
   const open = params.get("new") === "1" && canWrite;
   const setOpen = (v: boolean) => setParams(v ? { new: "1" } : {}, { replace: true });
@@ -91,6 +93,7 @@ export function ProjectsPage() {
           <MenuItem value="">All statuses</MenuItem>
           {PROJECT_STATUSES.map((t) => <MenuItem key={t} value={t}>{titleCase(t)}</MenuItem>)}
         </TextField>
+        {canWrite && canDesign && <ImportProjectButton />}
         {canWrite && <Button variant="contained" startIcon={<AddOutlined />} onClick={() => setOpen(true)}>New project</Button>}
       </PageHeader>
       <Card>

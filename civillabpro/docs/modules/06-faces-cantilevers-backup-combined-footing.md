@@ -6,7 +6,7 @@ The next items after 0.5.0, built one at a time. This note grows with each item.
 |---|---|---|
 | STR-040 support moments at the faces of monolithic supports | done | continuous beam 1.6.0 |
 | STR-042 cantilevers at the ends of a continuous beam | done | continuous beam 1.6.0 |
-| PLAT-018 backup and restore | not started | |
+| PLAT-018 backup and restore | done | platform |
 | STR-020 combined footing | not started | |
 
 ## STR-040: support moments at the faces of monolithic supports
@@ -85,3 +85,42 @@ On each cantilever it checks the length available to develop the top bars, the s
 * compression steel raising a span's bars;
 * input limits;
 * redistribution kept by raising the compression steel, and stepped down where no heavier bars can help.
+
+## PLAT-018: backup and restore, and moving projects
+
+Three ways to keep or carry data, one for each need. The procedures are in `docs/OPERATIONS.md`.
+
+| Need | How | Who |
+|---|---|---|
+| Carry one project to another installation or organisation | **Export project** saves a `.clp.json` archive; **Import project** makes a new project from it | export: anyone who reads designs; import: who may write projects and designs |
+| Keep a copy of a desktop or small-server installation | **Download a backup** on Data and backup: a consistent copy of the SQLite file (`VACUUM INTO`), the server still running | the owner (`org:manage`), and only where the database holds that organisation alone |
+| Go back to a backup on the desktop | File, **Restore from backup**: stop the server, keep the current file, put the backup in place, start (and migrate) | the person at the computer |
+
+**The archive.** Format `civillabpro.project`, version 1: the app version and the organisation and person who exported it; the project's fields; and for each design its inputs, its full result, its engine version, its review state with the designer's and approver's names, and every earlier revision.
+
+**Import.** The import makes a new project and keeps everything as it was calculated (D35). Nothing is recalculated, because a newer engine could change the numbers of an issued calculation. Revising a design afterwards recalculates it as usual and withdraws an approval as usual.
+
+It also:
+
+* gives the project a free job number (`-2`, `-3`, and so on) and says so;
+* keeps people's names as text, linking no user accounts across organisations;
+* refuses an element type this installation lacks, and a design whose result disagrees with its own record (status or engine version);
+* writes the source to the audit trail.
+
+The archive is not signed. A consistency check catches damage and careless edits, not a deliberate forgery: a calculation that arrives from outside is checked like any other.
+
+**Backup.** The backup is refused on PostgreSQL (use `pg_dump`) and where other organisations share the database, so that an owner never downloads another tenant's rows. Each backup is in the audit trail.
+
+**Restore on the desktop.** The shell stops its server and checks that the chosen file is an SQLite database. It moves the current database and its `-wal` and `-shm` files aside as `civillabpro.before-restore-<stamp>.db`, copies the backup in, and starts the server, which migrates an older backup. If the server does not come up, it puts the previous files back, starts again, and says what failed. The kept file restores the same way.
+
+**Validation.**
+
+* `tests/api/test_transfer.py`:
+  * a project with a reviewed and revised design exported from one organisation and imported into another: inputs, results, revisions, approval record, audit;
+  * a second import taking `-2`;
+  * refusals of an unknown element, an altered result and a cross-tenant export;
+  * the backup opened as a database, refused to a non-owner, and refused where two organisations share it.
+* `desktop/test/launcher.test.js`: the file check, the swap with its kept files, and undo.
+* The desktop smoke test, on each packaged app in CI, follows the whole cycle: back up, add a project, restore, then check the project is gone and the six designs are back.
+* The browser walkthrough exports the project, imports it as `-2` with its six designs, and downloads a backup whose header it checks.
+

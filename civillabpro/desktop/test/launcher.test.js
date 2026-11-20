@@ -97,3 +97,33 @@ test('a server that cannot start is reported, not waited for', async () => {
   const child = launcher.startServer(bad, 1, process.env);
   await assert.rejects(launcher.waitForHealth('http://127.0.0.1:1', child, 10000), /stopped while starting \(exit code 3\)/);
 });
+
+test('a backup takes the database\'s place, the old one is kept, and undo puts it back', () => {
+  const dir = tmp();
+  const p = launcher.paths({ packaged: true, resourcesPath: '/r', appDir: '/x', dataDir: dir, platform: process.platform, env: {} });
+  const header = Buffer.from('SQLite format 3\0', 'latin1');
+  fs.writeFileSync(p.database, Buffer.concat([header, Buffer.from('current')]));
+  fs.writeFileSync(p.database + '-wal', 'current wal');
+  const backup = path.join(tmp(), 'backup.db');
+  fs.writeFileSync(backup, Buffer.concat([header, Buffer.from('backup')]));
+  const { kept, undo } = launcher.restoreDatabase(p, backup, 'T1');
+  assert.match(fs.readFileSync(p.database, 'latin1'), /backup$/);
+  assert.ok(!fs.existsSync(p.database + '-wal'), 'the old write-ahead log goes with the old database');
+  assert.match(fs.readFileSync(kept, 'latin1'), /current$/);
+  assert.equal(fs.readFileSync(kept + '-wal', 'utf8'), 'current wal');
+  undo();
+  assert.match(fs.readFileSync(p.database, 'latin1'), /current$/);
+  assert.equal(fs.readFileSync(p.database + '-wal', 'utf8'), 'current wal');
+  assert.ok(!fs.existsSync(kept));
+});
+
+test('a file that is no database is refused and nothing changes', () => {
+  const dir = tmp();
+  const p = launcher.paths({ packaged: true, resourcesPath: '/r', appDir: '/x', dataDir: dir, platform: process.platform, env: {} });
+  fs.writeFileSync(p.database, 'SQLite format 3\0current');
+  const notes = path.join(tmp(), 'notes.db');
+  fs.writeFileSync(notes, 'just some text');
+  assert.throws(() => launcher.restoreDatabase(p, notes, 'T2'), /not a database/);
+  assert.equal(fs.readFileSync(p.database, 'utf8'), 'SQLite format 3\0current');
+  assert.deepEqual(fs.readdirSync(dir), ['civillabpro.db']);
+});

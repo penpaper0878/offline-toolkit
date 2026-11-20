@@ -24,6 +24,7 @@ Version 0.5.0. Phase 1 is done: beams (rectangular, T and L; simple, cantilever 
 | Exports: PDF, Excel, DXF | built, reviewed page by page |
 | Deployment | single-process mode verified; Dockerfile and compose file written, compose validated, image not built (no Docker daemon in the build session) |
 | Desktop app (Electron) | built: shell, PyInstaller server bundle, Linux AppImage verified here (packaged smoke test, a killed shell's server stops itself); Windows NSIS built and smoke-tested by CI only (`civillabpro-desktop.yml`) |
+| Backup, restore, project transfer | built (0.6.0): project archive export and import, backup from the client for a single-organisation SQLite database, restore from the desktop menu; procedures in OPERATIONS.md |
 | Modules 3 to 11 | designed in ARCHITECTURE.md and DATABASE_SCHEMA.md, not started |
 | Cloud environment | personal environment `offline-toolkit` (allows law.resource.org; setup script installs the venv, npm packages and PostGIS). The script is unproven until a fresh session starts on it. |
 
@@ -33,7 +34,7 @@ Test counts at 0.5.0: backend 345 (298 engineering, architecture, hand checks an
 
 1. **STR-009, blocked: compare the column, slab and footing clauses with the code text** (the three "To cross-check" lists in the code register). It needs the user: either approval of a direct download of the public copy, or the pages pasted into the session. Do not work around a declined download. Fix anything that differs and re-run every hand check.
 2. **The continuous beam's follow-ups**: STR-041 a support width and section per span, STR-043 the coefficient method on the per-span path.
-3. **Desktop**: PLAT-022 code-signing (needs a certificate), PLAT-018 backup and restore, PLAT-011 auto-update.
+3. **Desktop**: PLAT-022 code-signing (needs a certificate), PLAT-011 auto-update.
 4. **Phase 2's engineering**: STR-020 combined and strap footing; the estimation module and the standards library (see ROADMAP.md).
 
 ## Decisions (do not reopen without a reason recorded here)
@@ -74,6 +75,7 @@ Test counts at 0.5.0: backend 345 (298 engineering, architecture, hand checks an
 | D32 | Lists of records (spans, point loads) are table fields of the input schema: the server inlines their rows' schema, the grid edits them as tables, the report prints a line per row | the registry pattern carries any element's tabular input; no element-specific form code |
 | D34 | Every route takes its session as `Depends(get_db, scope="function")`; a test walks all routes | the commit, and any error it raises, must come before the client hears of success |
 | D33 | The redistribution entered is a maximum: a support whose section cannot meet Cl. 37.1.1(d) with it takes 5 percent less, recorded on the sheet | the designer's intent survives a section that cannot take all of it, instead of a stop |
+| D35 | A project travels as a JSON archive and is imported as calculated, never recalculated, by a `transfer` context that copies rows across the projects and structural tables (the second sanctioned exception after the dashboard); the client's backup is offered only for SQLite holding one organisation | an issued calculation must arrive with the numbers it was issued with; the structural service would recalculate and revise; no owner may download another tenant's rows |
 
 Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not here.
 
@@ -111,6 +113,11 @@ Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not her
 * Library versions at 0.1.0 are recent majors (React 19, MUI 9, Vite 8, Tailwind 4, TypeScript 7, dockview-react 8, recharts 3, FastAPI 0.16x, SQLAlchemy 2.1). Check the installed typings before assuming an older API.
 
 ## Log
+
+### 0.6.0 in progress (20 November 2026): PLAT-018 backup, restore and project transfer
+
+* Built: a `transfer` context (D35). Export project saves a `.clp.json` archive with the designs, revisions and review record; Import project makes a new project from it (free job number, names kept as text, refusals of unknown elements and inconsistent results, audit). Download a backup on the new Data and backup page (owner only; SQLite with one organisation; `VACUUM INTO`). Desktop File menu: Back up data, and Restore from backup (the old database kept as `before-restore`, undone if the server will not start). `docs/OPERATIONS.md` covers the desktop, SQLite servers and PostgreSQL (`pg_dump`, `pg_restore`).
+* Verified: API tests on SQLite and PostgreSQL (the backup refuses PostgreSQL with the pg_dump pointer); launcher tests for the swap and undo; the desktop smoke test backs up, adds a project, restores and finds it gone with the designs back; the browser walkthrough exports, imports as `-2` and downloads a backup.
 
 ### 0.6.0 in progress (20 November 2026): STR-042 cantilever ends
 

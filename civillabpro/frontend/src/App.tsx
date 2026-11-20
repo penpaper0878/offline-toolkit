@@ -14,6 +14,7 @@ import { useAuth } from "./stores/auth";
 const DashboardPage = lazy(() => import("./pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
 const DesignWorkspacePage = lazy(() => import("./pages/DesignWorkspacePage").then((m) => ({ default: m.DesignWorkspacePage })));
 const UsersPage = lazy(() => import("./pages/UsersPage").then((m) => ({ default: m.UsersPage })));
+const DataPage = lazy(() => import("./pages/DataPage").then((m) => ({ default: m.DataPage })));
 
 const Splash = ({ label }: { label: string }) => (
   <div className="h-full flex flex-col items-center justify-center gap-3 text-[var(--clp-ink-2)]"><CircularProgress size={22} /><span>{label}</span></div>
@@ -56,6 +57,9 @@ export function App() {
           <Route path="structural" element={<StructuralPage />} />
           <Route element={<RequirePermission permission="user:manage" />}>
             <Route path="admin/users" element={<UsersPage />} />
+          </Route>
+          <Route element={<RequirePermission permission="project:write" />}>
+            <Route path="admin/data" element={<DataPage />} />
           </Route>
           <Route path="*" element={<div className="p-8">This page does not exist. Use the sidebar or press Ctrl K.</div>} />
         </Route>

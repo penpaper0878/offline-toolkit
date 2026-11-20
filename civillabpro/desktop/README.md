@@ -24,7 +24,8 @@ The window stays on the local server; links elsewhere open in the system browser
 | Data folder | Windows `%APPDATA%\CivilLabPro OS`; Linux `~/.config/CivilLabPro OS`; or `CLP_DESKTOP_DATA` (a portable copy, a test) |
 
 On the first start, create an organisation as on the web. Approving a design still needs a second person (the
-four-eyes rule): add a reviewer under Users and roles. To back up, close the app and copy the data folder.
+four-eyes rule): add a reviewer under Users and roles. To back up, use File, Back up data (or Data and backup in the
+sidebar); to restore, File, Restore from backup. See `docs/OPERATIONS.md`.
 
 ## Run from a checkout
 
@@ -35,8 +36,9 @@ cd ../desktop && npm ci && npm start
 ```
 
 `npm run smoke` starts the app and checks it whole, without showing the window. It signs up, designs every element (the
-continuous beam by both methods), and fetches each design's PDF, Excel and DXF through the window. It exits 0 when all is
-well.
+continuous beam by both methods), and fetches each design's PDF, Excel and DXF through the window. It then backs up the
+database, adds a project, restores the backup, and checks that the project is gone and the designs are back. It exits 0
+when all is well.
 
 ## Build an installer
 

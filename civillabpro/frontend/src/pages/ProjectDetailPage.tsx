@@ -1,5 +1,6 @@
 import AddOutlined from "@mui/icons-material/AddOutlined";
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
+import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
 import PictureAsPdfOutlined from "@mui/icons-material/PictureAsPdfOutlined";
 import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
@@ -43,6 +44,9 @@ export function ProjectDetailPage() {
         <TextField select value={p.status} disabled={!can("project:write")} onChange={(e) => setStatus.mutate(e.target.value, { onError: fail })} sx={{ width: 140 }} slotProps={{ htmlInput: { "aria-label": "Project status" } }}>
           {PROJECT_STATUSES.map((t) => <MenuItem key={t} value={t}>{titleCase(t)}</MenuItem>)}
         </TextField>
+        {can("design:read") && (
+          <Button startIcon={<DownloadOutlined />} onClick={() => download(`/projects/${p.id}/export`, `${p.code}.clp.json`).catch(fail)}>Export project</Button>
+        )}
         {can("project:delete") && (
           <Button color="error" onClick={() => {
             if (window.confirm(`Delete project ${p.code} and its ${p.design_count} design(s)? This cannot be undone.`)) {

@@ -90,7 +90,7 @@ State: **done**, **next** (the item to start with), **ready** (can be started), 
 | PLAT-015 | WebSocket channel for notifications and job progress | later | with PLAT-014 |
 | PLAT-016 | Word export of reports | ready | python-docx, same generic result |
 | PLAT-017 | Organisation branding on reports (logo, address, title block) | ready | |
-| PLAT-018 | Backup and restore procedure; desktop project export / import | ready | |
+| PLAT-018 | Backup and restore procedure; desktop project export / import | done (0.6.0) | `docs/OPERATIONS.md`; project archive export and import, backup from the client (SQLite, one organisation), restore from the desktop menu |
 | PLAT-019 | Structured request logging, metrics, error tracking | ready | |
 | PLAT-020 | Indian number formatting and optional Hindi / Gujarati interface | later | |
 
