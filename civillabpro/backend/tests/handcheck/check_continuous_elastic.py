@@ -32,7 +32,8 @@ from check_continuous_beam import resistance, steel, tau_c  # noqa: E402  (the s
 from app.modules.structural.domain.continuous_beam import ContinuousBeamInput, design_continuous_beam  # noqa: E402
 
 BASE = dict(
-    mark="CB1", analysis="elastic", spans=4, clear_span_mm=5000, support_width_mm=300, section="rectangular", width_mm=300, depth_mm=500,
+    mark="CB1", analysis="elastic", spans=4, clear_span_mm=5000, support_width_mm=300, support_table=[], section="rectangular", width_mm=300,
+    depth_mm=500,
     flange_thickness_mm=120, flange_width_mm=3000, isolated_flange=False, l0_mm=None, fck=25, fy=500, fy_stirrup=500,
     exposure="moderate", clear_cover_mm=None, max_aggregate_mm=20, dead_load_kn_m=25, live_load_kn_m=15, include_self_weight=True,
     unit_weight_kn_m3=25, load_factor=1.5, main_bar_dia_mm=None, hanger_bar_dia_mm=12, stirrup_dia_mm=8, stirrup_legs=2,
@@ -74,6 +75,15 @@ CASES: list[tuple[str, dict]] = [
                                                         depth_mm=650, span_table=spans(6000, 5000))),
     ("T32 on 230 mm supports: anchorage picks four bars in the end spans", dict(support_width_mm=230, main_bar_dia_mm=32,
                                                                               span_table=spans(3000, 3500, 3000, dl=80, ll=48), point_loads=[])),
+    # supports of their own widths (STR-041): a wall at the left end, columns inside, a wide column at the right
+    ("supports of different widths", dict(support_table=[dict(width_mm=230), dict(width_mm=300), dict(width_mm=450), dict(width_mm=600)],
+                                          span_table=spans(5000, 6500, 4500))),
+    ("narrow supports on one span only (Cl. 22.2(a) there)", dict(support_table=[dict(width_mm=230), dict(width_mm=300), dict(width_mm=900)],
+                                                                  span_table=spans(5000, 6000), point_loads=[])),
+    ("a cantilever beyond a wide end support", dict(support_table=[dict(width_mm=600), dict(width_mm=300), dict(width_mm=300), dict(width_mm=230)],
+                                                    cantilever_left_mm=1500, depth_mm=550, span_table=spans(5000, 6000, 4500))),
+    ("faces of unequal supports", dict(support_moments_at="faces", support_table=[dict(width_mm=300), dict(width_mm=600), dict(width_mm=400),
+                                                                                  dict(width_mm=300)], span_table=spans(6000, 7000, 5000))),
 ]
 
 STOPS: list[tuple[str, dict, str]] = [
@@ -142,18 +152,19 @@ class Hand:
 
     def __init__(self, s: dict, fr: list[float]) -> None:
         self.s = s
-        rows, sw, D = s["span_table"], s["support_width_mm"], s["depth_mm"]
+        rows, D = s["span_table"], s["depth_mm"]
         n = self.n = len(rows)
+        ws = self.ws = [r["width_mm"] for r in s["support_table"]] or [s["support_width_mm"]] * (n + 1)
         cover = self.cover = s["clear_cover_mm"] or COVER[s["exposure"]]
         dst = s["stirrup_dia_mm"]
         self.d_max = D - cover - dst - (s["main_bar_dia_mm"] or 12) / 2
         self.lc = [r["clear_span_mm"] for r in rows]
         self.l = []
-        for i, lc in enumerate(self.lc):  # Cl. 22.2
-            if sw <= min(lc / 12, 600):
-                self.l.append(min(lc + self.d_max, lc + sw))
+        for i, lc in enumerate(self.lc):  # Cl. 22.2, each span on its own two supports
+            if ws[i] <= min(lc / 12, 600) and ws[i + 1] <= min(lc / 12, 600):
+                self.l.append(min(lc + self.d_max, lc + ws[i] / 2 + ws[i + 1] / 2))
             elif i in (0, n - 1):
-                self.l.append(lc + min(self.d_max / 2, sw / 2))
+                self.l.append(lc + min(self.d_max / 2, (ws[0] if i == 0 else ws[n]) / 2))
             else:
                 self.l.append(lc)
         self.off = [(le - c) / 2 for le, c in zip(self.l, self.lc, strict=True)]
@@ -173,7 +184,7 @@ class Hand:
         for j, key in ((0, "left"), (n, "right")):
             if s.get(f"cantilever_{key}_mm", 0) > 0:
                 lc_c = s[f"cantilever_{key}_mm"]
-                self.cant[j] = dict(lc=lc_c, L=lc_c + sw / 2, wd=g * (s[f"cantilever_{key}_dead_kn_m"] + w_self), wl=g * s[f"cantilever_{key}_live_kn_m"],
+                self.cant[j] = dict(lc=lc_c, L=lc_c + ws[j] / 2, wd=g * (s[f"cantilever_{key}_dead_kn_m"] + w_self), wl=g * s[f"cantilever_{key}_live_kn_m"],
                                     P=g * s[f"cantilever_{key}_tip_kn"])
 
         def cant_m(j: int, loaded: bool, x_mm: float | None = None) -> float:
@@ -458,7 +469,6 @@ def compare(name: str, s: dict, res: dict) -> tuple[int, list[str]]:
                 bad.append(f"{name}: short top bars over support {j + 1} stop within L_d of the face")
 
     # bottom bars: cut-offs, and the anchorage of Cl. 26.2.3.3(c)
-    sw = s["support_width_mm"]
     for i in range(n):
         sp, lc, t = reinf["span"][i], h.lc[i], cur["bottom"][i]
         bf = flange_width(s, h.l[i])
@@ -508,7 +518,7 @@ def compare(name: str, s: dict, res: dict) -> tuple[int, list[str]]:
         for left in ([True] if i == 0 and 0 not in h.cant else []) + ([False] if i == n - 1 and n not in h.cant else []):
             v = h.shear(i, 0.0 if left else lc)
             r_b = (2 if fy <= 250 else 4) * gdia
-            beyond = sw / 2 - cover
+            beyond = (h.ws[0] if left else h.ws[n]) / 2 - cover  # past the centre of that end support
             l0 = beyond - (r_b + gdia) + 16 * gdia if "hook" in main["shape"] else beyond - (r_b + gdia) + 8 * gdia if "bend" in main["shape"] else beyond
             k += 1
             if L > 1.3 * m1 / (v * 1e3) + l0 + 1e-6:

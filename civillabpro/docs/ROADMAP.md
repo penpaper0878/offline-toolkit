@@ -26,6 +26,7 @@ Phases are ordered by what the next one needs, not by size. No dates are given: 
 | Beam extensions: flanged sections (T, L), continuous beams (Tables 12 and 13), curtailment and stirrup zones, anchorage at supports | done, beam 1.3.0 and continuous beam 1.2.0 |
 | Continuous beams of any spans and point loads (elastic analysis, Cl. 37.1.1 redistribution); U-hooks | done at 0.5.0, beam 1.4.0 and continuous beam 1.5.0 |
 | Face moments at monolithic supports; cantilever ends of continuous beams | done at 0.6.0, continuous beam 1.6.0 |
+| Supports of their own widths (continuous beams, elastic method) | done at 0.7.0, continuous beam 1.7.0; a section per span is STR-048 |
 | IS 13920 ductile detailing | planned (needs frame context) |
 
 Exit: beam, column, slab and isolated footing designed, hand-checked and issued from one workspace. Met at 0.3.0; the beam extensions followed at 0.4.0. The comparison of the clauses with the printed code (STR-009) is still open: it needs the code text.

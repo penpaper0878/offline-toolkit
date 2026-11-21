@@ -10,7 +10,7 @@ An Indian civil engineering operating system: design to Indian Standards, estima
 | Desktop app for Windows and Linux (Electron, offline, SQLite) | built (installers from CI; not code-signed) |
 | Backup, restore, project export and import | built ([docs/OPERATIONS.md](docs/OPERATIONS.md)) |
 | Structural design: RCC beam (rectangular, T, L) to IS 456:2000 | built (engine 1.4.0) |
-| Structural design: RCC continuous beam (Tables 12 and 13, or elastic analysis of any spans, point loads and cantilever ends with redistribution) | built (engine 1.6.0) |
+| Structural design: RCC continuous beam (Tables 12 and 13, or elastic analysis of any spans, point loads and cantilever ends with redistribution, supports of their own widths) | built (engine 1.7.0) |
 | Structural design: RCC column to IS 456:2000 | built (engine 1.0.0); clauses still to be compared with the printed code |
 | Structural design: RCC slab (one-way, two-way) to IS 456:2000 | built (engine 1.0.0); Table 26 rows still to be compared with the printed code |
 | Structural design: RCC isolated footing to IS 456:2000 | built (engine 1.1.0) |
@@ -135,7 +135,7 @@ node e2e/walkthrough.js <folder for screenshots>      # both servers running
 | [docs/modules/04-beam-extensions.md](docs/modules/04-beam-extensions.md) | 0.4.0: T and L beams, continuous beams, curtailment and stirrup zones, anchorage at supports |
 | [docs/modules/05-anchorage-spans-desktop.md](docs/modules/05-anchorage-spans-desktop.md) | 0.5.0: U-hooks, anchorage in the continuous beam's bar selection, continuous beams of any spans and point loads by elastic analysis, the desktop shell |
 | [docs/modules/06-faces-cantilevers-backup-combined-footing.md](docs/modules/06-faces-cantilevers-backup-combined-footing.md) | 0.6.0: face moments and cantilever ends of continuous beams, backup and restore, the combined footing |
-| [docs/modules/07-footing-moments-strap-spans.md](docs/modules/07-footing-moments-strap-spans.md) | 0.7.0 (in progress): column moments on combined footings, strap footings, sections per span |
+| [docs/modules/07-footing-moments-strap-spans.md](docs/modules/07-footing-moments-strap-spans.md) | 0.7.0 (in progress): column moments on combined footings, strap footings, supports of their own widths |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Backup, restore and moving projects between installations |
 
 ## A note on engineering use

@@ -63,6 +63,7 @@ from app.modules.structural.domain.continuous_beam import (
     _support_steps,
     design_loads,
     make_flange,
+    support_widths,
 )
 
 REF = is456.CODE
@@ -145,14 +146,17 @@ class Beam:
 
 
 def effective_spans(inp: ContinuousBeamInput, d: float) -> list[SpanGeom]:
-    """Cl. 22.2(b) for every span; supports narrower than l_c/12 and 600 mm follow 22.2(a)."""
-    rows, sw = inp.span_table, inp.support_width_mm
+    """Cl. 22.2(b) for every span; a span whose two supports are both narrower than l_c/12 and 600 mm follows 22.2(a), its centre to
+    centre distance from the two widths; an end span's allowance takes the width of its discontinuous support."""
+    rows, ws = inp.span_table, support_widths(inp)
     n, out = len(rows), []
     for i, row in enumerate(rows):
         lc = row.clear_span_mm
-        if sw <= min(lc / 12.0, 600.0):
-            le, rule = min(lc + d, lc + sw), "a"
+        sw_l, sw_r = ws[i], ws[i + 1]
+        if max(sw_l, sw_r) <= min(lc / 12.0, 600.0):
+            le, rule = min(lc + d, lc + (sw_l + sw_r) / 2.0), "a"
         elif i in (0, n - 1):
+            sw = sw_l if i == 0 else sw_r
             le, rule = lc + min(d / 2.0, sw / 2.0), "b2"
         else:
             le, rule = lc, "b1"
@@ -195,12 +199,12 @@ class Cantilever:
 
 
 def cantilevers(inp: ContinuousBeamInput, n: int, w_self: float) -> dict[int, Cantilever]:
-    g, sw = inp.load_factor, inp.support_width_mm
+    g, ws = inp.load_factor, support_widths(inp)
     out = {}
     for j, lc, dl, ll, tip in ((0, inp.cantilever_left_mm, inp.cantilever_left_dead_kn_m, inp.cantilever_left_live_kn_m, inp.cantilever_left_tip_kn),
                                (n, inp.cantilever_right_mm, inp.cantilever_right_dead_kn_m, inp.cantilever_right_live_kn_m, inp.cantilever_right_tip_kn)):
         if lc > 0:
-            out[j] = Cantilever(j, lc, lc + sw / 2.0, g * (dl + w_self), g * ll, g * tip)
+            out[j] = Cantilever(j, lc, lc + ws[j] / 2.0, g * (dl + w_self), g * ll, g * tip)
     return out
 
 
@@ -279,7 +283,7 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
     rows = inp.span_table
     n = len(rows)
     b, D, fck, fy = inp.width_mm, inp.depth_mm, float(inp.fck), float(inp.fy)
-    sw, dst, legs = inp.support_width_mm, inp.stirrup_dia_mm, inp.stirrup_legs
+    ws, dst, legs = support_widths(inp), inp.stirrup_dia_mm, inp.stirrup_legs
     frac = inp.redistribution_pct / 100.0
     cover = effective_cover(inp)  # type: ignore[arg-type]
     fyv = is456.shear_fy(inp.fy_stirrup)
@@ -309,7 +313,6 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
     states = [(lo, ro) for lo in ((True, False) if 0 in cant else (False,)) for ro in ((True, False) if n in cant else (False,))]
     cases = [(name, loads, (-cant[0].moment(cant[0].length, lo) if 0 in cant else 0.0, -cant[n].moment(cant[n].length, ro) if n in cant else 0.0))
              for name, loads in analysis.arrangements(dead, imposed) for lo, ro in states]
-    fl_sw = inp.support_width_mm
     cover_ = cover
 
     def tip_detail(j: int, g: BarGroup) -> bool:
@@ -347,11 +350,12 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
         def anchor_fn(i: int, beam: Beam = beam) -> Callable[[BarGroup, float, Flange | None], bool]:
             sides = ([True] if i in tops else []) + ([False] if i + 1 in tops else [])  # hogging there: a point of inflection
             infl = [(x, beam.shear(i, x if left else geo[i].lc - x)) for left in sides if (x := beam.inflection(i, left)) is not None]
-            ends = ([beam.shear(i, 0.0)] if i == 0 and 0 not in tops else []) + ([beam.shear(i, geo[i].lc)] if i == n - 1 and n not in tops else [])
+            ends = ([(ws[0], beam.shear(i, 0.0))] if i == 0 and 0 not in tops else []) + (
+                [(ws[n], beam.shear(i, geo[i].lc))] if i == n - 1 and n not in tops else [])
 
             def ok(g: BarGroup, d: float, flg: Flange | None) -> bool:
                 m1 = is456.moment_at_design_stress(fck, fy, b, d, g.area, flg.bf if flg else None, flg.df if flg else 0.0) / 1e6
-                if any(end_detail(fl_sw, cover, g.dia, fck, fy, m1, v, "straight") is None for v in ends):
+                if any(end_detail(w, cover, g.dia, fck, fy, m1, v, "straight") is None for w, v in ends):
                     return False
                 return all(anchorage_ok(g.dia, fck, fy, m1, v, max(d, 12.0 * g.dia), False)[0] for _, v in infl)
             return ok
@@ -409,11 +413,16 @@ def design(inp: ContinuousBeamInput) -> dict[str, Any]:
                    f"{_n(b, 0)} x {_n(D, 0)}, {_n(inp.flange_thickness_mm, 0)}", "mm")
     else:
         sheet.step("Input", "Width and overall depth", "b x D", "", f"{_n(b, 0)} x {_n(D, 0)}", "mm")
-    sheet.step("Input", f"{n} spans on supports {_n(sw, 0)} mm wide: clear spans, left to right", "l_c", "",
-               ", ".join(_n(r.clear_span_mm, 0) for r in rows), "mm")
+    if len(set(ws)) == 1:
+        sheet.step("Input", f"{n} spans on supports {_n(ws[0], 0)} mm wide: clear spans, left to right", "l_c", "",
+                   ", ".join(_n(r.clear_span_mm, 0) for r in rows), "mm")
+    else:
+        sheet.step("Input", f"{n} spans: clear spans, left to right", "l_c", "", ", ".join(_n(r.clear_span_mm, 0) for r in rows), "mm")
+        sheet.step("Input", f"Widths of the {n + 1} supports, left to right", "w_s", "", ", ".join(_n(w, 0) for w in ws), "mm")
     sheet.step(f"{REF}, Cl. 22.2(b)", "Effective spans, with the greatest effective depth the bars allow (one layer of "
-               f"T{inp.main_bar_dia_mm or 12}), on the safe side: narrow supports l_c + d, not more than centre to centre; wide supports "
-               "the clear span, or for an end span l_c + min(d/2, w_s/2)", "l", f"d = {_n(d_max, 1)}", ", ".join(_n(g.l_eff, 0) for g in geo), "mm")
+               f"T{inp.main_bar_dia_mm or 12}), on the safe side: both supports narrow l_c + d, not more than centre to centre; wide supports "
+               "the clear span, or for an end span l_c + min(d/2, w_s/2) with its end support", "l", f"d = {_n(d_max, 1)}",
+               ", ".join(_n(g.l_eff, 0) for g in geo), "mm")
     if inp.include_self_weight:
         if flanged:
             sheet.step("IS 875 (Part 1):1987", "Self-weight of the rib below the slab", "w_sw = gamma b_w (D - D_f)", "", w_self, "kN/m", 3)
@@ -894,9 +903,14 @@ def plan(sheet: CalcSheet, inp: ContinuousBeamInput, cover: float, beam: Beam, g
                 out.append((left, x, beam.shear(i, x if left else lc - x)))
         return out
 
+    ws = support_widths(inp)
+
+    def end_width(left: bool) -> float:
+        return ws[0] if left else ws[n]
+
     def bars_anchor(i: int, grp: BarGroup, d: float) -> bool:
         m1 = m1_of(secs[i], d, grp.area)
-        if any(end_detail(inp.support_width_mm, cover, grp.dia, fck, fy, m1, end_shear(i, left), "straight") is None for left in end_sides(i)):
+        if any(end_detail(end_width(left), cover, grp.dia, fck, fy, m1, end_shear(i, left), "straight") is None for left in end_sides(i)):
             return False
         return all(anchorage_ok(grp.dia, fck, fy, m1, v, max(d, 12.0 * grp.dia), False)[0] for _, _, v in infl_sides(i))
 
@@ -1040,7 +1054,6 @@ def plan(sheet: CalcSheet, inp: ContinuousBeamInput, cover: float, beam: Beam, g
     # ---------------------------------------------------------------- Cl. 26.2.3.3(c) with the bars that reach each point
     sheet.section("10. Anchorage of the bottom bars")
     end_details = {"left": "straight", "right": "straight"}
-    embed = inp.support_width_mm - cover
     for i, sec in enumerate(secs):
         res = bottoms[i]
         grp = res["cont"] if res else sec.bottom
@@ -1049,13 +1062,14 @@ def plan(sheet: CalcSheet, inp: ContinuousBeamInput, cover: float, beam: Beam, g
         for left in end_sides(i):
             side = "left" if left else "right"
             v = end_shear(i, left)
+            embed = end_width(left) - cover
             start = "bend" if embed < is456.development_length(grp.dia, fck, fy) / 3.0 else "straight"  # Cl. 26.2.3.3(a) bends them already
-            detail = end_details[side] = end_detail(inp.support_width_mm, cover, grp.dia, fck, fy, m1, v, start) or "hook"
+            detail = end_details[side] = end_detail(end_width(left), cover, grp.dia, fck, fy, m1, v, start) or "hook"
             if detail != start:
                 sheet.step(f"{REF}, Cl. 26.2.2.1(b)", f"Support {1 if left else n + 1}: a {'straight bar' if start == 'straight' else '90 degree bend'} "
                            "does not meet Cl. 26.2.3.3(c): " + ("bent up, a 90 degree bend worth 8 diameters" if detail == "bend"
                                                                  else "a standard U-hook, worth 16 diameters"), "", "", "", "")
-            l0 = end_l0(inp.support_width_mm, cover, grp.dia, fy, detail)
+            l0 = end_l0(end_width(left), cover, grp.dia, fy, detail)
             text = {"straight": "beyond the centre of the support", "bend": "to the start of the bend, plus 8 phi",
                     "hook": "to the start of the hook, plus 16 phi"}[detail]
             if not anchorage_check(sheet, f"anchorage_end_{side}", f"End support {1 if left else n + 1}: {grp.label()} of span {i + 1}", grp.dia, fck,
@@ -1108,7 +1122,7 @@ def plan(sheet: CalcSheet, inp: ContinuousBeamInput, cover: float, beam: Beam, g
 
 def _charts(inp: ContinuousBeamInput, beam: Beam, geo: list[SpanGeom], cant: dict[int, Cantilever] | None = None) -> list[dict[str, Any]]:
     """Design envelopes along the beam, x from the face of the first support (or the tip of a left cantilever)."""
-    sw, n = inp.support_width_mm, len(geo)
+    ws, n = support_widths(inp), len(geo)
     cant = cant or {}
     sag: list[list[float]] = []
     hog: list[list[float]] = []
@@ -1130,7 +1144,7 @@ def _charts(inp: ContinuousBeamInput, beam: Beam, geo: list[SpanGeom], cant: dic
     x0 = 0.0
     if 0 in cant:
         cantilever(cant[0], 0.0, True)
-        x0 = cant[0].lc + sw
+        x0 = cant[0].lc + ws[0]
     for i, g in enumerate(geo):
         for k in range(41):
             xf = g.lc * k / 40.0
@@ -1138,7 +1152,7 @@ def _charts(inp: ContinuousBeamInput, beam: Beam, geo: list[SpanGeom], cant: dic
             sag.append([x, round(beam.sag(i, xf), 2)])
             hog.append([x, round(-beam.hog(i, xf), 2)])
             shear.append([x, round(beam.shear(i, xf), 2)])
-        x0 += g.lc + sw
+        x0 += g.lc + ws[i + 1]
     if n in cant:
         cantilever(cant[n], x0, False)
     where = "x from the tip of the left cantilever" if 0 in cant else "x from the face of the first support"

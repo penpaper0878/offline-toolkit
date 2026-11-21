@@ -29,7 +29,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 from app.modules.structural.domain.continuous_beam import ContinuousBeamInput, design_continuous_beam  # noqa: E402
 
 BASE = dict(
-    mark="CB1", spans=4, clear_span_mm=5000, support_width_mm=300, section="rectangular", width_mm=300, depth_mm=500,
+    mark="CB1", spans=4, clear_span_mm=5000, support_width_mm=300, support_table=[], section="rectangular", width_mm=300, depth_mm=500,
     flange_thickness_mm=120, flange_width_mm=3000, isolated_flange=False, l0_mm=None, fck=25, fy=500, fy_stirrup=500,
     exposure="moderate", clear_cover_mm=None, max_aggregate_mm=20, dead_load_kn_m=25, live_load_kn_m=15, include_self_weight=True,
     unit_weight_kn_m3=25, load_factor=1.5, main_bar_dia_mm=None, hanger_bar_dia_mm=12, stirrup_dia_mm=8, stirrup_legs=2,

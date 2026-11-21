@@ -51,7 +51,7 @@ from app.modules.structural.domain.beam import (
 )
 
 ELEMENT_TYPE = "continuous_beam"
-ENGINE_VERSION = "1.6.0"
+ENGINE_VERSION = "1.7.0"
 CODE_BASIS = ("IS 456:2000", "SP 16:1980", "IS 2502:1963")
 REF = is456.CODE
 FIRST_STIRRUP_MM = 50.0
@@ -69,6 +69,14 @@ class SpanRow(BaseModel):
     clear_span_mm: float = _f(5000, "Clear span", "Spans", "mm", ge=1000, le=20000)
     dead_load_kn_m: float = _f(25, "Dead load", "Spans", "kN/m", ge=0, le=5000, description="Characteristic, uniform, excluding self-weight")
     live_load_kn_m: float = _f(15, "Imposed load", "Spans", "kN/m", ge=0, le=5000, description="Characteristic, uniform")
+
+
+class SupportRow(BaseModel):
+    """One support of the elastic method, left to right."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    width_mm: float = _f(300, "Width", "Supports", "mm", ge=100, le=2000, description="Along the beam")
 
 
 class PointLoad(BaseModel):
@@ -101,6 +109,8 @@ class ContinuousBeamInput(BaseModel):
         labels={"centre": "Centre lines of the supports", "faces": "Faces of the supports (monolithic, Cl. 22.6.2)"},
         description="Faces only where the beam is cast with its supports (columns, monolithic walls)")
     support_width_mm: float = _f(300, "Support width", "Geometry", "mm", ge=100, le=2000, description="Along the beam, each support")
+    support_table: list[SupportRow] = _f([], "Supports of different widths", "Geometry", "", _ELASTIC, max_length=13,
+                                         description="Blank: every support as above. Otherwise one row per support, left to right: spans + 1 rows")
     section: Literal["rectangular", "t_beam", "l_beam"] = _f("rectangular", "Section", "Geometry", labels=SECTION_LABELS)
     width_mm: float = _f(300, "Width b", "Geometry", "mm", ge=150, le=2000, description="The web width b_w of a T or L beam")
     depth_mm: float = _f(500, "Overall depth D", "Geometry", "mm", ge=200, le=3000, description="Including the slab for a T or L beam")
@@ -161,6 +171,9 @@ class ContinuousBeamInput(BaseModel):
                 raise ValueError("Enter a dead or imposed load, or include the self-weight.")
             return self
         n = len(self.span_table)
+        if self.support_table and len(self.support_table) != n + 1:
+            raise ValueError(f"The supports table has {len(self.support_table)} rows: it needs one per support, {n + 1} for {n} spans "
+                             "(or none, for every support as wide as the support width).")
         for side, proj in (("left", self.cantilever_left_mm), ("right", self.cantilever_right_mm)):
             if 0 < proj < 300:
                 raise ValueError(f"The {side} cantilever projects less than 300 mm: enter 0 for none.")
@@ -747,4 +760,11 @@ def _stopped(sheet: CalcSheet, message: str) -> dict[str, Any]:
         "max_utilisation": None, "key_results": [], "data": {}, "reinforcement": None, "sheet": sheet.to_dict(),
         "bbs": None, "quantities": None, "drawing": None,
     }
+
+
+def support_widths(inp: ContinuousBeamInput) -> list[float]:
+    """The width of every support of the elastic method, left to right: the supports table, or the one support width for all."""
+    if inp.support_table:
+        return [r.width_mm for r in inp.support_table]
+    return [inp.support_width_mm] * (len(inp.span_table) + 1)
 

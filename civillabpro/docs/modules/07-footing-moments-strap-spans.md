@@ -1,4 +1,4 @@
-# Release note 0.7.0: column moments on combined footings, strap footings, sections per span
+# Release note 0.7.0: column moments on combined footings, strap footings, supports of their own widths
 
 The next items after 0.6.0, built one at a time. This note grows with each item.
 
@@ -6,7 +6,7 @@ The next items after 0.6.0, built one at a time. This note grows with each item.
 |---|---|---|
 | STR-045 column moments along a combined footing | done | combined footing 1.1.0 |
 | STR-044 strap footing | done | strap footing 1.0.0 |
-| STR-041 a support width and a section per span of a continuous beam | not started | |
+| STR-041 a width for each support of a continuous beam (the section per span split to STR-048) | done | continuous beam 1.7.0 |
 
 ## STR-045: column moments along a combined footing
 
@@ -93,4 +93,33 @@ A new element, `strap_footing`: the usual answer when the heavier load is at a p
 * An API life-cycle test, the browser walkthrough and the desktop smoke test design one.
 
 **Limits.** Axial loads, one case. Rigid strap of one section with one layer of top bars. Uniform pads without shear reinforcement.
+
+## STR-041: supports of their own widths
+
+A continuous beam often runs over a wall at one end and columns of different sizes inside. The elastic method now takes a table of supports, one row per support. Left empty, every support takes the one support width as before.
+
+**What the widths change.**
+
+* **Effective spans** (Cl. 22.2). A span follows 22.2(a) only where both its supports are narrow (less than l_c/12 and 600 mm); its centre-to-centre distance then comes from the two widths. An end span's allowance l_c + min(d/2, w/2) takes its discontinuous support's width.
+* **Cantilevers**: the length runs to the centre of the cantilever's own support.
+* **Anchorage** at each end support (Cl. 26.2.3.3(c)): its own embedment, in the bar selection and in the anchorage check.
+* **Bars and outputs**:
+  * the bottom bars run to the far face of each support less cover;
+  * the top bars over each support take that support's width;
+  * the hangers and run-on bars at the end supports take their widths;
+  * the quantities, the charts' positions and every elevation's support rectangles follow.
+
+**The section per span**, the other half of the backlog item, is split to STR-048. Each span's stiffness would enter the three-moment equation, and every span and support would be designed with its own section. That touches the whole engine, its detailing and its hand check, so it is better done as its own step.
+
+**Validation.**
+
+* The elastic hand check takes each support's width in its own effective spans, cantilever lengths and end anchorage. Four new cases:
+  * supports of four widths;
+  * Cl. 22.2(a) on one span only;
+  * a cantilever beyond a wide end support;
+  * face moments at unequal supports.
+
+  In all, 1493 values over 21 cases agree; the coefficient method's hand check is unchanged at 897 over 15.
+* Two sabotages (the table ignored; every support as wide as the first) each fail it on 92 values.
+* Unit tests check the rules per span, the schedule's lengths, the quantities, the drawing's supports, the row count and the coefficient method unchanged.
 

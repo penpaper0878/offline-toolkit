@@ -73,7 +73,8 @@ ELEMENTS: dict[str, ElementSpec] = {
         input_model=continuous_beam.ContinuousBeamInput,
         design=continuous_beam.design_continuous_beam,
         limitations=(
-            "One section and one support width for the whole beam; supports are knife edges and the end supports are free to rotate.",
+            "One section for the whole beam (a section per span is STR-048); the elastic method takes a width for each support. Supports are "
+            "knife edges and the end supports are free to rotate.",
             "Coefficients: three or more spans of one clear span (the longest where they differ by up to 15 percent), uniform load, no "
             "redistribution (Cl. 22.5.1).",
             "Elastic analysis: two to twelve spans, uniform and point loads, redistribution up to 30 percent (Cl. 37.1.1); support moments "

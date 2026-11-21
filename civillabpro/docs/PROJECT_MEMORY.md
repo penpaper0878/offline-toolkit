@@ -17,7 +17,7 @@ Version 0.6.0. Phase 1 is done: beams (rectangular, T and L; simple, cantilever 
 | Platform core (identity, roles, audit, projects) | built, tested on SQLite and PostgreSQL 16 |
 | Shell and client | built, walked through in a browser in light and dark |
 | Structural: beam engine 1.4.0 (rectangular, T, L; curtailment, stirrup zones, anchorage with bends and U-hooks) | built, independent hand check passing; Fig. 6, Cl. 23.1.2(c), (d) and 26.2.3 to compare with the code |
-| Structural: continuous beam engine 1.6.0 (Tables 12 and 13, or elastic analysis of any spans, point loads and cantilever ends with redistribution and optional face moments; curtailment, zones, anchorage, U-hooks) | built, independent hand check passing; Table 13 and Cl. 22.2(b), 22.4.1, 26.2.3 to compare with the code |
+| Structural: continuous beam engine 1.7.0 (Tables 12 and 13, or elastic analysis of any spans, point loads and cantilever ends with redistribution, optional face moments and supports of their own widths; curtailment, zones, anchorage, U-hooks) | built, independent hand check passing; Table 13 and Cl. 22.2(b), 22.4.1, 26.2.3 to compare with the code |
 | Structural: column engine 1.0.0 | built, independent hand check passing; code text not yet compared (see the code register) |
 | Structural: slab engine 1.0.0 (one-way, two-way) | built, independent hand check passing; Table 26 rows and Annex D extents to compare with the code |
 | Structural: isolated footing engine 1.1.0 | built, independent hand check passing; Cl. 34 wording to compare with the code |
@@ -35,7 +35,7 @@ Test counts at 0.6.0: backend 370 passed and 1 skipped (the PostgreSQL-only migr
 ## NEXT STEPS
 
 1. **STR-009, blocked: compare the column, slab and footing clauses with the code text** (the three "To cross-check" lists in the code register). It needs the user: either approval of a direct download of the public copy, or the pages pasted into the session. Do not work around a declined download. Fix anything that differs and re-run every hand check.
-2. **The continuous beam's follow-ups**: STR-041 a support width and section per span, STR-043 the coefficient method on the per-span path.
+2. **The continuous beam's follow-ups**: STR-048 a section per span, STR-043 the coefficient method on the per-span path.
 3. **Desktop**: PLAT-022 code-signing (needs a certificate), PLAT-011 auto-update.
 4. **Footings**: STR-047 trapezoidal combined footing; STR-046 moments across combined footings and horizontal loads.
 5. **Phase 2's engineering**: the estimation module and the standards library (see ROADMAP.md).
@@ -118,6 +118,11 @@ Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not her
 * Library versions at 0.1.0 are recent majors (React 19, MUI 9, Vite 8, Tailwind 4, TypeScript 7, dockview-react 8, recharts 3, FastAPI 0.16x, SQLAlchemy 2.1). Check the installed typings before assuming an older API.
 
 ## Log
+
+### 0.7.0 in progress (21 November 2026): STR-041 supports of their own widths
+
+* Built: a supports table for the elastic method; Cl. 22.2 per span with its two supports, cantilever lengths, end anchorage, the schedule, quantities, charts and drawings per support. Continuous beam 1.7.0, interpretation 94a. The section per span is split to STR-048.
+* Hand check: elastic 1493 values over 21 cases; two sabotages fail it.
 
 ### 0.7.0 in progress (21 November 2026): STR-044 strap footing
 

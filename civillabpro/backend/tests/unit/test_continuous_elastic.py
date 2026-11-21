@@ -70,7 +70,7 @@ def test_envelopes_have_stations_either_side_of_a_point_load():
 def test_worked_example():
     r = elastic()
     d, ch = r["data"], checks(r)
-    assert r["status"] == "ok" and r["engine_version"] == "1.6.0"
+    assert r["status"] == "ok" and r["engine_version"] == "1.7.0"
     # support moments: 15 percent below the elastic greatest, not below 70 percent of it (Cl. 37.1.1)
     for j in (1, 2):
         assert d["m_sup"][j] == pytest.approx(0.85 * d["m_sup_elastic"][j], rel=1e-6)
@@ -260,3 +260,35 @@ def test_a_supports_compression_steel_raises_a_spans_bottom_bars():
 def test_cantilever_inputs_are_checked():
     with pytest.raises(ValidationError, match="less than 300 mm"):
         ContinuousBeamInput(analysis="elastic", cantilever_right_mm=200)
+
+
+def test_supports_of_their_own_widths():
+    widths = [230, 300, 450, 600]
+    from app.modules.structural.domain import continuous_elastic as ce
+    inp = ContinuousBeamInput(analysis="elastic", span_table=spans(5000, 6500, 4500), support_table=[{"width_mm": w} for w in widths])
+    res = design_continuous_beam(inp)
+    assert res["status"] == "ok"
+    d = 500 - 30 - 8 - 6  # one layer of T12 inside 8 mm stirrups, the longest effective spans
+    geo = ce.effective_spans(inp, d)
+    # spans 1 and 2: both supports narrow (l_c/12 = 417 and 542): l_c + d, not more than centre to centre; span 3: a 600 mm support
+    assert [g.rule for g in geo] == ["a", "a", "b2"]
+    assert geo[0].l_eff == pytest.approx(min(5000 + d, 5000 + 230 / 2 + 300 / 2))
+    assert geo[1].l_eff == pytest.approx(min(6500 + d, 6500 + 300 / 2 + 450 / 2))
+    assert geo[2].l_eff == pytest.approx(4500 + min(d / 2, 600 / 2))
+    # the schedule and the quantities take each support's width
+    assert res["quantities"]["length_m"] == pytest.approx((5000 + 6500 + 4500 + sum(widths)) / 1000)
+    over_2 = next(i for i in res["bbs"]["items"] if i["description"].startswith("Top bars over the support") and "support 2" in i["description"])
+    lay = res["reinforcement"]["layout"]
+    assert over_2["dims"]["A"] == pytest.approx(round(300 + lay[0]["a_right"] + lay[1]["a_left"]), abs=1)
+    elev = res["drawing"]["views"][0]
+    supports = [it for it in elev["items"] if it["t"] == "polyline" and it["layer"] == "support"]
+    assert [round(max(p[0] for p in it["points"]) - min(p[0] for p in it["points"])) for it in supports[:2]] == [230, 300]
+    assert any("Widths of the 4 supports" in i["title"] for s in res["sheet"]["sections"] for i in s["items"])
+
+
+def test_supports_table_needs_a_row_per_support():
+    with pytest.raises(ValidationError, match="one per support, 4 for 3 spans"):
+        ContinuousBeamInput(analysis="elastic", span_table=spans(5000, 6500, 4500), support_table=[{"width_mm": 300}] * 3)
+    # the coefficient method keeps one support width
+    coef = ContinuousBeamInput(support_table=[{"width_mm": 300}] * 2)
+    assert design_continuous_beam(coef)["status"] == "ok"
