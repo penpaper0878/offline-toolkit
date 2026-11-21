@@ -133,6 +133,7 @@ node e2e/walkthrough.js <folder for screenshots>      # both servers running
 | [docs/modules/04-beam-extensions.md](docs/modules/04-beam-extensions.md) | 0.4.0: T and L beams, continuous beams, curtailment and stirrup zones, anchorage at supports |
 | [docs/modules/05-anchorage-spans-desktop.md](docs/modules/05-anchorage-spans-desktop.md) | 0.5.0: U-hooks, anchorage in the continuous beam's bar selection, continuous beams of any spans and point loads by elastic analysis, the desktop shell |
 | [docs/modules/06-faces-cantilevers-backup-combined-footing.md](docs/modules/06-faces-cantilevers-backup-combined-footing.md) | 0.6.0: face moments and cantilever ends of continuous beams, backup and restore, the combined footing |
+| [docs/modules/07-footing-moments-strap-spans.md](docs/modules/07-footing-moments-strap-spans.md) | 0.7.0 (in progress): column moments on combined footings, strap footings, sections per span |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Backup, restore and moving projects between installations |
 
 ## A note on engineering use

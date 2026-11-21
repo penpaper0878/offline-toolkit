@@ -36,7 +36,7 @@ from app.engineering.trace import CalcSheet
 from app.modules.structural.domain.footing import FOOTING_BAR_DIAMETERS, FOOTING_MIN_COVER, PRACTICAL_MIN_SPACING, bars_across, bent_value
 
 ELEMENT_TYPE = "combined_footing"
-ENGINE_VERSION = "1.0.0"
+ENGINE_VERSION = "1.1.0"
 CODE_BASIS = ("IS 456:2000", "IS 2502:1963")
 REF = is456.CODE
 
@@ -64,9 +64,13 @@ class CombinedFootingInput(BaseModel):
     column1_width_mm: float = _f(400, "Column 1 width b_1", "Column 1 (left)", "mm", ge=150, le=2000, description="Across the footing")
     column1_depth_mm: float = _f(400, "Column 1 depth D_1", "Column 1 (left)", "mm", ge=150, le=3000, description="Along the footing")
     p1_service_kn: float = _f(900, "Column 1 service load", "Column 1 (left)", "kN", gt=0, le=1e5, description="Dead + imposed, unfactored")
+    m1_service_knm: float = _f(0, "Column 1 moment along", "Column 1 (left)", "kN m", ge=-1e5, le=1e5,
+                               description="Service, in the plane of the length; positive clockwise with column 1 on the left (pushes the right side down)")
     column2_width_mm: float = _f(450, "Column 2 width b_2", "Column 2 (right)", "mm", ge=150, le=2000, description="Across the footing")
     column2_depth_mm: float = _f(450, "Column 2 depth D_2", "Column 2 (right)", "mm", ge=150, le=3000, description="Along the footing")
     p2_service_kn: float = _f(1200, "Column 2 service load", "Column 2 (right)", "kN", gt=0, le=1e5, description="Dead + imposed, unfactored")
+    m2_service_knm: float = _f(0, "Column 2 moment along", "Column 2 (right)", "kN m", ge=-1e5, le=1e5,
+                               description="Service, in the plane of the length; positive clockwise with column 1 on the left (pushes the right side down)")
     spacing_mm: float = _f(3600, "Column spacing", "Columns", "mm", ge=600, le=15000, description="Centre to centre, along the footing")
 
     load_factor: float = _f(1.5, "Load factor", "Loading", "", ge=1.0, le=2.0, description="For design of the concrete, Table 18")
@@ -88,8 +92,8 @@ class CombinedFootingInput(BaseModel):
     bar_dia_mm: Literal[10, 12, 16, 20, 25] | None = _f(None, "Bar size", "Reinforcement", "mm", description="Blank lets the engine choose for each set")
 
     def resultant_offset(self) -> float:
-        """Distance from the centre of column 1 to the resultant of the service loads, mm."""
-        return self.spacing_mm * self.p2_service_kn / (self.p1_service_kn + self.p2_service_kn)
+        """Distance from the centre of column 1 to the resultant of the service loads and moments, mm (a clockwise moment moves it right)."""
+        return (self.spacing_mm * self.p2_service_kn + 1000.0 * (self.m1_service_knm + self.m2_service_knm)) / (self.p1_service_kn + self.p2_service_kn)
 
     @model_validator(mode="after")
     def _consistent(self) -> CombinedFootingInput:
@@ -132,6 +136,7 @@ class Col:
     b: float  # across, mm
     D: float  # along, mm
     p: float  # service load, kN
+    m: float = 0.0  # service moment in the plane of the length, kN m, clockwise positive
 
     @property
     def lo(self) -> float:
@@ -151,19 +156,20 @@ class Plan:
 
 
 def make_plan(inp: CombinedFootingInput, a: float, L: float, B: float) -> Plan:
-    c1 = Col(a, inp.column1_width_mm, inp.column1_depth_mm, inp.p1_service_kn)
-    c2 = Col(a + inp.spacing_mm, inp.column2_width_mm, inp.column2_depth_mm, inp.p2_service_kn)
+    c1 = Col(a, inp.column1_width_mm, inp.column1_depth_mm, inp.p1_service_kn, inp.m1_service_knm)
+    c2 = Col(a + inp.spacing_mm, inp.column2_width_mm, inp.column2_depth_mm, inp.p2_service_kn, inp.m2_service_knm)
     return Plan(L, B, a, (c1, c2))
 
 
 def eccentricity(plan: Plan) -> float:
-    """Resultant of the column loads less the footing's centre, mm (positive: to the right)."""
+    """Resultant of the column loads and moments less the footing's centre, mm (positive: to the right)."""
     p = sum(c.p for c in plan.cols)
-    return sum(c.p * c.x for c in plan.cols) / p - plan.L / 2.0
+    return (sum(c.p * c.x for c in plan.cols) + 1000.0 * sum(c.m for c in plan.cols)) / p - plan.L / 2.0
 
 
 def service_pressures(inp: CombinedFootingInput, plan: Plan) -> tuple[float, float]:
-    """Greatest and least gross service pressure, kN/m2: the own-weight allowance at the centre, the column loads at their resultant."""
+    """Greatest and least gross service pressure, kN/m2: the own-weight allowance at the centre, the column loads and moments at their
+    resultant."""
     p = inp.p1_service_kn + inp.p2_service_kn
     Lm, Bm = plan.L / 1000.0, plan.B / 1000.0
     mean = p * (1 + inp.self_weight_pct / 100.0) / (Lm * Bm)
@@ -172,12 +178,14 @@ def service_pressures(inp: CombinedFootingInput, plan: Plan) -> tuple[float, flo
 
 
 class Statics:
-    """Factored net pressure q(x) = q0 + k x (kN/m2, x in m) balancing the factored column loads, and the shear and bending
-    along the footing (kN, kN m; sagging, tension at the bottom, positive). Each column's load is spread over its depth."""
+    """Factored net pressure q(x) = q0 + k x (kN/m2, x in m) balancing the factored column loads and moments, and the shear and
+    bending along the footing (kN, kN m; sagging, tension at the bottom, positive). Each column's load and moment are spread over
+    its depth; outside the columns that is the same as a point load and a couple at the centre."""
 
     def __init__(self, plan: Plan, gamma: float) -> None:
         self.plan = plan
         self.pu = [gamma * c.p for c in plan.cols]
+        self.mu = [gamma * c.m for c in plan.cols]
         total = sum(self.pu)
         Lm, Bm = plan.L / 1000.0, plan.B / 1000.0
         e = eccentricity(plan) / 1000.0
@@ -199,11 +207,12 @@ class Statics:
     def moment(self, x: float) -> float:
         t = x / 1000.0
         m = self.Bm * (self.q0 * t * t / 2.0 + self.k * t ** 3 / 6.0)
-        for c, pu in zip(self.plan.cols, self.pu, strict=True):
+        for c, pu, mu in zip(self.plan.cols, self.pu, self.mu, strict=True):
             if x >= c.hi:
                 m -= pu * (x - c.x) / 1000.0
             elif x > c.lo:
                 m -= pu * (x - c.lo) ** 2 / (2.0 * c.D) / 1000.0
+            m += mu * min(max((x - c.lo) / c.D, 0.0), 1.0)  # a clockwise couple on the left part sags the section
         return m
 
     def faces(self) -> list[float]:
@@ -703,8 +712,14 @@ def design_combined_footing(inp: CombinedFootingInput) -> dict[str, Any]:
     sheet.section("2. Plan size")
     p = inp.p1_service_kn + inp.p2_service_kn
     er = inp.resultant_offset()
-    sheet.step("Statics", "Resultant of the service loads, from the centre of column 1", "x_r = P_2 s / (P_1 + P_2)",
-               f"{_n(inp.p2_service_kn, 1)} x {_n(inp.spacing_mm, 0)} / {_n(p, 1)}", er, "mm", 0)
+    if inp.m1_service_knm or inp.m2_service_knm:
+        sheet.step("Statics", "Resultant of the service loads and moments, from the centre of column 1 (clockwise moments move it right)",
+                   "x_r = (P_2 s + M_1 + M_2) / (P_1 + P_2)",
+                   f"({_n(inp.p2_service_kn, 1)} x {_n(inp.spacing_mm, 0)} + 1000 x ({_n(inp.m1_service_knm, 1)} + {_n(inp.m2_service_knm, 1)})) / "
+                   f"{_n(p, 1)}", er, "mm", 0)
+    else:
+        sheet.step("Statics", "Resultant of the service loads, from the centre of column 1", "x_r = P_2 s / (P_1 + P_2)",
+                   f"{_n(inp.p2_service_kn, 1)} x {_n(inp.spacing_mm, 0)} / {_n(p, 1)}", er, "mm", 0)
     p_gross = p * (1 + inp.self_weight_pct / 100.0)
     sheet.step("Input", "Service loads and own-weight allowance", "(P_1 + P_2)(1 + alpha)", f"{_n(p, 1)} x (1 + {_n(inp.self_weight_pct, 0)}/100)",
                p_gross, "kN", 1)
@@ -763,9 +778,13 @@ def design_combined_footing(inp: CombinedFootingInput) -> dict[str, Any]:
     st = Statics(plan, gamma)
     sheet.section("3. Bending along the footing")
     sheet.step(f"{REF}, Table 18", "Factored column loads", "P_u1, P_u2 = gamma_f P", f"gamma_f = {_n(gamma)}", f"{_n(st.pu[0], 1)}, {_n(st.pu[1], 1)}", "kN")
-    sheet.step("Statics", "Factored net pressure at the left and right ends, varying linearly, from the column loads only",
+    if any(st.mu):
+        sheet.step(f"{REF}, Table 18", "Factored column moments along, clockwise positive", "M_u1, M_u2 = gamma_f M", f"gamma_f = {_n(gamma)}",
+                   f"{_n(st.mu[0], 1)}, {_n(st.mu[1], 1)}", "kN m")
+    sheet.step("Statics", "Factored net pressure at the left and right ends, varying linearly, from the column loads and moments only",
                "q_u = (P_u1 + P_u2)/(L B) -/+ 6 (P_u1 + P_u2) e/(B L^2)", "", f"{_n(st.q(0), 2)}, {_n(st.q(L), 2)}", "kN/m2")
-    sheet.step(f"{REF}, Cl. 34.2.3.2", "Moments at the column faces (sagging positive, tension at the bottom)", "M_x = int q_u B (x - t) dt - P_u (x - x_c)",
+    sheet.step(f"{REF}, Cl. 34.2.3.2", "Moments at the column faces (sagging positive, tension at the bottom)",
+               "M_x = int q_u B (x - t) dt - P_u (x - x_c)" + (" + M_u" if any(st.mu) else ""),
                f"x = {', '.join(_n(x, 0) for x in st.faces())} mm", ", ".join(_n(st.moment(x), 1) for x in st.faces()), "kN m")
     sheet.step("Statics", "Greatest hogging between the columns, where the shear is nil", "M_hog at V = 0", f"x = {_n(t.x_hog, 0)} mm", -t.m_hog, "kN m", 1)
     sheet.step("Selected" if not inp.depth_mm else "Input",
@@ -874,6 +893,8 @@ def design_combined_footing(inp: CombinedFootingInput) -> dict[str, Any]:
     sheet.flag("info", "One-way shear uses tau_c of Table 19 without the enhancement for slabs, which is on the safe side.")
     if inp.depth_mm and not t.ok_shear:
         sheet.flag("warning", "The depth entered fails a shear check: increase it, or leave it blank for the engine to choose.")
+    if inp.m1_service_knm or inp.m2_service_knm:
+        sheet.flag("info", "The column moments are one load case as entered. Moments that reverse (wind, earthquake) need a design for each sense.")
     if abs(e) > 1.0:
         sheet.flag("info", f"The resultant is {abs(e):.0f} mm from the centre of the footing, so the pressure varies along it; the design uses that "
                            "variation.")
@@ -901,7 +922,7 @@ def design_combined_footing(inp: CombinedFootingInput) -> dict[str, Any]:
     data = {
         "cover": cover, "L": L, "B": B, "a": a, "D": t.D, "x1": c1.x, "x2": c2.x, "e": round(e, 6), "x_r": round(er, 6),
         "q_max": round(q_max, 6), "q_min": round(q_min, 6), "q_u_left": round(st.q(0), 6), "q_u_right": round(st.q(L), 6),
-        "pu1": round(st.pu[0], 6), "pu2": round(st.pu[1], 6),
+        "pu1": round(st.pu[0], 6), "pu2": round(st.pu[1], 6), "mu1": round(st.mu[0], 6), "mu2": round(st.mu[1], 6),
         "faces": st.faces(), "m_faces": [round(st.moment(x), 6) for x in st.faces()], "v_faces": [round(st.shear(x), 6) for x in st.faces()],
         "m_pos": round(t.m_pos, 6), "x_pos": t.x_pos, "m_hog": round(t.m_hog, 6), "x_hog": round(t.x_hog, 3),
         "d_t": round(t.d_t, 3), "d_b": round(t.d_lb, 3), "d_top": round(t.d_top, 3),

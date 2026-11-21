@@ -398,6 +398,10 @@ IS 456 has no clause for combined footings as such. Section 34 is applied to the
 101. **Punching** on the perimeter at d/2 from the column faces, with d the mean of the two bottom layers. Sides that would fall on or outside the footing's edges are dropped, so a column at a property line has three. Where the two columns' perimeters overlap, they are checked as one outline round both, with both loads, the pressure within the outline and the lesser k_s.
 102. **Bearing** A_1 at each column: the base of the largest frustum concentric and similar to the column within the footing at 1 in 2. sqrt(A_1/A_2) = min(2 min(x, L - x)/D_c, B/b_c, 1 + 4 D/max(b_c, D_c), 2).
 103. **Depth**: the least in 50 mm steps that needs no compression steel and no shear reinforcement. An entered depth is checked as it is.
+104. **Column moments along** (combined footing 1.1.0, STR-045).
+    * Each column may carry a service moment in the plane of the footing's length, clockwise positive with column 1 on the left. It moves the resultant: x_r = (P_2 s + M_1 + M_2) / (P_1 + P_2). The plan is centred on that, so a constant moment gives uniform pressure again.
+    * For design, each moment is factored by the one load factor and enters the statics as a couple at its column, spread over the column's depth (outside the column, the same as at its centre). The pressure that balances the loads and couples varies linearly.
+    * One load case: moments that reverse, as wind and earthquake do, need a design for each sense, and the sheet says so. Moments across the footing and horizontal loads are not covered (STR-046).
 
 ### Combined footing engine: to cross-check against a printed copy
 

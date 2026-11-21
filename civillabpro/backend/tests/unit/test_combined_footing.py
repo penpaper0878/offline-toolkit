@@ -204,3 +204,30 @@ def test_sweep_never_breaks_and_ok_results_are_self_consistent():
         n_ok += r["status"] == "ok"
     assert n == 72 and n_ok >= 45
     # what does not pass is the bearing under small, heavily loaded columns (reported with its remedy), never a stop
+
+
+def test_column_moments_move_the_plan_and_enter_the_statics_as_couples():
+    base = design_combined_footing(CombinedFootingInput())["data"]
+    inp = CombinedFootingInput(m2_service_knm=150)
+    assert inp.resultant_offset() == pytest.approx((1200 * 3600 + 150_000) / 2100)
+    r = design_combined_footing(inp)
+    d = r["data"]
+    assert r["status"] == "ok" and abs(d["e"]) <= 25 + 1e-9  # centred on the loads and the moments
+    assert d["a"] + d["x_r"] - d["L"] / 2 == pytest.approx(d["e"])
+    assert d["x_r"] > base["x_r"] and d["mu2"] == pytest.approx(225)
+    assert any("one load case" in f["message"] for f in r["sheet"]["flags"])
+    # on a given plan, a clockwise moment at column 2 bears harder on the right; the statics still close
+    fixed = dict(length_mm=6100, width_mm=2100, left_end_mm=975)
+    plain = design_combined_footing(CombinedFootingInput(**fixed))["data"]
+    turned = design_combined_footing(CombinedFootingInput(**fixed, m2_service_knm=150))["data"]
+    assert turned["q_u_right"] > plain["q_u_right"] and turned["q_u_left"] < plain["q_u_left"]
+    plan = cf.make_plan(CombinedFootingInput(**fixed, m1_service_knm=-80, m2_service_knm=200), 975, 6100, 2100)
+    st = cf.Statics(plan, 1.5)
+    assert st.moment(6100) == pytest.approx(0, abs=1e-6) and st.shear(6100) == pytest.approx(0, abs=1e-6)
+    # across a column the bending jumps by the couple, beyond what the load alone gives
+    c = plan.cols[1]
+    load_only = cf.Statics(cf.make_plan(CombinedFootingInput(**fixed), 975, 6100, 2100), 1.5)
+    jump = (st.moment(c.hi) - st.moment(c.lo)) - (load_only.moment(c.hi) - load_only.moment(c.lo))
+    k_shift = st.k - load_only.k  # the pressure itself changes with the moments: take its share out
+    q_part = st.Bm * k_shift * ((c.hi / 1000) ** 3 - (c.lo / 1000) ** 3) / 6 + st.Bm * (st.q0 - load_only.q0) * ((c.hi / 1000) ** 2 - (c.lo / 1000) ** 2) / 2
+    assert jump - q_part == pytest.approx(1.5 * 200, rel=1e-9)

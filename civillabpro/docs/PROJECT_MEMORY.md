@@ -21,7 +21,7 @@ Version 0.6.0. Phase 1 is done: beams (rectangular, T and L; simple, cantilever 
 | Structural: column engine 1.0.0 | built, independent hand check passing; code text not yet compared (see the code register) |
 | Structural: slab engine 1.0.0 (one-way, two-way) | built, independent hand check passing; Table 26 rows and Annex D extents to compare with the code |
 | Structural: isolated footing engine 1.1.0 | built, independent hand check passing; Cl. 34 wording to compare with the code |
-| Structural: combined footing engine 1.0.0 (two columns, rectangular, uniform depth) | built (0.6.0), independent hand check passing; the band width across is an interpretation (no clause) |
+| Structural: combined footing engine 1.1.0 (two columns, rectangular, uniform depth; loads and moments along) | built (0.6.0, moments 0.7.0), independent hand check passing; the band width across is an interpretation (no clause) |
 | Exports: PDF, Excel, DXF | built, reviewed page by page |
 | Deployment | single-process mode verified; Dockerfile and compose file written, compose validated, image not built (no Docker daemon in the build session) |
 | Desktop app (Electron) | built: shell, PyInstaller server bundle, Linux AppImage verified here (packaged smoke test, a killed shell's server stops itself); Windows NSIS built and smoke-tested by CI only (`civillabpro-desktop.yml`) |
@@ -36,7 +36,7 @@ Test counts at 0.6.0: backend 370 passed and 1 skipped (the PostgreSQL-only migr
 1. **STR-009, blocked: compare the column, slab and footing clauses with the code text** (the three "To cross-check" lists in the code register). It needs the user: either approval of a direct download of the public copy, or the pages pasted into the session. Do not work around a declined download. Fix anything that differs and re-run every hand check.
 2. **The continuous beam's follow-ups**: STR-041 a support width and section per span, STR-043 the coefficient method on the per-span path.
 3. **Desktop**: PLAT-022 code-signing (needs a certificate), PLAT-011 auto-update.
-4. **Footings**: STR-044 strap and trapezoidal footings, STR-045 column moments on combined footings.
+4. **Footings**: STR-044 strap footing (in progress for 0.7.0), then trapezoidal footings; STR-046 moments across combined footings and horizontal loads.
 5. **Phase 2's engineering**: the estimation module and the standards library (see ROADMAP.md).
 
 ## Decisions (do not reopen without a reason recorded here)
@@ -116,6 +116,11 @@ Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not her
 * Library versions at 0.1.0 are recent majors (React 19, MUI 9, Vite 8, Tailwind 4, TypeScript 7, dockview-react 8, recharts 3, FastAPI 0.16x, SQLAlchemy 2.1). Check the installed typings before assuming an older API.
 
 ## Log
+
+### 0.7.0 in progress (21 November 2026): STR-045 column moments on combined footings
+
+* Built: service moments at the columns in the plane of the length; the plan centred on loads and moments; factored couples in the statics; one-load-case flag. Combined footing 1.1.0. Release note `docs/modules/07-footing-moments-strap-spans.md`.
+* Hand check: 1746 values over 25 cases; three sabotages of the moments each fail it.
 
 ### 0.6.0 released (20 November 2026)
 

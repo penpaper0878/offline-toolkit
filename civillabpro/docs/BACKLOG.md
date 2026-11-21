@@ -47,6 +47,7 @@ State: **done**, **next** (the item to start with), **ready** (can be started), 
 | STR-038 | Continuous beam 1.3.0: Cl. 26.2.3.3(c) in its bar selection, with its own stop message (0.5.0) |
 | STR-042 | Continuous beam 1.6.0: cantilevers at either or both ends (elastic method): their moments in the analysis, each loaded and unloaded; the support designed with top bars to the tip; shear, deflection (ratio 7) and anchorage of the cantilever; bottom bars raised where a support needs compression steel; uplift warned (0.6.0) |
 | STR-040 | Continuous beam 1.6.0: support sections designed for the moments at the faces of monolithic supports (Cl. 22.6.2), an option of the elastic method (0.6.0) |
+| STR-045 | Combined footing 1.1.0: service moments at the columns in the plane of the length; the plan centred on loads and moments, the moments couples in the statics, a flag that they are one load case (0.7.0) |
 | STR-020 | Combined footing 1.0.0: two rectangular columns on a rectangular footing of uniform depth; plan centred on the loads or from a property line; bending and shear along and across, bands under the columns, punching (cut by the edges, merged where the perimeters overlap), development at the stress of each section, bearing; strap and trapezoidal footings split to STR-044 (0.6.0) |
 | PLAT-018 | Backup and restore (`docs/OPERATIONS.md`): project archives exported and imported between installations as calculated; a backup of a single-organisation SQLite database from the client; restore from the desktop menu, the old database kept (0.6.0) |
 | STR-036 | Continuous beam 1.5.0: elastic analysis of two to twelve spans of any length, uniform and point loads, redistribution by Cl. 37.1.1; every span and support designed, detailed, curtailed and drawn; table inputs in the property grid and the report; a view picker for drawings of many views (0.5.0) |
@@ -66,7 +67,7 @@ State: **done**, **next** (the item to start with), **ready** (can be started), 
 | STR-018 | Beam: calculated deflection and crack width | later | Annex C, Annex F |
 | STR-019 | Ductile detailing | later | IS 13920:2016; needs frame context |
 | STR-044 | Strap and trapezoidal footings, for a heavier column at a property line | ready | the combined footing refuses that case with this remedy; the statics carry over |
-| STR-045 | Column moments and horizontal loads on a combined footing | ready | the linear pressure and the statics already take an eccentric resultant |
+| STR-046 | Moments across a combined footing and horizontal loads (sliding, the moment of the shear at the base) | ready | pressure varying across the width, bands designed for the heavier side |
 | STR-021 | Pile cap | later | truss and bending methods |
 | STR-022 | Staircase | later | |
 | STR-023 | Retaining wall (cantilever, counterfort) | later | stability and structural design |

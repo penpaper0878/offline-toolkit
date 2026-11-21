@@ -140,7 +140,8 @@ ELEMENTS: dict[str, ElementSpec] = {
         input_model=combined_footing.CombinedFootingInput,
         design=combined_footing.design_combined_footing,
         limitations=(
-            "Two rectangular columns on the footing's long axis, axial service loads only (no column moments or horizontal loads); one load case.",
+            "Two rectangular columns on the footing's long axis; service loads and moments in the plane of the length, one load case. Moments "
+            "across the footing and horizontal loads are not covered (STR-046).",
             "Rigid footing: the pressure varies linearly along it and is uniform across it. Settlement is not checked.",
             "Uniform depth and no shear reinforcement: the depth is chosen for shear. The width is the least the bearing pressure allows; enter "
             "a wider one for a shallower footing.",

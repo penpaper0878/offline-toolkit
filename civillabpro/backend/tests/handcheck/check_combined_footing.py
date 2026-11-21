@@ -27,7 +27,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 from app.modules.structural.domain.combined_footing import CombinedFootingInput, design_combined_footing  # noqa: E402
 
 BASE = dict(
-    mark="CF1", column1_width_mm=400, column1_depth_mm=400, p1_service_kn=900, column2_width_mm=450, column2_depth_mm=450, p2_service_kn=1200,
+    mark="CF1", column1_width_mm=400, column1_depth_mm=400, p1_service_kn=900, m1_service_knm=0, column2_width_mm=450, column2_depth_mm=450,
+    p2_service_kn=1200, m2_service_knm=0,
     spacing_mm=3600, load_factor=1.5, self_weight_pct=10, sbc_kn_m2=200, left_end_mm=None, length_mm=None, width_mm=None, depth_mm=None,
     fck=25, fy=415, exposure="moderate", clear_cover_mm=None, max_aggregate_mm=20, bar_dia_mm=None,
 )
@@ -57,6 +58,11 @@ CASES: list[tuple[str, dict]] = [
     ("equal loads", dict(p1_service_kn=1000, p2_service_kn=1000, column2_width_mm=400, column2_depth_mm=400)),
     ("heavier left column", dict(p1_service_kn=1500, p2_service_kn=800)),
     ("no own-weight allowance", dict(self_weight_pct=0)),
+    # column moments in the plane of the length (STR-045): they move the resultant, and enter the statics as couples
+    ("moment at column 2", dict(m2_service_knm=150)),
+    ("moments of both signs", dict(m1_service_knm=-80, m2_service_knm=200)),
+    ("moment against the property line", dict(left_end_mm=200, m1_service_knm=120)),
+    ("moments on a given plan, pressure varies", dict(length_mm=6100, width_mm=2100, left_end_mm=975, m1_service_knm=100, m2_service_knm=100)),
     # the development of the bars at the stress of each section (Cl. 26.2.1), with end bends where straight bars fall short
     ("bottom bars with end bends", dict(sbc_kn_m2=300, p1_service_kn=2500, p2_service_kn=800, column1_width_mm=450, column1_depth_mm=450,
                                         column2_width_mm=450, column2_depth_mm=450, spacing_mm=2400, fck=30)),
@@ -105,8 +111,9 @@ class Hand:
         self.x = [a / 1000, (a + s["spacing_mm"]) / 1000]
         self.p = [s["p1_service_kn"], s["p2_service_kn"]]
         self.pu = [s["load_factor"] * p for p in self.p]
+        self.mu = [s["load_factor"] * s["m1_service_knm"], s["load_factor"] * s["m2_service_knm"]]  # couples, clockwise positive
         P = sum(self.pu)
-        xr = sum(p * x for p, x in zip(self.pu, self.x, strict=True)) / P
+        xr = (sum(p * x for p, x in zip(self.pu, self.x, strict=True)) + sum(self.mu)) / P  # moments about the left end
         e = xr - self.L / 2
         self.e = e
         # q at the ends: P/A (1 -/+ 6 e / L)
@@ -124,7 +131,8 @@ class Hand:
         # the trapezoid's resultant B x (q0 + qx)/2 at x (2 q0 + qx) / (3 (q0 + qx)) from the left end
         q0, qx = self.q_left, self.q(x)
         up = self.B * x * x * (2 * q0 + qx) / 6  # resultant times its lever arm about x: B x^2 (q0/2 + (qx - q0)/6)
-        return up - sum(p * (x - xc) for p, xc in zip(self.pu, self.x, strict=True) if xc < x)
+        down = sum(p * (x - xc) for p, xc in zip(self.pu, self.x, strict=True) if xc < x)
+        return up - down + sum(m for m, xc in zip(self.mu, self.x, strict=True) if xc < x)
 
     def zero_shear(self) -> float:
         # between the columns: B (q0 x + k x^2 / 2) = P_u1
@@ -140,7 +148,7 @@ def faces(s: dict, a: float) -> list[float]:
 
 
 def balance(s: dict, a: float) -> float:
-    xr = s["spacing_mm"] * s["p2_service_kn"] / (s["p1_service_kn"] + s["p2_service_kn"])
+    xr = (s["spacing_mm"] * s["p2_service_kn"] + 1000 * (s["m1_service_knm"] + s["m2_service_knm"])) / (s["p1_service_kn"] + s["p2_service_kn"])
     L = math.ceil(2 * (a + xr) / 50 - 1e-9) * 50
     h = Hand(s, a, L, 1000)
     m_pos = max(max(h.moment(f / 1000) for f in faces(s, a)), 0.0)
@@ -195,7 +203,7 @@ def check(name: str, s: dict, res: dict) -> tuple[int, list[str]]:
     cover = s["clear_cover_mm"] or max(50.0, {"mild": 20, "moderate": 30, "severe": 45, "very_severe": 50, "extreme": 75}[s["exposure"]])
     same("cover", d["cover"], cover)
     P = s["p1_service_kn"] + s["p2_service_kn"]
-    xr = s["spacing_mm"] * s["p2_service_kn"] / P
+    xr = (s["spacing_mm"] * s["p2_service_kn"] + 1000 * (s["m1_service_knm"] + s["m2_service_knm"])) / P  # moments shift the resultant
     same("x_r", d["x_r"], xr)
     L, B, a, D = d["L"], d["B"], d["a"], d["D"]
     # the plan
