@@ -49,3 +49,16 @@ export function NewEstimateDialog({ open, onClose, projectId }: { open: boolean;
     </Dialog>
   );
 }
+
+/** The look of the dense fields of estimate tables. */
+export const input = "w-full bg-[var(--clp-panel)] border border-[var(--clp-border)] rounded px-1.5 py-1 text-[12.5px] text-[var(--clp-ink)] focus:outline-none focus:border-[var(--clp-accent)] disabled:bg-transparent disabled:border-transparent";
+
+/** A number field that may be left blank (a dimension not measured) or not. */
+export function Num({ value, onChange, label, blank = false, disabled, width = "w-[84px]" }: {
+  value: number | null; onChange: (v: number | null) => void; label: string; blank?: boolean; disabled?: boolean; width?: string;
+}) {
+  return (
+    <input type="number" step="any" aria-label={label} disabled={disabled} className={`${input} ${width} text-right num`}
+      value={value ?? ""} onChange={(e) => onChange(e.target.value === "" ? (blank ? null : 0) : Number(e.target.value))} />
+  );
+}

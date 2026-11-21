@@ -23,7 +23,7 @@ Version 0.7.0. Phase 1 is done: beams (rectangular, T and L; simple, cantilever 
 | Structural: isolated footing engine 1.1.0 | built, independent hand check passing; Cl. 34 wording to compare with the code |
 | Structural: combined footing engine 1.1.0 (two columns, rectangular, uniform depth; loads and moments along) | built (0.6.0, moments 0.7.0), independent hand check passing; the band width across is an interpretation (no clause) |
 | Structural: strap footing engine 1.0.0 (exterior column at a property line, strap to an interior column; pad 2 by the isolated footing engine) | built (0.7.0), independent hand check passing; pad 1's proportion and the strap's critical shear are interpretations |
-| Quantity estimation: schedules of rates (imported, none shipped), rate analysis, estimates with measured, entered and design quantities, additions, four-eyes issue, revisions, Excel and PDF | built for 0.8.0 (EST-001 to EST-003), independent hand check passing; measurement book and bills next |
+| Quantity estimation: schedules of rates (imported, none shipped), rate analysis, estimates with measured, entered and design quantities, additions, four-eyes issue, revisions, Excel and PDF; measurement book with checked entries and progress | built for 0.8.0 (EST-001 to EST-004), independent hand check passing; bills next |
 | Exports: PDF, Excel, DXF | built, reviewed page by page |
 | Deployment | single-process mode verified; Dockerfile and compose file written, compose validated, image not built (no Docker daemon in the build session) |
 | Desktop app (Electron) | built: shell, PyInstaller server bundle, Linux AppImage verified here (packaged smoke test, a killed shell's server stops itself); Windows NSIS built and smoke-tested by CI only (`civillabpro-desktop.yml`) |
@@ -35,7 +35,7 @@ Test counts at 0.7.0: backend 385 passed and 1 skipped (the PostgreSQL-only migr
 
 ## NEXT STEPS
 
-1. **Estimation follow-ups**: EST-004 measurement book, then EST-005 bills; EST-006 analyses from a schedule's basic rates; EST-007 more design quantities; EST-008 revision history. Then the standards library (STD-001 to STD-003) and release 0.8.0.
+1. **Estimation follow-ups**: EST-005 bills from the measurement book; EST-006 analyses from a schedule's basic rates; EST-007 more design quantities; EST-008 revision history. Then the standards library (STD-001 to STD-003) and release 0.8.0.
 2. **STR-009, blocked: compare the column, slab and footing clauses with the code text** (the three "To cross-check" lists in the code register). It needs the user: either approval of a direct download of the public copy, or the pages pasted into the session. Do not work around a declined download. Fix anything that differs and re-run every hand check.
 3. **The continuous beam's follow-ups**: STR-048 a section per span, STR-043 the coefficient method on the per-span path.
 4. **Desktop**: PLAT-022 code-signing (needs a certificate), PLAT-011 auto-update.
@@ -120,6 +120,12 @@ Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not her
 * Library versions at 0.1.0 are recent majors (React 19, MUI 9, Vite 8, Tailwind 4, TypeScript 7, dockview-react 8, recharts 3, FastAPI 0.16x, SQLAlchemy 2.1). Check the installed typings before assuming an older API.
 
 ## Log
+
+### 0.8.0 in progress (21 November 2026): EST-004 measurement book
+
+* Built: `mb_entries` (migration 0003), entries recorded against an issued estimate's items and checked by a second person, a checked entry kept as it is; progress per item (`domain/progress.py`); the measurement book page; a PDF; the book carried in project archives. Interpretations 117 and 118.
+* Hand check: 1185 values in all (progress added); two sabotages fail it. The walkthrough adds a reviewer, who issues the estimate and checks an entry in a second browser session.
+* CI was green on EST-001 to EST-003 (backend on SQLite and PostgreSQL, frontend).
 
 ### 0.8.0 in progress (21 November 2026): EST-001 to EST-003 quantity estimation
 

@@ -110,3 +110,14 @@ export interface EstimateSummary {
 }
 export interface Estimate extends EstimateSummary { notes: string; doc: EstimateDoc; result: EstimateResult }
 export interface DesignQuantities { design_id: string; name: string; element_type: string; title: string; revision: number; status: string; quantities: Partial<Record<DesignQuantityKey, number>> }
+
+export interface MbEntry {
+  id: string; entry_no: number; item_id: string; measured_on: string; location: string; lines: Measurement[]; line_quantities: number[]; quantity: number;
+  status: "recorded" | "checked"; measured_by_name: string; checked_by_name: string; checked_at: string | null; updated_at: string;
+}
+export interface MbEntryInput { item_id: string; measured_on: string; location: string; lines: Measurement[] }
+export interface ItemProgress {
+  item_id: string; no: string; description: string; unit: string; rate: number; in_estimate: boolean; estimated: number; measured: number; checked: number;
+  balance: number; excess: number; percent: number | null; value_measured: number; value_checked: number; value_excess: number; entries: number;
+}
+export interface MeasurementBook { estimate_id: string; open: boolean; entries: MbEntry[]; items: ItemProgress[]; value_measured: number; value_checked: number; value_excess: number }

@@ -1,6 +1,7 @@
 // End-to-end walkthrough in a real browser: register, create a project, design a beam, a column, a slab,
 // isolated, combined and strap footings, a continuous beam (by coefficients and by elastic analysis), save, import a schedule of rates,
-// write a rate analysis and an estimate (measured and design quantities), export and import a project, back up the database, download each report / schedule / drawing, switch theme, search, use the calculator,
+// write a rate analysis and an estimate (measured and design quantities), have a reviewer issue it, measure work and have it checked,
+// export and import a project, back up the database, download each report / schedule / drawing, switch theme, search, use the calculator,
 // reload.
 //
 //   1. start the API, on a fresh database (the backup step needs one organisation alone), and the web client (see README.md)
@@ -286,6 +287,63 @@ const BASE = process.argv[3] || process.env.BASE || 'http://127.0.0.1:5173';
     if (magic !== (ext === 'pdf' ? '%PDF' : 'PK\u0003\u0004')) throw new Error(`the ${label} estimate is not a ${ext} file`);
     console.log('download', file.suggestedFilename(), fs.statSync(`${out}/estimate.${ext}`).size);
   }
+
+  step('measurement book: a reviewer issues the estimate, the owner measures, the reviewer checks');
+  const estimateUrl = page.url();
+  await page.goto(BASE + '/admin/users');
+  await page.getByRole('button', { name: 'Add user' }).click();
+  const au = page.getByRole('dialog');
+  await au.getByLabel('Full name').fill('Vikram Joshi');
+  const reviewerEmail = `vikram${Date.now()}@sahyadri.example`;
+  await au.getByLabel('Email').fill(reviewerEmail);
+  await au.getByRole('combobox').click();
+  await page.getByRole('option', { name: 'Reviewer / checker' }).click();
+  await au.getByLabel('Temporary password').fill('Checking2026');
+  await au.getByRole('button', { name: 'Add user' }).click();
+  await page.getByText('Vikram Joshi').first().waitFor();
+  const rctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: Number(process.env.DSF || 1), acceptDownloads: true, colorScheme: 'light' });
+  const rpage = await rctx.newPage();
+  rpage.on('pageerror', (e) => errors.push('reviewer pageerror: ' + e.message));
+  rpage.on('console', (m) => { if (m.type() === 'error') errors.push('reviewer console: ' + m.text()); });
+  rpage.on('dialog', (d) => d.accept());
+  await rpage.goto(BASE + '/login');
+  await rpage.getByLabel('Email').fill(reviewerEmail);
+  await rpage.getByLabel('Password').fill('Checking2026');
+  await rpage.getByRole('button', { name: 'Sign in' }).click();
+  await rpage.getByRole('heading', { name: /Welcome/ }).waitFor();
+  await rpage.goto(estimateUrl);
+  await rpage.getByRole('button', { name: 'Issue' }).click();
+  await rpage.getByText(/Issued as R0 by Vikram Joshi/).waitFor({ timeout: 10000 });
+
+  await page.goto(estimateUrl);
+  await page.getByRole('link', { name: 'Measurement book' }).click();
+  await page.getByRole('heading', { name: 'Measurement book: Foundations' }).waitFor();
+  await page.getByRole('button', { name: 'Record a measurement' }).click();
+  const en = page.getByRole('dialog', { name: 'Record a measurement' });
+  await en.getByLabel('Location, or the work measured').fill('Footings F1 and F2');
+  await en.getByLabel('Measurement, line 1').fill('F1, F2');
+  await en.getByLabel('Nos, line 1').fill('2');
+  await en.getByLabel('Length, line 1').fill('1.8');
+  await en.getByLabel('Breadth, line 1').fill('1.8');
+  await en.getByLabel('Depth, line 1').fill('0.45');
+  await en.getByText('2.92').first().waitFor({ timeout: 10000 }); // 2 x 1.8 x 1.8 x 0.45 = 2.916
+  await shot('e4-measurement-entry');
+  await en.getByRole('button', { name: 'Record' }).click();
+  await page.getByText('Entry 1 recorded').first().waitFor({ timeout: 10000 });
+  await rpage.goto(estimateUrl + '/measurement-book');
+  await rpage.getByRole('button', { name: 'Check entry 1' }).click();
+  await rpage.getByText('Entry 1 checked').first().waitFor({ timeout: 10000 });
+  await rctx.close();
+  await page.reload();
+  await page.getByText(/Vikram Joshi, /).first().waitFor({ timeout: 10000 });
+  await page.waitForTimeout(400);
+  await shot('e5-measurement-book');
+  {
+    const [file] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), page.getByRole('button', { name: 'PDF', exact: true }).click()]);
+    await file.saveAs(`${out}/measurement-book.pdf`);
+    if (fs.readFileSync(`${out}/measurement-book.pdf`).subarray(0, 4).toString('latin1') !== '%PDF') throw new Error('the measurement book is not a PDF');
+    console.log('download', file.suggestedFilename(), fs.statSync(`${out}/measurement-book.pdf`).size);
+  }
   await page.goto(designUrl);
   await page.locator('[data-ribbon="project"]').waitFor({ timeout: 15000 });
 
@@ -297,7 +355,7 @@ const BASE = process.argv[3] || process.env.BASE || 'http://127.0.0.1:5173';
   await archive.saveAs(archivePath);
   const archived = JSON.parse(require('fs').readFileSync(archivePath, 'utf8'));
   console.log('download', archive.suggestedFilename(), archived.designs.length, 'designs', archived.estimates.length, 'estimates');
-  if (archived.estimates.length !== 1) throw new Error('the archive does not carry the estimate');
+  if (archived.estimates.length !== 1 || archived.estimates[0].measurements.length !== 1) throw new Error('the archive does not carry the estimate and its measurement book');
   await page.goto(BASE + '/projects');
   await page.getByLabel('Project archive file').setInputFiles(archivePath);
   await page.getByText(/Imported as job number .*-2 /).first().waitFor({ timeout: 15000 });

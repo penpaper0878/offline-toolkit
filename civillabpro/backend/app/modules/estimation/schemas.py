@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -197,3 +197,66 @@ class DesignQuantities(BaseModel):
     revision: int
     status: str
     quantities: dict[str, float]
+
+
+# ----------------------------------------------------------------------------- measurement book
+
+
+class MbEntryIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    item_id: str = Field(min_length=1, max_length=40)
+    measured_on: date
+    location: str = Field("", max_length=300)
+    lines: list[Measurement] = Field(min_length=1, max_length=200)
+
+
+class MbLinesIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lines: list[Measurement] = Field(max_length=200)
+
+
+class MbEntryOut(BaseModel):
+    id: uuid.UUID
+    entry_no: int
+    item_id: str
+    measured_on: date
+    location: str
+    lines: list[Measurement]
+    line_quantities: list[float]
+    quantity: float
+    status: Literal["recorded", "checked"]
+    measured_by_name: str
+    checked_by_name: str
+    checked_at: datetime | None
+    updated_at: datetime
+
+
+class ItemProgressOut(BaseModel):
+    item_id: str
+    no: str
+    description: str
+    unit: str
+    rate: float
+    in_estimate: bool  # False for an item measured but no longer in the estimate's current revision
+    estimated: float
+    measured: float
+    checked: float
+    balance: float
+    excess: float
+    percent: float | None
+    value_measured: float
+    value_checked: float
+    value_excess: float
+    entries: int
+
+
+class MeasurementBook(BaseModel):
+    estimate_id: uuid.UUID
+    open: bool  # entries can be recorded: the estimate is issued, or is a revision of an issued one
+    entries: list[MbEntryOut]
+    items: list[ItemProgressOut]
+    value_measured: float
+    value_checked: float
+    value_excess: float

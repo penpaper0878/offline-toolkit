@@ -17,7 +17,7 @@ An Indian civil engineering operating system: design to Indian Standards, estima
 | Structural design: RCC combined footing under two columns | built (engine 1.1.0) |
 | Structural design: RCC strap footing (a column at a property line) | built (engine 1.0.0) |
 | Structural design: trapezoidal footing, staircase, retaining wall and others | phase 2 |
-| Quantity estimation: schedules of rates, rate analysis, estimates with quantities from the designs | built (measurement book and bills next) |
+| Quantity estimation: schedules of rates, rate analysis, estimates with quantities from the designs, measurement book | built (bills next) |
 | Standards library, water, sewerage, highway, laboratory, GIS, project management, AI assistant | designed, not started |
 
 ## What works today
@@ -34,7 +34,7 @@ An Indian civil engineering operating system: design to Indian Standards, estima
 * Bar bending schedule, quantities and a to-scale drawing from the same calculation.
 * Calculation report (PDF), bar schedule (Excel), drawing (DXF).
 * Revisions, and approval by a second engineer.
-* Quantity estimation: the organisation's schedules of rates imported from CSV or Excel (none shipped), rate analyses in the CPWD form, and project estimates whose items are measured, entered or taken from the designs (concrete, formwork, steel, with the design's revision recorded and later revisions flagged); percentage additions and the abstract; issued by a second person, revised as R numbers; Excel with live formulas and PDF; carried with the project when it is exported.
+* Quantity estimation: the organisation's schedules of rates imported from CSV or Excel (none shipped), rate analyses in the CPWD form, and project estimates whose items are measured, entered or taken from the designs (concrete, formwork, steel, with the design's revision recorded and later revisions flagged); percentage additions and the abstract; issued by a second person, revised as R numbers; Excel with live formulas and PDF; a measurement book of the work done against an issued estimate, each entry checked by a second person, with progress, balance and excess per item; carried with the project when it is exported.
 * Backup of the database, restore on the desktop, and projects exported and imported between installations as calculated.
 * A workspace with dockable panels, a ribbon, document tabs, Ctrl K search, a floating calculator, light and dark themes.
 

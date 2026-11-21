@@ -18,6 +18,10 @@ from app.modules.estimation.schemas import (
     EstimateOut,
     EstimateSave,
     EstimateSummary,
+    MbEntryIn,
+    MbEntryOut,
+    MbLinesIn,
+    MeasurementBook,
     RateAnalysisIn,
     RateAnalysisOut,
     SorBookImport,
@@ -199,3 +203,44 @@ def export_pdf(estimate_id: uuid.UUID, user: User = Depends(require(P.ESTIMATE_R
     body = exports.build_pdf(_meta(db, user, e), e.doc, service.compute(db, e), e.status, e.notes)
     return Response(body, media_type="application/pdf", headers={"Content-Disposition": _filename(e, ".pdf")})
 
+
+# ----------------------------------------------------------------------------- measurement book
+
+
+@router.get("/estimates/{estimate_id}/measurement-book", response_model=MeasurementBook, summary="Entries and progress against the estimate")
+def measurement_book(estimate_id: uuid.UUID, user: User = Depends(require(P.ESTIMATE_READ)), db: Session = DB) -> dict[str, Any]:
+    return service.measurement_book(db, user.org_id, estimate_id)
+
+
+@router.post("/measurement-book/calculate", summary="Each line's quantity and the entry's, without saving")
+def calculate_lines(data: MbLinesIn, user: User = Depends(require(P.ESTIMATE_READ))) -> dict[str, Any]:
+    qs, total = service.mb_quantities(data.lines)
+    return {"lines": [float(q) for q in qs], "quantity": float(total)}
+
+
+@router.post("/estimates/{estimate_id}/measurement-book", response_model=MbEntryOut, status_code=status.HTTP_201_CREATED)
+def record_entry(estimate_id: uuid.UUID, data: MbEntryIn, user: User = Depends(require(P.ESTIMATE_WRITE)), db: Session = DB) -> dict[str, Any]:
+    return service.entry_out(service.record_entry(db, user, estimate_id, data))
+
+
+@router.put("/mb-entries/{entry_id}", response_model=MbEntryOut)
+def update_entry(entry_id: uuid.UUID, data: MbEntryIn, user: User = Depends(require(P.ESTIMATE_WRITE)), db: Session = DB) -> dict[str, Any]:
+    return service.entry_out(service.update_entry(db, user, entry_id, data))
+
+
+@router.post("/mb-entries/{entry_id}/check", response_model=MbEntryOut, summary="Check an entry (someone other than who measured it)")
+def check_entry(entry_id: uuid.UUID, user: User = Depends(require(P.ESTIMATE_ISSUE)), db: Session = DB) -> dict[str, Any]:
+    return service.entry_out(service.check_entry(db, user, entry_id))
+
+
+@router.delete("/mb-entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_entry(entry_id: uuid.UUID, user: User = Depends(require(P.ESTIMATE_WRITE)), db: Session = DB) -> None:
+    service.delete_entry(db, user, entry_id)
+
+
+@router.get("/estimates/{estimate_id}/measurement-book.pdf", response_class=Response, summary="The measurement book (PDF, A4)")
+def export_mb_pdf(estimate_id: uuid.UUID, user: User = Depends(require(P.ESTIMATE_READ)), db: Session = DB) -> Response:
+    e = service.get_estimate(db, user.org_id, estimate_id)
+    body = exports.build_mb_pdf(_meta(db, user, e), service.measurement_book(db, user.org_id, estimate_id))
+    stem = re.sub(r"[^A-Za-z0-9_-]+", "_", f"measurement_book_{e.title}").strip("_")
+    return Response(body, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{stem}.pdf"'})

@@ -8,6 +8,7 @@ import csv
 import io
 import re
 import uuid
+from datetime import timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
 
@@ -20,9 +21,10 @@ from app.core.errors import Conflict, Invalid, NotFound
 from app.modules.estimation.domain.abstract import DESIGN_QUANTITIES, Addition, abstract, amount, unit_factor
 from app.modules.estimation.domain.measure import MeasureLine, item_quantity, line_quantity
 from app.modules.estimation.domain.money import dec
+from app.modules.estimation.domain.progress import item_progress
 from app.modules.estimation.domain.rates import AnalysisLine, analyse
-from app.modules.estimation.models import Estimate, RateAnalysis, SorBook, SorItem
-from app.modules.estimation.schemas import EstimateDoc, EstimateSave, RateAnalysisIn, SorBookImport
+from app.modules.estimation.models import Estimate, MbEntry, RateAnalysis, SorBook, SorItem
+from app.modules.estimation.schemas import EstimateDoc, EstimateSave, MbEntryIn, Measurement, RateAnalysisIn, SorBookImport
 from app.modules.identity.models import User
 from app.modules.identity.service import audit
 from app.modules.projects.service import get_project
@@ -400,5 +402,127 @@ def delete_estimate(db: Session, actor: User, estimate_id: uuid.UUID) -> None:
     e = get_estimate(db, actor.org_id, estimate_id)
     if e.status == "issued":
         raise Conflict("An issued estimate is kept: revise it, or keep it as the record.")
+    if db.scalar(select(func.count()).select_from(MbEntry).where(MbEntry.estimate_id == e.id)):
+        raise Conflict("The estimate has entries in its measurement book: it is kept as their record.")
     audit(db, actor, "estimate.deleted", "estimate", e.id, f"Estimate {e.title} deleted")
     db.delete(e)
+
+
+# ----------------------------------------------------------------------------- measurement book
+
+
+def mb_open(e: Estimate) -> bool:
+    """Work is measured against an estimate once it has been issued: issued now, or a revision of an issued one."""
+    return e.status == "issued" or e.revision > 0
+
+
+def mb_quantities(lines: list[Measurement]) -> tuple[list[Decimal], Decimal]:
+    """Each line's quantity and the entry's, by the estimate's rules of measurement (interpretation 111)."""
+    qs = [line_quantity(MeasureLine(m.description, m.nos, m.length, m.breadth, m.depth, m.deduct)) for m in lines]
+    return qs, sum(qs, Decimal(0))
+
+
+def entry_out(m: MbEntry) -> dict[str, Any]:
+    lines = [Measurement.model_validate(x) for x in m.lines]
+    qs, total = mb_quantities(lines)
+    return {"id": m.id, "entry_no": m.entry_no, "item_id": m.item_id, "measured_on": m.measured_on, "location": m.location, "lines": lines,
+            "line_quantities": [float(q) for q in qs], "quantity": float(total), "status": m.status, "measured_by_name": m.measured_by_name,
+            "checked_by_name": m.checked_by_name, "checked_at": m.checked_at, "updated_at": m.updated_at}
+
+
+def list_entries(db: Session, e: Estimate) -> list[MbEntry]:
+    return list(db.scalars(select(MbEntry).where(MbEntry.estimate_id == e.id, MbEntry.org_id == e.org_id).order_by(MbEntry.entry_no)))
+
+
+def get_entry(db: Session, org_id: uuid.UUID, entry_id: uuid.UUID) -> MbEntry:
+    m = db.get(MbEntry, entry_id)
+    if m is None or m.org_id != org_id:
+        raise NotFound("Measurement book entry not found.")
+    return m
+
+
+def measurement_book(db: Session, org_id: uuid.UUID, estimate_id: uuid.UUID) -> dict[str, Any]:
+    """The entries in order, and each item's progress against the estimate (interpretation 117)."""
+    e = get_estimate(db, org_id, estimate_id)
+    res = {r["id"]: r for r in compute(db, e)["items"]}
+    entries = list_entries(db, e)
+    outs = [entry_out(m) for m in entries]
+    per_item: dict[str, list[tuple[Decimal, bool]]] = {}
+    for m, o in zip(entries, outs, strict=True):
+        per_item.setdefault(m.item_id, []).append((dec(o["quantity"]), m.status == "checked"))
+    items: list[dict[str, Any]] = []
+    for it in e.doc.get("items", []):
+        r = res[it["id"]]
+        items.append(_progress_row(it["id"], r["no"], it["description"], it["unit"], it["rate"], True, r["quantity"], per_item.get(it["id"], [])))
+    known = {it["id"] for it in e.doc.get("items", [])}
+    for item_id, got in per_item.items():
+        if item_id not in known:
+            items.append(_progress_row(item_id, "-", "An item no longer in the estimate", "", 0.0, False, 0.0, got))
+    return {"estimate_id": e.id, "open": mb_open(e), "entries": outs, "items": items,
+            "value_measured": float(sum((dec(i["value_measured"]) for i in items), Decimal(0))),
+            "value_checked": float(sum((dec(i["value_checked"]) for i in items), Decimal(0))),
+            "value_excess": float(sum((dec(i["value_excess"]) for i in items), Decimal(0)))}
+
+
+def _progress_row(item_id: str, no: str, description: str, unit: str, rate: float, in_estimate: bool, estimated: float,
+                  got: list[tuple[Decimal, bool]]) -> dict[str, Any]:
+    p = item_progress(estimated, got, rate)
+    return {"item_id": item_id, "no": no, "description": description, "unit": unit, "rate": rate, "in_estimate": in_estimate,
+            "estimated": float(p.estimated), "measured": float(p.measured), "checked": float(p.checked), "balance": float(p.balance),
+            "excess": float(p.excess), "percent": None if p.percent is None else float(p.percent), "value_measured": float(p.value_measured),
+            "value_checked": float(p.value_checked), "value_excess": float(p.value_excess), "entries": len(got)}
+
+
+def _check_entry_input(e: Estimate, data: MbEntryIn) -> None:
+    if data.item_id not in {it["id"] for it in e.doc.get("items", [])}:
+        raise Invalid("The item is not in the estimate.")
+    if data.measured_on > (utcnow() + timedelta(days=1)).date():
+        raise Invalid("The date of measurement is in the future.")
+
+
+def record_entry(db: Session, actor: User, estimate_id: uuid.UUID, data: MbEntryIn) -> MbEntry:
+    e = get_estimate(db, actor.org_id, estimate_id)
+    if not mb_open(e):
+        raise Conflict("Work is measured against an issued estimate: issue this one first.")
+    _check_entry_input(e, data)
+    last = db.scalar(select(func.max(MbEntry.entry_no)).where(MbEntry.estimate_id == e.id)) or 0
+    m = MbEntry(org_id=e.org_id, estimate_id=e.id, entry_no=last + 1, item_id=data.item_id, measured_on=data.measured_on,
+                location=data.location.strip(), lines=[x.model_dump(mode="json") for x in data.lines], status="recorded",
+                created_by=actor.id, measured_by_name=actor.full_name)
+    db.add(m)
+    db.flush()
+    audit(db, actor, "mb.recorded", "estimate", e.id, f"Measurement book of {e.title}: entry {m.entry_no} recorded")
+    return m
+
+
+def update_entry(db: Session, actor: User, entry_id: uuid.UUID, data: MbEntryIn) -> MbEntry:
+    m = get_entry(db, actor.org_id, entry_id)
+    if m.status == "checked":
+        raise Conflict("A checked entry is not changed: record a correcting entry instead.")
+    e = get_estimate(db, actor.org_id, m.estimate_id)
+    _check_entry_input(e, data)
+    m.item_id, m.measured_on, m.location = data.item_id, data.measured_on, data.location.strip()
+    m.lines = [x.model_dump(mode="json") for x in data.lines]
+    audit(db, actor, "mb.changed", "estimate", e.id, f"Measurement book of {e.title}: entry {m.entry_no} changed")
+    return m
+
+
+def check_entry(db: Session, actor: User, entry_id: uuid.UUID) -> MbEntry:
+    m = get_entry(db, actor.org_id, entry_id)
+    if m.status == "checked":
+        raise Conflict("The entry is checked already.")
+    if m.created_by == actor.id and not get_settings().allow_self_approval:
+        raise Conflict("An entry is checked by someone other than the one who measured it.")
+    m.status, m.checked_by_name, m.checked_at = "checked", actor.full_name, utcnow()
+    e = get_estimate(db, actor.org_id, m.estimate_id)
+    audit(db, actor, "mb.checked", "estimate", e.id, f"Measurement book of {e.title}: entry {m.entry_no} checked")
+    return m
+
+
+def delete_entry(db: Session, actor: User, entry_id: uuid.UUID) -> None:
+    m = get_entry(db, actor.org_id, entry_id)
+    if m.status == "checked":
+        raise Conflict("A checked entry is kept: record a correcting entry instead.")
+    e = get_estimate(db, actor.org_id, m.estimate_id)
+    audit(db, actor, "mb.deleted", "estimate", e.id, f"Measurement book of {e.title}: entry {m.entry_no} deleted")
+    db.delete(m)

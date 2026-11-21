@@ -23,7 +23,7 @@ import { api, type ApiError, download } from "../api/client";
 import { useDesignQuantities, useEstimate, useEstimatePreview, useInvalidatingMutation, useProject, useRateAnalyses } from "../api/hooks";
 import type { DesignQuantities, DesignQuantityKey, Estimate, EstimateDoc, EstimateItem, EstimateItemResult, Measurement, RateAnalysis, SorBook, SorItem } from "../api/types";
 import { Card, PageHeader } from "../components/Card";
-import { EstimateStatus } from "../components/EstimateCommon";
+import { EstimateStatus, input, Num } from "../components/EstimateCommon";
 import { SorPicker } from "../components/Estimation";
 import { fmt, fmtDate } from "../lib/format";
 import { useTab } from "../shell/hooks";
@@ -54,19 +54,8 @@ const blankItem = (patch: Partial<EstimateItem> = {}): EstimateItem => ({
   quantity_mode: "measured", quantity: 0, measurements: [], design: null, ...patch,
 });
 
-const input = "w-full bg-[var(--clp-panel)] border border-[var(--clp-border)] rounded px-1.5 py-1 text-[12.5px] text-[var(--clp-ink)] focus:outline-none focus:border-[var(--clp-accent)] disabled:bg-transparent disabled:border-transparent";
 const th = "py-2 px-1.5 font-semibold text-left";
 const td = "py-1 px-1.5 align-top";
-
-/** A number field that may be left blank (a dimension not measured) or not. */
-function Num({ value, onChange, label, blank = false, disabled, width = "w-[84px]" }: {
-  value: number | null; onChange: (v: number | null) => void; label: string; blank?: boolean; disabled?: boolean; width?: string;
-}) {
-  return (
-    <input type="number" step="any" aria-label={label} disabled={disabled} className={`${input} ${width} text-right num`}
-      value={value ?? ""} onChange={(e) => onChange(e.target.value === "" ? (blank ? null : 0) : Number(e.target.value))} />
-  );
-}
 
 function sourceCaption(it: EstimateItem): string {
   const s = it.rate_source;
@@ -209,6 +198,7 @@ export function EstimatePage() {
         {e.status === "issued" && can("estimate:write") && (
           <Button variant="outlined" disabled={action.isPending} onClick={() => action.mutate("revise", { onSuccess: (x) => notify(`Revision R${x.revision} opened`, "success"), onError: fail })}>Revise</Button>
         )}
+        {(e.status === "issued" || e.revision > 0) && <Button component={Link} to={`/estimates/${e.id}/measurement-book`}>Measurement book</Button>}
         <Tooltip describeChild title={dirty ? "The workbook is of the saved estimate" : "Abstract with live formulas, and the measurements"}>
           <Button startIcon={<DownloadOutlined />} onClick={() => download(`/estimates/${e.id}/estimate.xlsx`, "estimate.xlsx").catch(fail)}>Excel</Button>
         </Tooltip>

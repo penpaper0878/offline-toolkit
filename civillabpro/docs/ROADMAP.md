@@ -39,7 +39,7 @@ Exit: beam, column, slab and isolated footing designed, hand-checked and issued 
 * Per-project membership and custom roles; OIDC single sign-on; refresh token in an httpOnly cookie.
 * Job queue (Redis, Celery) and WebSocket notifications.
 * **Standards library**: register of IS, IRC, CPHEEO, MoRTH and NBC with status and amendments; clause index; search; bookmarks; organisation notes.
-* **Quantity estimation**: SOR import (CPWD DSR, MoRTH, GWSSB, Gujarat R&B first), rate analysis, BOQ, abstract and detailed estimates, measurement book, running and final bills. Quantities flow in from designs. **Schedules, analyses and estimates done for 0.8.0** (EST-001 to EST-003; the organisation imports its own schedule, none is shipped); measurement book and bills next.
+* **Quantity estimation**: SOR import (CPWD DSR, MoRTH, GWSSB, Gujarat R&B first), rate analysis, BOQ, abstract and detailed estimates, measurement book, running and final bills. Quantities flow in from designs. **Schedules, analyses, estimates and the measurement book done for 0.8.0** (EST-001 to EST-004; the organisation imports its own schedule, none is shipped); bills next.
 * Remaining structural members: combined footing (**done at 0.6.0**; column moments at 0.7.0), strap footing (**done at 0.7.0**), trapezoidal footing, pile cap, staircase, retaining wall.
 
 Exit: a consultant can design a building frame's members, price them against a state SOR and issue the estimate, on a laptop with no network.

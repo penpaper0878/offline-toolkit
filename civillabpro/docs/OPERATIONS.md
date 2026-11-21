@@ -56,14 +56,14 @@ alembic upgrade head        # if the dump is from an older version
 
 From desktop to the office server, between colleagues, or from one organisation to another:
 
-1. On the project's page choose **Export project**. That saves one `.clp.json` file with the project, every design, each design's revision history and its review record, and the project's estimates.
+1. On the project's page choose **Export project**. That saves one `.clp.json` file with the project, every design, each design's revision history and its review record, and the project's estimates with their measurement books.
 2. On the other installation choose **Import project** (on the Projects page, or on Data and backup) and pick the file.
 
 The import:
 
 * creates a new project in your organisation;
 * brings the designs in as they were calculated, with the engine version that made them, and does not recalculate them (a revision recalculates as usual);
-* brings the estimates in as drafts or issued as they were, their quantities still linked to the same designs (now the imported ones); schedules of rates and rate analyses are the organisation's, not the project's, and do not travel (an estimate keeps its rates);
+* brings the estimates in as drafts or issued as they were, each with its measurement book (entries recorded or checked as they were), their quantities still linked to the same designs (now the imported ones); schedules of rates and rate analyses are the organisation's, not the project's, and do not travel (an estimate keeps its rates);
 * reads files of format version 1 (before estimates) and 2;
 * gives the project a suffixed job number (`-2`, `-3`) if its own is already in use, and says so;
 * refuses a file with an element this installation does not have (update it first), or with a design whose result disagrees with its own record (a damaged file);

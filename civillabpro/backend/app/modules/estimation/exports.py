@@ -181,3 +181,54 @@ def build_pdf(meta: dict[str, str], doc: dict[str, Any], result: dict[str, Any],
     labels = {"calculation": "Estimate", "designed": "Prepared", "checked": "Issued"}
     pdf.build(s, canvasmaker=lambda *a, **k: _NumberedCanvas(*a, title_block=meta, labels=labels, **k))
     return buf.getvalue()
+
+
+def build_mb_pdf(meta: dict[str, str], book: dict[str, Any]) -> bytes:
+    """The measurement book: the progress of each item against the estimate, then every entry with its lines and its check."""
+    buf = io.BytesIO()
+    width = A4[0] - 30 * mm
+    pdf = BaseDocTemplate(buf, pagesize=A4, leftMargin=15 * mm, rightMargin=15 * mm, topMargin=36 * mm, bottomMargin=16 * mm,
+                          title=f"Measurement book: {meta['calculation']} - {meta['project']}", author=meta["designed"], subject="Measurement book")
+    pdf.addPageTemplates([PageTemplate(id="page", frames=[Frame(pdf.leftMargin, pdf.bottomMargin, width, A4[1] - 52 * mm, id="body", leftPadding=0,
+                                                                rightPadding=0, topPadding=0, bottomPadding=0)])])
+    right = ParagraphStyle("r", parent=BODY, alignment=2)
+    entries = book["entries"]
+    n_checked = sum(1 for m in entries if m["status"] == "checked")
+    s: list[Any] = [Paragraph(f"<b>Measurement book: {html.escape(meta['calculation'])}</b>", ParagraphStyle("t", parent=BODY, fontSize=13, leading=17)),
+                    Paragraph(f"{len(entries)} entr{'y' if len(entries) == 1 else 'ies'}, {n_checked} checked.", BODY)]
+    s.append(Paragraph("Progress against the estimate", H2))
+    rows: list[list[Any]] = [["Item", "Description", "Unit", "Estimated", "Measured", "Checked", "Balance", "Excess", "Value (Rs)"]]
+    for it in book["items"]:
+        rows.append([it["no"], Paragraph(html.escape(it["description"][:160]) + ("" if it["in_estimate"] else " (not in this revision)"), BODY), it["unit"],
+                     *(Paragraph(f"{it[k]:,.2f}", right) for k in ("estimated", "measured", "checked", "balance", "excess")),
+                     Paragraph(_money(it["value_measured"]), right)])
+    rows.append(["", Paragraph("<b>Total</b>", BODY), "", "", "", "", "", "", Paragraph(f"<b>{_money(book['value_measured'])}</b>", right)])
+    s.append(_table(rows, [width * 0.06, width * 0.30, width * 0.06, width * 0.10, width * 0.10, width * 0.10, width * 0.09, width * 0.08,
+                           width * 0.11]))
+    s.append(Paragraph(f"Value: of the work measured, at the estimate's rates. Of the work checked: Rs {_money(book['value_checked'])}. "
+                       f"Beyond the estimated quantities: Rs {_money(book['value_excess'])}.", SMALL))
+    if entries:
+        s.append(Paragraph("Entries", H2))
+        items = {it["item_id"]: it for it in book["items"]}
+        for m in entries:
+            it = items.get(m["item_id"], {"no": "-", "description": "", "unit": ""})
+            head = (f"<b>Entry {m['entry_no']}</b>, {m['measured_on'].strftime('%d %b %Y')}: item {html.escape(it['no'])}, "
+                    f"{html.escape(it['description'][:200])}" + (f". <i>{html.escape(m['location'])}</i>" if m["location"] else ""))
+            block: list[Any] = [Paragraph(head, BODY)]
+            mrows: list[list[Any]] = [["Description", "Nos.", "L (m)", "B (m)", "D (m)", "Quantity"]]
+            for ln, q in zip(m["lines"], m["line_quantities"], strict=True):
+                mrows.append([Paragraph(("<i>Deduct:</i> " if ln.deduct else "") + html.escape(ln.description), BODY), f"{ln.nos:g}",
+                              *(f"{v:g}" if v is not None else "" for v in (ln.length, ln.breadth, ln.depth)), Paragraph(f"{q:,.2f}", right)])
+            mrows.append([Paragraph("<b>Total</b>", BODY), "", "", "", "", Paragraph(f"<b>{m['quantity']:,.2f} {html.escape(it['unit'])}</b>", right)])
+            block.append(_table(mrows, [width * 0.42, width * 0.09, width * 0.11, width * 0.11, width * 0.11, width * 0.16]))
+            checked = (f"checked by {html.escape(m['checked_by_name'])} on {m['checked_at'].strftime('%d %b %Y')}" if m["status"] == "checked"
+                       else "not yet checked")
+            block.append(Paragraph(f"Measured by {html.escape(m['measured_by_name'])}; {checked}.", SMALL))
+            block.append(Spacer(1, 2 * mm))
+            s.append(KeepTogether(block))
+    s.append(Spacer(1, 4 * mm))
+    s.append(Paragraph("Each line is the number times the dimensions given, to 0.01; a deduction is taken off. Progress is the sum of the "
+                       "entries against the estimated quantity of the estimate's current revision.", SMALL))
+    labels = {"calculation": "Measurement book", "designed": "Estimate prepared", "checked": "Estimate issued"}
+    pdf.build(s, canvasmaker=lambda *a, **k: _NumberedCanvas(*a, title_block=meta, labels=labels, **k))
+    return buf.getvalue()

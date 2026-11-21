@@ -15,7 +15,7 @@ PostgreSQL 16 with PostGIS on servers; SQLite for the offline desktop install. O
 | Migrations | one revision per change, reversible, checked against the models in CI on both engines |
 | Types | only types that exist on both engines; spatial columns are added by PostgreSQL-only migrations with a GeoJSON fallback column |
 
-## Part 1: implemented (revisions 0001 and 0002)
+## Part 1: implemented (revisions 0001 to 0003)
 
 ```mermaid
 erDiagram
@@ -31,6 +31,7 @@ erDiagram
     organizations ||--o{ rate_analyses : analyses
     projects ||--o{ estimates : "is priced by"
     estimates }o..o{ structural_designs : "takes quantities from (in doc)"
+    estimates ||--o{ mb_entries : "measured in"
 ```
 
 ### organizations
@@ -186,6 +187,23 @@ One row per designed member, whatever its type.
 | notes | text | |
 | created_at, updated_at | timestamptz | |
 
+### mb_entries (0003)
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid PK | |
+| org_id | uuid FK | indexed; cascade |
+| estimate_id | uuid FK | indexed; cascade |
+| entry_no | integer | unique (estimate_id, entry_no) |
+| item_id | varchar(40) | the item's identifier in the estimate's document |
+| measured_on | date | |
+| location | varchar(300) | |
+| lines | json | description, nos, length, breadth, depth, deduct |
+| status | varchar(12) | recorded, checked |
+| created_by | uuid FK null | the one who measured, for the four-eyes rule; set null |
+| measured_by_name, checked_by_name | varchar(200) | |
+| checked_at | timestamptz null | |
+| created_at, updated_at | timestamptz | |
+
 An estimate is one document, as a design's inputs are: its items, measurements and links are read and written whole, and the server works out every quantity and amount from it. Money is in paise. Design links hold IDs inside the document, not foreign keys: a deleted design leaves the item marked stale, not broken.
 
 ## Part 2: planned, by module
@@ -211,14 +229,14 @@ These are the designs the modules will be built against. Each becomes real, and 
 | standard_notes | clause_id, org_id, body, author | the organisation's own interpretations |
 | bookmarks | user_id, clause_id, note | |
 
-### Quantity estimation, still to build (EST-004, EST-005)
-Schedules, analyses and estimates are built (Part 1); items, measurements and analysis lines live in their documents rather than in the `boq_items`, `measurements` and `rate_analysis_lines` tables first planned.
+### Quantity estimation, still to build (EST-005)
+Schedules, analyses, estimates and the measurement book are built (Part 1); items, measurements and analysis lines live in their documents rather than in the `boq_items`, `measurements` and `rate_analysis_lines` tables first planned.
 
 | Table | Key columns | Purpose |
 |---|---|---|
-| mb_entries | estimate_id, item_id (in the estimate's doc), date, measured_by, checked_by, lines json | measurement book: work done |
 | bills | project_id, estimate_id, kind (running, final), number, period_from, period_to, status | RA and final bills |
 | bill_lines | bill_id, item_id, qty_previous, qty_this, rate_paise, amount_paise | |
+| mb_entries.bill_id | uuid FK null | the bill that paid the entry: a billed entry is locked |
 
 ### Water engineering (phase 3)
 | Table | Key columns | Purpose |

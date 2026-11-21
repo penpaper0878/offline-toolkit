@@ -7,10 +7,10 @@ quantities to designs, are one document beside the columns lists read, as a desi
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, ForeignKey, Index, Integer, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import BigInteger, Date, ForeignKey, Index, Integer, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base, IdMixin, JSONDoc, TimestampMixin, UTCDateTime
@@ -75,3 +75,24 @@ class Estimate(IdMixin, TimestampMixin, Base):
     issued_by_name: Mapped[str] = mapped_column(String(200), default="")
     issued_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     notes: Mapped[str] = mapped_column(Text, default="")
+
+
+class MbEntry(IdMixin, TimestampMixin, Base):
+    """An entry of the measurement book: work done on one item of an issued estimate, measured on a date and checked by a
+    second person. A checked entry is not changed."""
+
+    __tablename__ = "mb_entries"
+    __table_args__ = (UniqueConstraint("estimate_id", "entry_no"),)
+
+    org_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
+    estimate_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("estimates.id", ondelete="CASCADE"), index=True)
+    entry_no: Mapped[int] = mapped_column(Integer)
+    item_id: Mapped[str] = mapped_column(String(40))  # the item's identifier in the estimate's document
+    measured_on: Mapped[date] = mapped_column(Date)
+    location: Mapped[str] = mapped_column(String(300), default="")
+    lines: Mapped[list[dict[str, Any]]] = mapped_column(JSONDoc)  # description, nos, length, breadth, depth, deduct
+    status: Mapped[str] = mapped_column(String(12), default="recorded")  # recorded, checked
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    measured_by_name: Mapped[str] = mapped_column(String(200), default="")
+    checked_by_name: Mapped[str] = mapped_column(String(200), default="")
+    checked_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)

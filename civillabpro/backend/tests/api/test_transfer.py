@@ -110,8 +110,15 @@ def test_estimates_travel_with_their_design_links(client, team, project):
            "additions": [{"label": "Contingencies", "pct": 3}]}
     saved = client.put(f"/api/v1/estimates/{est['id']}", headers=team["engineer"], json={"title": "Footings", "doc": doc}).json()
     client.post(f"/api/v1/estimates/{est['id']}/issue", headers=team["reviewer"])
+    mb = f"/api/v1/estimates/{est['id']}/measurement-book"
+    for n in (2, 1):
+        client.post(mb, headers=team["engineer"], json={"item_id": "m", "measured_on": "2026-11-20", "location": f"F{n}",
+                                                         "lines": [{"description": f"F{n}", "nos": n, "length": 2.2, "breadth": 2.05, "depth": 0.45}]})
+    client.post(f"/api/v1/mb-entries/{client.get(mb, headers=team['viewer']).json()['entries'][0]['id']}/check", headers=team["reviewer"])
+    book = client.get(mb, headers=team["viewer"]).json()
     archive = client.get(f"/api/v1/projects/{project['id']}/export", headers=team["viewer"]).json()
     assert archive["designs"][0]["ref"] == footing["id"] and archive["estimates"][0]["status"] == "issued"
+    assert [(m["entry_no"], m["status"]) for m in archive["estimates"][0]["measurements"]] == [(1, "checked"), (2, "recorded")]
 
     other = register(client, "owner@other.example", "Other Consultants", "Ravi Other")
     out = client.post("/api/v1/projects/import", headers=other, json=archive).json()
@@ -123,6 +130,17 @@ def test_estimates_travel_with_their_design_links(client, team, project):
     assert got["doc"]["items"][0]["design"]["design_id"] == new_design  # the link follows the design
     assert got["status"] == "issued" and got["issued_by_name"] == "Reviewer User" and got["result"]["stale"] == 0
     assert got["result"]["abstract"] == saved["result"]["abstract"] and got["total"] == saved["result"]["abstract"]["rounded"]
+    moved = client.get(f"/api/v1/estimates/{e['id']}/measurement-book", headers=other).json()  # the book travels as it was
+    assert [(m["entry_no"], m["quantity"], m["status"], m["checked_by_name"]) for m in moved["entries"]] == \
+        [(m["entry_no"], m["quantity"], m["status"], m["checked_by_name"]) for m in book["entries"]]
+    assert moved["items"] == book["items"]
+
+    dup = json.loads(json.dumps(archive))
+    dup["estimates"][0]["measurements"][1]["entry_no"] = 1
+    assert "share a number" in client.post("/api/v1/projects/import", headers=other, json=dup).json()["error"]["message"]
+    junk = json.loads(json.dumps(archive))
+    junk["estimates"][0]["measurements"][0]["lines"][0]["nos"] = "four"
+    assert "measurement book is not readable" in client.post("/api/v1/projects/import", headers=other, json=junk).json()["error"]["message"]
 
     # a link to a design the file does not hold is refused; a version 1 file (no estimates, no references) still imports
     bad = json.loads(json.dumps(archive))

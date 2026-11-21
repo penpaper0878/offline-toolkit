@@ -84,7 +84,7 @@ Pydantic is allowed in the domain: it is the value-object and validation library
 | dashboard | read models and search across contexts (queries only) | built |
 | transfer | project archives (export, import) and the database backup | built |
 | standards | code register, clause index, search, bookmarks | designed |
-| estimation | schedules of rates, rate analyses, estimates (measurement, design quantities, abstract); measurement book and bills next | built (0.8.0) |
+| estimation | schedules of rates, rate analyses, estimates (measurement, design quantities, abstract), measurement book; bills next | built (0.8.0) |
 | water | demand, networks, reservoirs, pumping, treatment | designed |
 | sewerage | sewer networks, STP process design, pumping | designed |
 | highway | pavement, geometry, drainage, road inventory | designed |

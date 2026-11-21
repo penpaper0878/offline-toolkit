@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
 import type {
-  DashboardSummary, Design, DesignQuantities, DesignResult, DesignSummary, ElementSpec, Estimate, EstimateDoc, EstimateResult, EstimateSummary, Me, Project,
+  DashboardSummary, Design, DesignQuantities, MeasurementBook, DesignResult, DesignSummary, ElementSpec, Estimate, EstimateDoc, EstimateResult, EstimateSummary, Me, Project,
   ProjectPage, RateAnalysis, RoleInfo, SearchHit, SorBook, SorItem, User,
 } from "./types";
 
@@ -63,7 +63,7 @@ export function useInvalidatingMutation<TIn, TOut>(fn: (input: TIn) => Promise<T
   return useMutation({
     mutationFn: fn,
     onSuccess: () => {
-      for (const key of ["projects", "project", "designs", "design", "dashboard", "users", "search", "estimates", "estimate", "sor-books", "rate-analyses"]) {
+      for (const key of ["projects", "project", "designs", "design", "dashboard", "users", "search", "estimates", "estimate", "sor-books", "rate-analyses", "measurement-book"]) {
         void qc.invalidateQueries({ queryKey: [key] });
       }
     },
@@ -93,4 +93,5 @@ export function useEstimatePreview(id: string | undefined, doc: EstimateDoc | nu
     enabled: !!id && doc !== null, placeholderData: keepPreviousData, retry: false,
   });
 }
-
+export const useMeasurementBook = (estimateId: string | undefined) => useQuery({
+  queryKey: ["measurement-book", estimateId ?? ""], queryFn: () => api<MeasurementBook>(`/estimates/${estimateId}/measurement-book`), enabled: !!estimateId });

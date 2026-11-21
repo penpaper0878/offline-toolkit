@@ -1,6 +1,7 @@
 """The project archive: a portable JSON file of one project, its designs and their revision history, and its estimates.
 
-Version 2 adds the estimates (and each design's reference, to which their quantities link); version 1 files still import. A reader
+Version 2 adds the estimates with their measurement books (and each design's reference, to which their quantities link); version 1 files
+still import. A reader
 refuses a format or version it does not know. Results travel as they were calculated, with the engine
 version that made them, so an issued calculation can be reproduced wherever the archive is opened.
 """
@@ -52,6 +53,21 @@ class DesignRecord(BaseModel):
     revisions: list[RevisionRecord] = Field(default_factory=list, max_length=500)
 
 
+class MbEntryRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    entry_no: int = Field(ge=1)
+    item_id: str = Field(min_length=1, max_length=40)
+    measured_on: date
+    location: str = Field("", max_length=300)
+    lines: list[dict[str, Any]] = Field(min_length=1, max_length=200)
+    status: Literal["recorded", "checked"]
+    measured_by_name: str = Field("", max_length=200)
+    checked_by_name: str = Field("", max_length=200)
+    checked_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
 class EstimateRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
     title: str = Field(min_length=1, max_length=200)
@@ -64,6 +80,7 @@ class EstimateRecord(BaseModel):
     issued_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+    measurements: list[MbEntryRecord] = Field(default_factory=list, max_length=20_000)  # its measurement book
 
 
 class ProjectRecord(ProjectBase):

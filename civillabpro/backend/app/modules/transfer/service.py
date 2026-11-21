@@ -15,8 +15,8 @@ from sqlalchemy.orm import Session
 from app import __version__
 from app.core.database import get_engine
 from app.core.errors import Conflict, Invalid
-from app.modules.estimation.models import Estimate
-from app.modules.estimation.schemas import EstimateDoc
+from app.modules.estimation.models import Estimate, MbEntry
+from app.modules.estimation.schemas import EstimateDoc, Measurement
 from app.modules.estimation.service import compute as compute_estimate
 from app.modules.estimation.service import paise
 from app.modules.identity.models import Organization, User
@@ -25,7 +25,16 @@ from app.modules.projects.models import Project
 from app.modules.projects.service import get_project
 from app.modules.structural.domain.registry import ELEMENTS
 from app.modules.structural.models import StructuralDesign, StructuralDesignRevision
-from app.modules.transfer.schemas import FORMAT, FORMAT_VERSION, DesignRecord, EstimateRecord, ProjectArchive, ProjectRecord, RevisionRecord
+from app.modules.transfer.schemas import (
+    FORMAT,
+    FORMAT_VERSION,
+    DesignRecord,
+    EstimateRecord,
+    MbEntryRecord,
+    ProjectArchive,
+    ProjectRecord,
+    RevisionRecord,
+)
 
 _PROJECT_FIELDS = ("code", "name", "client", "location", "state", "project_type", "status", "description", "start_date", "end_date")
 
@@ -54,7 +63,12 @@ def export_project(db: Session, actor: User, project_id: uuid.UUID) -> ProjectAr
         ) for d in designs],
         estimates=[EstimateRecord(title=e.title, status=e.status, revision=e.revision, doc=e.doc, notes=e.notes,  # type: ignore[arg-type]
                                   prepared_by_name=e.prepared_by_name, issued_by_name=e.issued_by_name, issued_at=e.issued_at,
-                                  created_at=e.created_at, updated_at=e.updated_at)
+                                  created_at=e.created_at, updated_at=e.updated_at,
+                                  measurements=[MbEntryRecord(entry_no=m.entry_no, item_id=m.item_id, measured_on=m.measured_on, location=m.location,
+                                                              lines=m.lines, status=m.status, measured_by_name=m.measured_by_name,  # type: ignore[arg-type]
+                                                              checked_by_name=m.checked_by_name, checked_at=m.checked_at, created_at=m.created_at,
+                                                              updated_at=m.updated_at)
+                                                for m in db.scalars(select(MbEntry).where(MbEntry.estimate_id == e.id).order_by(MbEntry.entry_no))])
                    for e in db.scalars(select(Estimate).where(Estimate.project_id == project.id).order_by(Estimate.created_at))],
     )
     audit(db, actor, "project.exported", "project", project.id,
@@ -93,6 +107,13 @@ def import_project(db: Session, actor: User, archive: ProjectArchive) -> tuple[P
             raise Invalid(f"Estimate {e.title}: its items are not readable; the file has been altered or damaged.") from err
         if any(it.design is not None and str(it.design.design_id) not in refs for it in doc.items):
             raise Invalid(f"Estimate {e.title}: an item takes its quantity from a design the file does not hold.")
+        if len({m.entry_no for m in e.measurements}) != len(e.measurements):
+            raise Invalid(f"Estimate {e.title}: two entries of its measurement book share a number; the file has been altered or damaged.")
+        try:
+            for m in e.measurements:
+                [Measurement.model_validate(x) for x in m.lines]
+        except ValueError as err:
+            raise Invalid(f"Estimate {e.title}: its measurement book is not readable; the file has been altered or damaged.") from err
         docs.append(doc)
     data = archive.project.model_dump()
     code = _free_code(db, actor.org_id, data["code"].strip())
@@ -126,6 +147,11 @@ def import_project(db: Session, actor: User, archive: ProjectArchive) -> tuple[P
                        created_at=e.created_at, updated_at=e.updated_at)
         db.add(est)
         db.flush()
+        for m in e.measurements:
+            db.add(MbEntry(org_id=actor.org_id, estimate_id=est.id, entry_no=m.entry_no, item_id=m.item_id, measured_on=m.measured_on, location=m.location,
+                           lines=[Measurement.model_validate(x).model_dump(mode="json") for x in m.lines], status=m.status, created_by=None,
+                           measured_by_name=m.measured_by_name, checked_by_name=m.checked_by_name, checked_at=m.checked_at,
+                           created_at=m.created_at, updated_at=m.updated_at))
         est.total_paise = paise(Decimal(str(compute_estimate(db, est)["abstract"]["rounded"])))
     audit(db, actor, "project.imported", "project", project.id,
           f"Project {project.code} {project.name} imported with {len(archive.designs)} designs and {len(archive.estimates)} estimates",

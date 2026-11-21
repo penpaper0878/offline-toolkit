@@ -17,6 +17,7 @@ const UsersPage = lazy(() => import("./pages/UsersPage").then((m) => ({ default:
 const DataPage = lazy(() => import("./pages/DataPage").then((m) => ({ default: m.DataPage })));
 const EstimationPage = lazy(() => import("./pages/EstimationPage").then((m) => ({ default: m.EstimationPage })));
 const EstimatePage = lazy(() => import("./pages/EstimatePage").then((m) => ({ default: m.EstimatePage })));
+const MeasurementBookPage = lazy(() => import("./pages/MeasurementBookPage").then((m) => ({ default: m.MeasurementBookPage })));
 
 const Splash = ({ label }: { label: string }) => (
   <div className="h-full flex flex-col items-center justify-center gap-3 text-[var(--clp-ink-2)]"><CircularProgress size={22} /><span>{label}</span></div>
@@ -59,6 +60,7 @@ export function App() {
           <Route path="structural" element={<StructuralPage />} />
           <Route path="estimation" element={<EstimationPage />} />
           <Route path="estimates/:estimateId" element={<EstimatePage />} />
+          <Route path="estimates/:estimateId/measurement-book" element={<MeasurementBookPage />} />
           <Route element={<RequirePermission permission="user:manage" />}>
             <Route path="admin/users" element={<UsersPage />} />
           </Route>

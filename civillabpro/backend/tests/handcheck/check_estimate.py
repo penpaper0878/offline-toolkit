@@ -24,6 +24,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
 from app.modules.estimation.domain.abstract import Addition, abstract, amount  # noqa: E402
 from app.modules.estimation.domain.measure import MeasureLine, item_quantity, line_quantity  # noqa: E402
+from app.modules.estimation.domain.progress import item_progress  # noqa: E402
 from app.modules.estimation.domain.rates import AnalysisLine, analyse  # noqa: E402
 
 
@@ -124,11 +125,37 @@ def main() -> int:
             tot += want
         same(f"abstract {i} total", res.total, tot)
         same(f"abstract {i} rounded", res.rounded, half_up(tot, 0))
+
+    # progress against the estimate: entries of the measurement book summed, balance, excess, values at the rate
+    for i in range(60):
+        est = round(rng.uniform(0, 300), 2) if i % 10 else 0.0
+        entries = [(round(rng.uniform(-5, 120), 2), rng.random() < 0.6) for _ in range(rng.randint(0, 6))]
+        rate = round(rng.uniform(1, 15000), 2)
+        p = item_progress(est, [(line_quantity(MeasureLine("", 1.0, q)) if q >= 0 else -line_quantity(MeasureLine("", 1.0, -q)), ok)
+                                for q, ok in entries], rate)
+        measured = sum((f(q) for q, _ in entries), F(0))
+        checked = sum((f(q) for q, ok in entries if ok), F(0))
+        e = f(est)
+        same(f"progress {i} measured", p.measured, measured)
+        same(f"progress {i} checked", p.checked, checked)
+        same(f"progress {i} balance", p.balance, e - measured if e > measured else F(0))
+        same(f"progress {i} excess", p.excess, measured - e if measured > e else F(0))
+        same(f"progress {i} value measured", p.value_measured, half_up(measured * f(rate)))
+        same(f"progress {i} value checked", p.value_checked, half_up(checked * f(rate)))
+        same(f"progress {i} value excess", p.value_excess, half_up((measured - e if measured > e else F(0)) * f(rate)))
+        if e > 0:
+            same(f"progress {i} percent", p.percent, half_up(measured * 100 / e, 1))
+        elif p.percent is not None:
+            bad.append(f"progress {i}: a percentage of an item estimated at nothing")
+    # by hand: 5.83 + 9.14 = 14.97 of 10 cum; excess 4.97 x 6544.15 = 32524.4255 -> 32524.43; 149.7 percent
+    w = item_progress(10.0, [(line_quantity(MeasureLine("", 1.0, 5.83)), True), (line_quantity(MeasureLine("", 1.0, 9.14)), False)], 6544.15)
+    same("worked progress excess", w.value_excess, F("32524.43"))
+    same("worked progress percent", w.percent, F("149.7"))
     for line in bad:
         print("BAD", line)
     if bad:
         return 1
-    print(f"OK: {n} values of measurements, analyses of rates and abstracts agree with the independent hand check.")
+    print(f"OK: {n} values of measurements, analyses of rates, abstracts and progress agree with the independent hand check.")
     return 0
 
 
