@@ -18,7 +18,7 @@ def design(client, team, project):
 
 def test_elements_registry_describes_the_beam(client, owner):
     elements = {e["type"]: e for e in client.get("/api/v1/structural/elements", headers=owner).json()}
-    assert list(elements) == ["beam", "continuous_beam", "column", "slab", "footing", "combined_footing"]
+    assert list(elements) == ["beam", "continuous_beam", "column", "slab", "footing", "combined_footing", "strap_footing"]
     beam = elements["beam"]
     assert beam["type"] == "beam" and beam["code_basis"][0] == "IS 456:2000" and beam["limitations"]
     assert beam["defaults"]["clear_span_mm"] == 4000
@@ -260,6 +260,24 @@ def test_combined_footing_goes_through_the_same_life_cycle(client, team, project
     assert revised["result"]["data"]["a"] == 200 and revised["result"]["data"]["L"] < d["result"]["data"]["L"]
     assert wb["BBS"]["B8"].value.startswith("Bars along, bottom")
     assert {"CLP-REBAR", "CLP-SUPPORT", "CLP-CONCRETE"} <= {layer.dxf.name for layer in doc.layers}
+
+
+def test_strap_footing_goes_through_the_same_life_cycle(client, team, project):
+    sf = {e["type"]: e for e in client.get("/api/v1/structural/elements", headers=team["viewer"]).json()}["strap_footing"]
+    assert sf["title"] == "RCC strap footing" and sf["defaults"]["spacing_mm"] == 4500 and sf["defaults"]["left_end_mm"] is None
+    assert sf["input_schema"]["properties"]["strap_depth_mm"]["group"] == "Strap"
+
+    calc = client.post("/api/v1/structural/strap_footing/calculate", headers=team["viewer"], json={}).json()
+    assert calc["status"] == "ok" and calc["key_results"][0]["value"] == "1600 x 3200 x 700" and calc["key_results"][2]["value"] == "400 x 800"
+    assert [v["id"] for v in calc["drawing"]["views"]] == ["plan", "elevation", "section"]
+    assert any(s["title"].startswith("5. Pad 2:") for s in calc["sheet"]["sections"])
+    r = client.post("/api/v1/structural/strap_footing/calculate", headers=team["viewer"], json={"pad1_length_mm": 1600})
+    assert r.status_code == 422 and "both" in r.json()["error"]["message"]
+
+    d, revised, wb, doc = _life_cycle(client, team, project, "strap_footing", "SF1", {"p1_service_kn": 900})
+    assert revised["result"]["data"]["R1"] > d["result"]["data"]["R1"]
+    assert wb["BBS"]["B8"].value.startswith("Strap, top bars")
+    assert {"CLP-REBAR", "CLP-STIRRUP", "CLP-CONCRETE"} <= {layer.dxf.name for layer in doc.layers}
 
 
 def test_flanged_beam_through_the_same_endpoint(client, owner):

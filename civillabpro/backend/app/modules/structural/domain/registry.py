@@ -14,7 +14,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from app.modules.structural.domain import beam, column, combined_footing, continuous_beam, footing, slab
+from app.modules.structural.domain import beam, column, combined_footing, continuous_beam, footing, slab, strap_footing
 
 
 @dataclass(frozen=True)
@@ -145,7 +145,24 @@ ELEMENTS: dict[str, ElementSpec] = {
             "Rigid footing: the pressure varies linearly along it and is uniform across it. Settlement is not checked.",
             "Uniform depth and no shear reinforcement: the depth is chosen for shear. The width is the least the bearing pressure allows; enter "
             "a wider one for a shallower footing.",
-            "Bars along run the full length uncurtailed. Trapezoidal and strap footings, for a heavier column at a property line, are in the backlog.",
+            "Bars along run the full length uncurtailed. For a heavier column at a property line use the strap footing; trapezoidal footings "
+            "are in the backlog.",
+        ),
+    ),
+    strap_footing.ELEMENT_TYPE: ElementSpec(
+        type=strap_footing.ELEMENT_TYPE,
+        title="RCC strap footing",
+        description="A column at a property line on an eccentric pad, tied by a rigid strap beam to an interior column on its own pad: reactions "
+                    "by statics, the strap's bending and shear with stirrups, the exterior pad across the strap, the interior pad as an isolated footing.",
+        engine_version=strap_footing.ENGINE_VERSION,
+        code_basis=strap_footing.CODE_BASIS,
+        input_model=strap_footing.StrapFootingInput,
+        design=strap_footing.design_strap_footing,
+        limitations=(
+            "Two rectangular columns on the strap's line, axial service loads only, one load case.",
+            "The strap is rigid and kept off the soil between the pads; its own weight is within the sizing allowance and left out of its design.",
+            "Pad 1 is no wider than twice its length unless entered; pad 2 is an isolated footing with equal projections.",
+            "The strap is a rectangular beam of one section with one layer of top bars; uniform depth pads, no shear reinforcement in them.",
         ),
     ),
 }

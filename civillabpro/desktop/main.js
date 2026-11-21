@@ -91,7 +91,7 @@ async function smoke(health) {
     const magic = { 'report.pdf': '%PDF', 'bbs.xlsx': 'PK', 'drawing.dxf': '  0' };
     const designs = {};
     for (const [type, inputs] of [['beam', {}], ['continuous_beam', {}], ['continuous_beam', { analysis: 'elastic' }], ['column', {}], ['slab', {}],
-                                  ['footing', {}], ['combined_footing', {}]]) {
+                                  ['footing', {}], ['combined_footing', {}], ['strap_footing', {}]]) {
       const d = await (await api('/projects/' + project.id + '/designs', { method: 'POST', headers: { ...auth, ...json },
         body: JSON.stringify({ element_type: type, name: type + (inputs.analysis ? '-' + inputs.analysis : ''), inputs }) })).json();
       if (d.status !== 'ok') throw new Error(type + ' designed ' + d.status);

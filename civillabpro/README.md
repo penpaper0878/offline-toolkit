@@ -14,8 +14,9 @@ An Indian civil engineering operating system: design to Indian Standards, estima
 | Structural design: RCC column to IS 456:2000 | built (engine 1.0.0); clauses still to be compared with the printed code |
 | Structural design: RCC slab (one-way, two-way) to IS 456:2000 | built (engine 1.0.0); Table 26 rows still to be compared with the printed code |
 | Structural design: RCC isolated footing to IS 456:2000 | built (engine 1.1.0) |
-| Structural design: RCC combined footing under two columns | built (engine 1.0.0) |
-| Structural design: strap footing, staircase, retaining wall and others | phase 2 |
+| Structural design: RCC combined footing under two columns | built (engine 1.1.0) |
+| Structural design: RCC strap footing (a column at a property line) | built (engine 1.0.0) |
+| Structural design: trapezoidal footing, staircase, retaining wall and others | phase 2 |
 | Estimation, standards library, water, sewerage, highway, laboratory, GIS, project management, AI assistant | designed, not started |
 
 ## What works today
@@ -27,7 +28,8 @@ An Indian civil engineering operating system: design to Indian Standards, estima
 * Column design: effective length, slenderness, minimum eccentricity, additional moments, biaxial bending by strain compatibility, ties and cross-ties, with interaction diagrams.
 * Slab design: one panel by its spans and the condition of its four edges; one-way strips (simply supported or Tables 12 and 13) or two-way panels (Table 26 held down, Table 27 free), flexure, shear, deflection, corner torsion steel, top and bottom steel with Annex D extents.
 * Isolated footing design: plan size from the bearing pressure with moments both ways, depth from bending, one-way and punching shear, central band steel, development length (with end bends where needed), bearing at the column base.
-* Combined footing design: two columns on one footing, centred on their loads or set from a property line; bending and shear along and across, bands of steel under the columns, punching round each, development at the stress of each section, bearing under both columns.
+* Combined footing design: two columns on one footing, centred on their loads and moments or set from a property line; bending and shear along and across, bands of steel under the columns, punching round each, development at the stress of each section, bearing under both columns.
+* Strap footing design: a column at a property line on an eccentric pad, tied by a strap beam to an interior column; reactions by statics, the strap's bending and shear with stirrups, both pads, bearing.
 * Bar bending schedule, quantities and a to-scale drawing from the same calculation.
 * Calculation report (PDF), bar schedule (Excel), drawing (DXF).
 * Revisions, and approval by a second engineer.
@@ -104,7 +106,7 @@ npm ci
 npm run dev                              # http://127.0.0.1:5173
 ```
 
-Create an organisation on the sign-in screen, add a project, then choose **New RCC beam**, **New RCC continuous beam**, **New RCC column**, **New RCC slab**, **New RCC isolated footing** or **New RCC combined footing**.
+Create an organisation on the sign-in screen, add a project, then choose **New RCC beam**, **New RCC continuous beam**, **New RCC column**, **New RCC slab**, **New RCC isolated footing**, **New RCC combined footing** or **New RCC strap footing**.
 
 **Desktop:** `desktop/` holds the Electron app (Windows and Linux installers, the data in a SQLite file in the user's folder); see [desktop/README.md](desktop/README.md). SQLite is the default database and needs nothing installed. For PostgreSQL set `CLP_DATABASE_URL` (see `backend/.env.example`). To run the API and the built client as one process: `npm run build` in `frontend`, then start the API with `CLP_STATIC_DIR=../frontend/dist`. Containers: see `deploy/docker-compose.yml`.
 

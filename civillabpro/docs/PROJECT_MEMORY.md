@@ -22,6 +22,7 @@ Version 0.6.0. Phase 1 is done: beams (rectangular, T and L; simple, cantilever 
 | Structural: slab engine 1.0.0 (one-way, two-way) | built, independent hand check passing; Table 26 rows and Annex D extents to compare with the code |
 | Structural: isolated footing engine 1.1.0 | built, independent hand check passing; Cl. 34 wording to compare with the code |
 | Structural: combined footing engine 1.1.0 (two columns, rectangular, uniform depth; loads and moments along) | built (0.6.0, moments 0.7.0), independent hand check passing; the band width across is an interpretation (no clause) |
+| Structural: strap footing engine 1.0.0 (exterior column at a property line, strap to an interior column; pad 2 by the isolated footing engine) | built (0.7.0), independent hand check passing; pad 1's proportion and the strap's critical shear are interpretations |
 | Exports: PDF, Excel, DXF | built, reviewed page by page |
 | Deployment | single-process mode verified; Dockerfile and compose file written, compose validated, image not built (no Docker daemon in the build session) |
 | Desktop app (Electron) | built: shell, PyInstaller server bundle, Linux AppImage verified here (packaged smoke test, a killed shell's server stops itself); Windows NSIS built and smoke-tested by CI only (`civillabpro-desktop.yml`) |
@@ -36,7 +37,7 @@ Test counts at 0.6.0: backend 370 passed and 1 skipped (the PostgreSQL-only migr
 1. **STR-009, blocked: compare the column, slab and footing clauses with the code text** (the three "To cross-check" lists in the code register). It needs the user: either approval of a direct download of the public copy, or the pages pasted into the session. Do not work around a declined download. Fix anything that differs and re-run every hand check.
 2. **The continuous beam's follow-ups**: STR-041 a support width and section per span, STR-043 the coefficient method on the per-span path.
 3. **Desktop**: PLAT-022 code-signing (needs a certificate), PLAT-011 auto-update.
-4. **Footings**: STR-044 strap footing (in progress for 0.7.0), then trapezoidal footings; STR-046 moments across combined footings and horizontal loads.
+4. **Footings**: STR-047 trapezoidal combined footing; STR-046 moments across combined footings and horizontal loads.
 5. **Phase 2's engineering**: the estimation module and the standards library (see ROADMAP.md).
 
 ## Decisions (do not reopen without a reason recorded here)
@@ -79,6 +80,7 @@ Test counts at 0.6.0: backend 370 passed and 1 skipped (the PostgreSQL-only migr
 | D33 | The redistribution entered is a maximum: a support whose section cannot meet Cl. 37.1.1(d) with it takes 5 percent less, recorded on the sheet | the designer's intent survives a section that cannot take all of it, instead of a stop |
 | D35 | A project travels as a JSON archive and is imported as calculated, never recalculated, by a `transfer` context that copies rows across the projects and structural tables (the second sanctioned exception after the dashboard); the client's backup is offered only for SQLite holding one organisation | an issued calculation must arrive with the numbers it was issued with; the structural service would recalculate and revise; no owner may download another tenant's rows |
 | D36 | A combined footing with its plan left to the engine is centred on the resultant with the left end that balances the greatest sagging and hogging along it, among footings no wider than they are long, and the least width the bearing allows; its bands across are the column's depth plus 0.75 d each side | least concrete always pushed a column to the footing's end; balanced moments is the textbook economy and gives the least steel in the worked example; the band width is the middle of the published range (b + d to b + 2d) |
+| D37 | A strap footing's pad 1 is the shortest no wider than twice its length; its strap takes column 1's width unless no depth suits it, then the least cross-section; pad 2 is the isolated footing engine's design for R_2 | the least eccentricity alone always wants the thinnest, widest pad, and the narrowest strap that works can be absurdly deep; reusing the isolated footing keeps one hand-checked path for every pad |
 
 Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not here.
 
@@ -116,6 +118,12 @@ Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not her
 * Library versions at 0.1.0 are recent majors (React 19, MUI 9, Vite 8, Tailwind 4, TypeScript 7, dockview-react 8, recharts 3, FastAPI 0.16x, SQLAlchemy 2.1). Check the installed typings before assuming an older API.
 
 ## Log
+
+### 0.7.0 in progress (21 November 2026): STR-044 strap footing
+
+* Built: the `strap_footing` element (engine 1.0.0): reactions by statics, pad 1 sized and designed across the strap, the strap's hogging, shear zones, stirrups, bottom and side bars, pad 2 by the isolated footing engine, bearing for the columns' whole loads; charts, schedule, three views. Interpretations 105 to 110, D37.
+* Found and fixed: the strap ending at a short pad 2 stopped its bars short past column 2; a narrow strap fell back to the narrowest width that worked (350 x 2600) before the least cross-section rule (550 x 1600).
+* Hand check: 63 values of the worked example and 826 over 14 cases, 4 stops; five sabotages each fail it.
 
 ### 0.7.0 in progress (21 November 2026): STR-045 column moments on combined footings
 

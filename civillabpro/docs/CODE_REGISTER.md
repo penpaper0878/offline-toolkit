@@ -403,6 +403,40 @@ IS 456 has no clause for combined footings as such. Section 34 is applied to the
     * For design, each moment is factored by the one load factor and enters the statics as a couple at its column, spread over the column's depth (outside the column, the same as at its centre). The pressure that balances the loads and couples varies linearly.
     * One load case: moments that reverse, as wind and earthquake do, need a design for each sense, and the sheet says so. Moments across the footing and horizontal loads are not covered (STR-046).
 
+### Strap footing engine 1.0.0: clauses taken (STR-044)
+
+IS 456 has no clause for strap footings; the statics are the standard ones, and Section 34 and the beam clauses apply to the parts.
+
+| Clause | Subject | Where |
+|---|---|---|
+| Cl. 26.4.2.2 | cover in footings at least 50 mm, for the strap too | `effective_cover`, check `cover` |
+| Cl. 34.1.2 | edge thickness of the pads | checks `edge_1`, `pad2_edge` |
+| Cl. 34.2.3.2, Annex G | bending of pad 1 at the faces of the strap; the strap's hogging | checks `mulim_pad1`, `mulim_strap`, `as_*` |
+| Cl. 34.2.4.1(a), Table 19 | one-way shear in pad 1 at d from the strap | check `shear_pad1` |
+| Cl. 40.1, 40.2.3, Table 20, 40.4(a), 26.5.1.5, 26.5.1.6 | the strap's shear, tau_c,max at the face of column 1, stirrups, their spacing and minimum | checks `tcmax_strap`, `sv_pad`, `sv_span` |
+| Cl. 26.5.1.1, 26.5.1.3 | the strap's least and most tension steel; side-face bars where deeper than 750 mm | checks `as_strap`, `asmax_strap`, step |
+| Cl. 26.2.1, 26.2.2.1(b), 26.2.3.1 | development of the strap's top bars and of pad 1's bars at the stress of the section, bends; the top bars past column 2 by d or 12 phi | checks `anchor_strap`, `anchor_pad1`, `extend_strap` |
+| Cl. 34.4, 34.4.3 | bearing at both columns with their whole loads; dowels | checks `bearing1`, `bearing2` |
+| Section 34 (the isolated footing engine) | pad 2 | checks `pad2_*` |
+
+### Strap footing engine: interpretations
+
+105. **Pad 1's plan.** Pad 1 starts at the property line. The engine takes the least length along the strap, in 50 mm steps from 100 mm beyond the inner face of column 1, whose width across (the least in 50 mm steps for the bearing pressure, and at least 100 mm beyond the column and the strap each side) is no more than twice the length. Without a limit on its shape the least eccentricity always wants the shortest and widest pad; twice is a common proportion, and an entered size is kept.
+106. **Statics.** The strap is rigid, so each pad bears uniformly. With e = L_1/2 - a, the reactions are R_1 = P_1 s / (s - e) (moments about column 2) and R_2 = P_1 + P_2 - R_1. A light interior column that would be pulled up (R_2 not positive) is refused. Pads that would meet are refused too, with a combined footing as the remedy. The strap is kept off the soil between the pads. Its own weight is within the sizing allowance and left out of its design, which is on the safe side for its hogging.
+107. **The strap's section.**
+    * Width: column 1's, at least 300 mm. Where that suits no depth, the widest pad 1 allows less 100 mm each side, in 50 mm steps, and of those the width with the least cross-section, so the section stays in proportion.
+    * Depth: the least in 50 mm steps, not less than either pad, that needs no compression steel.
+    * The section is the strap alone, rectangular: pad 1 as a flange is ignored, on the safe side.
+    * One layer of top bars, the effective depth allowing for a 12 mm stirrup. The top bars are developed toward the property line at the stress of the section (bent down at the end where needed), and run past column 2 by d or 12 phi.
+108. **The strap's shear.** Over pad 1, the design shear is taken at d from the inner face of column 1, whose load introduces compression into the strap as a support reaction would (the reasoning of Cl. 22.6.2.1). tau_c,max is checked at the face itself. Between the pads the shear is constant. Two-legged stirrups for each zone follow Cl. 40.4(a) where tau_v exceeds tau_c, the minimum of Cl. 26.5.1.6 otherwise, and Cl. 26.5.1.5, with tau_c from the top bars (in tension everywhere the strap hogs).
+109. **Pad 1** is a slab cantilevering across from the faces of the strap under its uniform factored pressure, over its whole length. Its one-way shear is at d from the strap's faces; it carries the strap along its length, so punching does not apply. Its bars along are the minimum of Cl. 26.5.2.1.
+110. **Pad 2** is designed by the isolated footing engine for R_2, centred under column 2 (interpretations 35 to 41). The bearing at each column takes the column's whole factored load: column 2 on pad 2 by the isolated footing's frustum, and column 1 on the strap's top with sqrt(A_1/A_2) = min(2a/D_1, b_s/b_1, 1 + 4 D_s/max(b_1, D_1), 2), not less than 1.
+
+### Strap footing engine: to cross-check against a printed copy
+
+* That IS 456 has no clause for strap footings (the statics and the parts' clauses are used).
+* Whether the strap's critical shear may be taken at d from the column face over pad 1 (Cl. 22.6.2.1 is written for supports).
+
 ### Combined footing engine: to cross-check against a printed copy
 
 * That IS 456 indeed has no rule for the width of the band across under a column of a combined footing (Cl. 34.3.1 covers isolated footings).

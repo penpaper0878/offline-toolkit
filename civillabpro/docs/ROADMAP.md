@@ -39,7 +39,7 @@ Exit: beam, column, slab and isolated footing designed, hand-checked and issued 
 * Job queue (Redis, Celery) and WebSocket notifications.
 * **Standards library**: register of IS, IRC, CPHEEO, MoRTH and NBC with status and amendments; clause index; search; bookmarks; organisation notes.
 * **Quantity estimation**: SOR import (CPWD DSR, MoRTH, GWSSB, Gujarat R&B first), rate analysis, BOQ, abstract and detailed estimates, measurement book, running and final bills. Quantities flow in from designs.
-* Remaining structural members: combined footing (**done at 0.6.0**, engine 1.0.0), strap and trapezoidal footing, pile cap, staircase, retaining wall.
+* Remaining structural members: combined footing (**done at 0.6.0**; column moments at 0.7.0), strap footing (**done at 0.7.0**), trapezoidal footing, pile cap, staircase, retaining wall.
 
 Exit: a consultant can design a building frame's members, price them against a state SOR and issue the estimate, on a laptop with no network.
 

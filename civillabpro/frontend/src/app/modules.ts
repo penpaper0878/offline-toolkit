@@ -15,7 +15,7 @@ export interface ModuleEntry {
 export const MODULES: ModuleEntry[] = [
   { id: "dashboard", title: "Dashboard", path: "/", phase: 1, status: "available", summary: "Projects, design status and recent activity" },
   { id: "projects", title: "Projects", path: "/projects", phase: 1, status: "available", summary: "Project register and design files" },
-  { id: "structural", title: "Structural design", path: "/structural", phase: 1, status: "available", summary: "IS 456 members: beams, continuous beams, columns, slabs, isolated and combined footings" },
+  { id: "structural", title: "Structural design", path: "/structural", phase: 1, status: "available", summary: "IS 456 members: beams, continuous beams, columns, slabs, isolated, combined and strap footings" },
   { id: "water", title: "Water engineering", phase: 3, status: "planned", summary: "Demand, networks, reservoirs, pumping (CPHEEO)" },
   { id: "sewerage", title: "Sewerage engineering", phase: 4, status: "planned", summary: "Sewer networks, STP, pumping stations" },
   { id: "highway", title: "Highway engineering", phase: 5, status: "planned", summary: "Pavement and geometric design (IRC, MoRTH)" },
