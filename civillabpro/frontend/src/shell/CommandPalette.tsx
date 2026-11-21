@@ -37,6 +37,7 @@ export function CommandPalette() {
       { id: "c-dash", title: "Go to Dashboard", icon: <BoltOutlined fontSize="small" />, group: "Commands", run: go("/") },
       { id: "c-proj", title: "Go to Projects", icon: <BoltOutlined fontSize="small" />, group: "Commands", run: go("/projects") },
       { id: "c-struct", title: "Go to Structural design", icon: <BoltOutlined fontSize="small" />, group: "Commands", run: go("/structural") },
+      { id: "c-est", title: "Go to Quantity estimation", icon: <BoltOutlined fontSize="small" />, group: "Commands", run: go("/estimation") },
       ...(can("project:write") ? [{ id: "c-new", title: "New project", icon: <BoltOutlined fontSize="small" />, group: "Commands", run: go("/projects?new=1") }] : []),
       ...(can("user:manage") ? [{ id: "c-users", title: "Users and roles", icon: <BoltOutlined fontSize="small" />, group: "Commands", run: go("/admin/users") }] : []),
       ...(can("project:write") ? [{ id: "c-data", title: "Data and backup", icon: <BoltOutlined fontSize="small" />, group: "Commands", run: go("/admin/data") }] : []),

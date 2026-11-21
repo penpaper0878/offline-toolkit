@@ -15,7 +15,7 @@ PostgreSQL 16 with PostGIS on servers; SQLite for the offline desktop install. O
 | Migrations | one revision per change, reversible, checked against the models in CI on both engines |
 | Types | only types that exist on both engines; spatial columns are added by PostgreSQL-only migrations with a GeoJSON fallback column |
 
-## Part 1: implemented (revision 0001)
+## Part 1: implemented (revisions 0001 and 0002)
 
 ```mermaid
 erDiagram
@@ -26,6 +26,11 @@ erDiagram
     projects ||--o{ structural_designs : contains
     structural_designs ||--o{ structural_design_revisions : supersedes
     users ||--o{ structural_designs : "designs / approves"
+    organizations ||--o{ sor_books : imports
+    sor_books ||--o{ sor_items : lists
+    organizations ||--o{ rate_analyses : analyses
+    projects ||--o{ estimates : "is priced by"
+    estimates }o..o{ structural_designs : "takes quantities from (in doc)"
 ```
 
 ### organizations
@@ -128,6 +133,61 @@ One row per designed member, whatever its type.
 | saved_by_name | varchar(200) | |
 | created_at | timestamptz | |
 
+### sor_books (0002)
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid PK | |
+| org_id | uuid FK | indexed; unique (org_id, title); cascade |
+| title | varchar(200) | |
+| authority, state | varchar(120), varchar(60) | as entered at import |
+| year | integer null | |
+| source_name | varchar(200) | the file it was imported from |
+| created_by | uuid FK null | set null |
+| created_at, updated_at | timestamptz | |
+
+### sor_items (0002)
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid PK | |
+| book_id | uuid FK | indexed, and with item_code; cascade |
+| item_code | varchar(40) | unique within a book (enforced at import) |
+| chapter | varchar(200) | |
+| description | text | a heading's text prefixed |
+| unit | varchar(20) | as the schedule spells it |
+| rate_paise | bigint | the rate in paise |
+| seq | integer | the order in the schedule |
+
+### rate_analyses (0002)
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid PK | |
+| org_id | uuid FK | indexed; cascade |
+| title | varchar(300) | the item analysed |
+| unit | varchar(20) | |
+| doc | json | output_qty, water_pct, overheads_profit_pct, lines (kind, description, unit, quantity, rate) |
+| rate_paise | bigint | the analysed rate, kept for lists |
+| created_by | uuid FK null | set null |
+| created_at, updated_at | timestamptz | |
+
+### estimates (0002)
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid PK | |
+| org_id | uuid FK | indexed; cascade |
+| project_id | uuid FK | indexed; cascade |
+| title | varchar(200) | |
+| status | varchar(12) | draft, issued |
+| revision | integer | R number |
+| doc | json | items (number, description, unit, rate and its source, quantity mode, measurement lines, design link with the revision and value taken) and percentage additions |
+| total_paise | bigint | the abstract's rounded total, kept for lists |
+| created_by | uuid FK null | the preparer, for the four-eyes rule; set null |
+| prepared_by_name, issued_by_name | varchar(200) | |
+| issued_at | timestamptz null | |
+| notes | text | |
+| created_at, updated_at | timestamptz | |
+
+An estimate is one document, as a design's inputs are: its items, measurements and links are read and written whole, and the server works out every quantity and amount from it. Money is in paise. Design links hold IDs inside the document, not foreign keys: a deleted design leaves the item marked stale, not broken.
+
 ## Part 2: planned, by module
 
 These are the designs the modules will be built against. Each becomes real, and may change in detail, in the phase named in [ROADMAP.md](ROADMAP.md). Every table also carries `id`, `org_id`, `created_at`, `updated_at`.
@@ -151,18 +211,14 @@ These are the designs the modules will be built against. Each becomes real, and 
 | standard_notes | clause_id, org_id, body, author | the organisation's own interpretations |
 | bookmarks | user_id, clause_id, note | |
 
-### Quantity estimation (phase 2)
+### Quantity estimation, still to build (EST-004, EST-005)
+Schedules, analyses and estimates are built (Part 1); items, measurements and analysis lines live in their documents rather than in the `boq_items`, `measurements` and `rate_analysis_lines` tables first planned.
+
 | Table | Key columns | Purpose |
 |---|---|---|
-| sor_books | authority (CPWD DSR, MoRTH, GWSSB, Gujarat R&B, ...), state, year, title | schedule of rates editions |
-| sor_items | book_id, item_code, description, unit, rate, chapter | rate items |
-| rate_analyses | project_id, sor_item_id null, description, unit, output_qty, overhead_pct, profit_pct | analysed rates |
-| rate_analysis_lines | analysis_id, kind (material, labour, plant, sundries), description, unit, quantity, rate | |
-| estimates | project_id, title, kind (abstract, detailed), status, revision | |
-| boq_items | estimate_id, item_no, sor_item_id null, description, unit, quantity, rate, amount, source_ref | `source_ref` links a quantity to the design that produced it |
-| measurements | boq_item_id, description, nos, length, breadth, depth, quantity | measurement book |
-| bills | project_id, kind (running, final), number, period_from, period_to, status | RA and final bills |
-| bill_lines | bill_id, boq_item_id, qty_previous, qty_this, rate, amount | |
+| mb_entries | estimate_id, item_id (in the estimate's doc), date, measured_by, checked_by, lines json | measurement book: work done |
+| bills | project_id, estimate_id, kind (running, final), number, period_from, period_to, status | RA and final bills |
+| bill_lines | bill_id, item_id, qty_previous, qty_this, rate_paise, amount_paise | |
 
 ### Water engineering (phase 3)
 | Table | Key columns | Purpose |

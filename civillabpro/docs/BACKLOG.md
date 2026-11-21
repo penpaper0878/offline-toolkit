@@ -55,6 +55,9 @@ State: **done**, **next** (the item to start with), **ready** (can be started), 
 | STR-036 | Continuous beam 1.5.0: elastic analysis of two to twelve spans of any length, uniform and point loads, redistribution by Cl. 37.1.1; every span and support designed, detailed, curtailed and drawn; table inputs in the property grid and the report; a view picker for drawings of many views (0.5.0) |
 | STR-039 | Continuous beam 1.5.0: bottom bars are not curtailed where a support uses them as compression steel (a defect of 1.1.0 to 1.4.0) (0.5.0) |
 | STR-037 | Beam 1.4.0, continuous beam 1.4.0: U-hooks (16 phi) where a 90 degree bend is not enough for Cl. 26.2.3.3(c); L_0 measured to the start of the bend or hook (correcting STR-017), and the footing's bend likewise (footing 1.1.0) (0.5.0) |
+| EST-001 | Schedules of rates imported from CSV or Excel (headings prefixed to their items, chapters, a report of the rows skipped), searched by code and words; none shipped (0.8.0) |
+| EST-002 | Rate analysis in the CPWD form: materials, labour, plant, sundries, water charges, overheads and profit, output quantity; the rate worked out live (0.8.0) |
+| EST-003 | Estimates of a project: items from a schedule, an analysis or entered, quantities measured, taken from a design (revision recorded, stale flagged) or entered; percentage additions; abstract worked out by the server; four-eyes issue and revisions; Excel with live formulas and PDF; carried in project archives (0.8.0) |
 
 ## Epic STR: structural design
 
@@ -82,6 +85,16 @@ State: **done**, **next** (the item to start with), **ready** (can be started), 
 | STR-030 | Effective length from storey stiffness (Annex E charts) | later | needs beam and column stiffnesses at both ends |
 | STR-031 | Column stack: several lifts, lap positions, bar changes between storeys | later | |
 | STR-032 | Column forces imported from an analysis file (STAAD, ETABS exports) | later | with STR-026 |
+
+## Epic EST: estimation
+
+| ID | Item | State | Notes |
+|---|---|---|---|
+| EST-004 | Measurement book: work done recorded against an issued estimate's items, dated, with check measurement | ready | the measurement lines and their rounding exist (interpretation 111) |
+| EST-005 | Running account and final bills from the measurement book, with deviations from the estimate | later | after EST-004 |
+| EST-006 | Rate analysis lines priced from a schedule's basic rates (materials, labour, carriage), so an analysis follows a new schedule | ready | |
+| EST-007 | More quantities from the designs: excavation and the levelling course from a footing's plan, shuttering by type | ready | the engines' quantities hold concrete, formwork and steel today |
+| EST-008 | Compare two revisions of an estimate; an estimate's history | ready | revisions are kept as R numbers, the earlier documents are not yet stored |
 
 ## Epic PLAT: platform
 
@@ -130,7 +143,6 @@ State: **done**, **next** (the item to start with), **ready** (can be started), 
 | Epic | First items |
 |---|---|
 | STD: standards library | STD-001 register and status import; STD-002 clause index and search; STD-003 bookmarks and notes |
-| EST: estimation | EST-001 SOR import format and CPWD DSR; EST-002 rate analysis; EST-003 BOQ from designs; EST-004 measurement book; EST-005 RA and final bills |
 | WAT: water | WAT-001 population forecast; WAT-002 demand and peak factors; WAT-010 transmission main; WAT-020 reservoirs; WAT-030 network solver; WAT-040 EPANET exchange |
 | SEW: sewerage | SEW-001 sewer reach design; SEW-010 STP processes; SEW-020 pumping station |
 | HWY: highway | HWY-001 flexible pavement IRC 37; HWY-002 rigid pavement IRC 58; HWY-010 curves and superelevation |

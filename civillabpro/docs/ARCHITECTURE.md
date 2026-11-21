@@ -84,7 +84,7 @@ Pydantic is allowed in the domain: it is the value-object and validation library
 | dashboard | read models and search across contexts (queries only) | built |
 | transfer | project archives (export, import) and the database backup | built |
 | standards | code register, clause index, search, bookmarks | designed |
-| estimation | SOR, rate analysis, BOQ, measurement, bills | designed |
+| estimation | schedules of rates, rate analyses, estimates (measurement, design quantities, abstract); measurement book and bills next | built (0.8.0) |
 | water | demand, networks, reservoirs, pumping, treatment | designed |
 | sewerage | sewer networks, STP process design, pumping | designed |
 | highway | pavement, geometry, drainage, road inventory | designed |
@@ -93,7 +93,7 @@ Pydantic is allowed in the domain: it is the value-object and validation library
 | pm | schedule, resources, DPR, RFI, quality, safety, documents | designed |
 | assistant | retrieval over standards, calculation review, drafting | designed |
 
-Contexts talk through application services and IDs, never through each other's tables. Two exceptions are sanctioned. The dashboard context is read-only by definition. The transfer context copies a project's rows as they are, which no other context's service offers on purpose: going through the structural service would recalculate and revise every design (D35). A context that later owns project data adds its own section to the project archive.
+Contexts talk through application services and IDs, never through each other's tables. Two exceptions are sanctioned. The dashboard context is read-only by definition. The transfer context copies a project's rows as they are, which no other context's service offers on purpose: going through the structural service would recalculate and revise every design (D35). A context that later owns project data adds its own section to the project archive: estimation did (format version 2), its design links remapped to the imported designs. Estimation reads designs only through the structural service (`list_designs`), for the quantities their results report.
 
 ### 3.3 The element registry (how a module grows without new plumbing)
 

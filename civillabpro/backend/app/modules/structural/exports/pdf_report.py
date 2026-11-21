@@ -108,10 +108,11 @@ def fmt(value: Any, dp: int = 2) -> str:
 class _NumberedCanvas(canvas.Canvas):
     """Defers page output so the title block can print the total page count."""
 
-    def __init__(self, *args: Any, title_block: dict[str, str], **kwargs: Any) -> None:
+    def __init__(self, *args: Any, title_block: dict[str, str], labels: dict[str, str] | None = None, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._pages: list[dict[str, Any]] = []
         self._tb = title_block
+        self._labels = labels or {}  # other names for the calculation, designed and checked boxes (an estimate's, say)
 
     def showPage(self) -> None:  # noqa: N802 (reportlab API)
         self._pages.append(dict(self.__dict__))
@@ -128,10 +129,11 @@ class _NumberedCanvas(canvas.Canvas):
     def _title_block(self, total: int) -> None:
         w, h = A4
         x0, x1, top = 15 * mm, w - 15 * mm, h - 10 * mm
+        lbl = {"calculation": "Calculation", "designed": "Designed", "checked": "Checked", **self._labels}
         rows = [
             [("Organisation", self._tb["organization"]), ("Project", self._tb["project"]), ("Job no.", self._tb["job"])],
-            [("Calculation", self._tb["calculation"]), ("Client", self._tb["client"]), ("Rev.", self._tb["revision"])],
-            [("Designed", self._tb["designed"]), ("Checked", self._tb["checked"]), ("Date", self._tb["date"])],
+            [(lbl["calculation"], self._tb["calculation"]), ("Client", self._tb["client"]), ("Rev.", self._tb["revision"])],
+            [(lbl["designed"], self._tb["designed"]), (lbl["checked"], self._tb["checked"]), ("Date", self._tb["date"])],
         ]
         widths = [0.40, 0.40, 0.20]
         row_h = 7.2 * mm

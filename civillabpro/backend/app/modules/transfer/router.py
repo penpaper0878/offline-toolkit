@@ -29,12 +29,12 @@ def export_project(project_id: uuid.UUID, user: User = Depends(require(P.DESIGN_
 
 
 @router.post("/projects/import", response_model=ImportResult, status_code=status.HTTP_201_CREATED,
-             summary="Create a project from an archive; designs and revisions come in as recorded")
+             summary="Create a project from an archive; designs, revisions and estimates come in as recorded")
 def import_project(archive: ProjectArchive, user: User = Depends(require(P.PROJECT_WRITE)), _: User = Depends(require(P.DESIGN_WRITE)),
                    db: Session = Depends(get_db, scope="function")) -> ImportResult:
-    project, n, n_rev, changed = service.import_project(db, user, archive)
+    project, n, n_rev, n_est, changed = service.import_project(db, user, archive)
     note = f"Imported as job number {project.code}" + (f" ({archive.project.code} is already in use)." if changed else ".")
-    return ImportResult(project=_out(db, [project])[0], designs=n, revisions=n_rev, code_changed=changed, note=note)
+    return ImportResult(project=_out(db, [project])[0], designs=n, revisions=n_rev, estimates=n_est, code_changed=changed, note=note)
 
 
 @router.get("/admin/backup", summary="A consistent copy of this installation's SQLite database (single organisation)",

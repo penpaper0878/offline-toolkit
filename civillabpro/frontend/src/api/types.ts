@@ -77,3 +77,36 @@ export interface DashboardSummary {
   activity: { id: string; user_name: string; action: string; summary: string; entity_type: string; entity_id: string | null; created_at: string }[];
 }
 export interface SearchHit { kind: "project" | "design"; id: string; title: string; subtitle: string; project_id: string; element_type?: string }
+
+// ----------------------------------------------------------------------------- quantity estimation
+
+export interface SorBook { id: string; title: string; authority: string; state: string; year: number | null; source_name: string; created_at: string; item_count: number }
+export interface SorItem { id: string; item_code: string; chapter: string; description: string; unit: string; rate: number }
+export interface SorImportResult { book: SorBook; imported: number; headings: number; skipped: string[] }
+
+export type AnalysisKind = "material" | "labour" | "plant" | "sundries";
+export interface AnalysisLine { kind: AnalysisKind; description: string; unit: string; quantity: number; rate: number }
+export interface RateAnalysisInput { title: string; unit: string; output_qty: number; water_pct: number; overheads_profit_pct: number; lines: AnalysisLine[] }
+export interface RateAnalysis extends RateAnalysisInput { id: string; rate: number; result: Record<string, number | number[]>; updated_at: string }
+
+export interface Measurement { description: string; nos: number; length: number | null; breadth: number | null; depth: number | null; deduct: boolean }
+export interface RateSource { kind: "sor" | "analysis" | "manual"; sor_item_id?: string | null; book_title?: string; item_code?: string; analysis_id?: string | null }
+export type DesignQuantityKey = "concrete_m3" | "formwork_m2" | "steel_kg";
+export interface DesignLink { design_id: string; key: DesignQuantityKey; revision?: number | null; value?: number | null; label?: string }
+export interface EstimateItem {
+  id: string; item_no: string; description: string; unit: string; rate: number; rate_source: RateSource;
+  quantity_mode: "measured" | "design" | "direct"; quantity: number; measurements: Measurement[]; design: DesignLink | null;
+}
+export interface Addition { label: string; pct: number }
+export interface EstimateDoc { items: EstimateItem[]; additions: Addition[] }
+export interface EstimateItemResult { id: string; no: string; quantity: number; amount: number; stale: boolean; lines?: number[]; design_now?: { revision: number; value: number } | null }
+export interface EstimateResult {
+  items: EstimateItemResult[]; stale: number;
+  abstract: { subtotal: number; additions: { label: string; pct: number; amount: number }[]; total: number; rounded: number };
+}
+export interface EstimateSummary {
+  id: string; project_id: string; title: string; status: "draft" | "issued"; revision: number; total: number; item_count: number;
+  prepared_by_name: string; issued_by_name: string; issued_at: string | null; updated_at: string;
+}
+export interface Estimate extends EstimateSummary { notes: string; doc: EstimateDoc; result: EstimateResult }
+export interface DesignQuantities { design_id: string; name: string; element_type: string; title: string; revision: number; status: string; quantities: Partial<Record<DesignQuantityKey, number>> }

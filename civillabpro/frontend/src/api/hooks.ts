@@ -1,6 +1,9 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
-import type { DashboardSummary, Design, DesignResult, DesignSummary, ElementSpec, Me, Project, ProjectPage, RoleInfo, SearchHit, User } from "./types";
+import type {
+  DashboardSummary, Design, DesignQuantities, DesignResult, DesignSummary, ElementSpec, Estimate, EstimateDoc, EstimateResult, EstimateSummary, Me, Project,
+  ProjectPage, RateAnalysis, RoleInfo, SearchHit, SorBook, SorItem, User,
+} from "./types";
 
 export const keys = {
   me: ["me"] as const,
@@ -60,7 +63,34 @@ export function useInvalidatingMutation<TIn, TOut>(fn: (input: TIn) => Promise<T
   return useMutation({
     mutationFn: fn,
     onSuccess: () => {
-      for (const key of ["projects", "project", "designs", "design", "dashboard", "users", "search"]) void qc.invalidateQueries({ queryKey: [key] });
+      for (const key of ["projects", "project", "designs", "design", "dashboard", "users", "search", "estimates", "estimate", "sor-books", "rate-analyses"]) {
+        void qc.invalidateQueries({ queryKey: [key] });
+      }
     },
   });
 }
+
+// ----------------------------------------------------------------------------- quantity estimation
+
+export const useSorBooks = () => useQuery({ queryKey: ["sor-books"], queryFn: () => api<SorBook[]>("/sor-books") });
+export function useSorItems(bookId: string, q: string) {
+  const params = new URLSearchParams({ q, limit: "100" });
+  return useQuery({ queryKey: ["sor-books", bookId, "items", q], queryFn: () => api<{ items: SorItem[]; total: number }>(`/sor-books/${bookId}/items?${params}`),
+    enabled: !!bookId, placeholderData: keepPreviousData });
+}
+export const useRateAnalyses = () => useQuery({ queryKey: ["rate-analyses"], queryFn: () => api<RateAnalysis[]>("/rate-analyses") });
+export const useEstimates = (projectId?: string) => useQuery({
+  queryKey: ["estimates", projectId ?? "all"], queryFn: () => api<EstimateSummary[]>(projectId ? `/projects/${projectId}/estimates` : "/estimates") });
+export const useEstimate = (id: string | undefined) => useQuery({ queryKey: ["estimate", id ?? ""], queryFn: () => api<Estimate>(`/estimates/${id}`), enabled: !!id });
+export const useDesignQuantities = (projectId: string | undefined) => useQuery({
+  queryKey: ["designs", projectId ?? "", "quantities"], queryFn: () => api<DesignQuantities[]>(`/projects/${projectId}/design-quantities`), enabled: !!projectId });
+
+/** The quantities, amounts and abstract of the document being edited, worked out by the server without saving it. */
+export function useEstimatePreview(id: string | undefined, doc: EstimateDoc | null) {
+  return useQuery({
+    queryKey: ["estimate-preview", id, doc],
+    queryFn: ({ signal }) => api<EstimateResult>(`/estimates/${id}/preview`, { method: "POST", body: doc, signal }),
+    enabled: !!id && doc !== null, placeholderData: keepPreviousData, retry: false,
+  });
+}
+

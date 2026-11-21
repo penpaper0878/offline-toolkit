@@ -1,5 +1,6 @@
 // End-to-end walkthrough in a real browser: register, create a project, design a beam, a column, a slab,
-// isolated, combined and strap footings, a continuous beam (by coefficients and by elastic analysis), save, export and import a project, back up the database, download each report / schedule / drawing, switch theme, search, use the calculator,
+// isolated, combined and strap footings, a continuous beam (by coefficients and by elastic analysis), save, import a schedule of rates,
+// write a rate analysis and an estimate (measured and design quantities), export and import a project, back up the database, download each report / schedule / drawing, switch theme, search, use the calculator,
 // reload.
 //
 //   1. start the API, on a fresh database (the backup step needs one organisation alone), and the web client (see README.md)
@@ -193,14 +194,110 @@ const BASE = process.argv[3] || process.env.BASE || 'http://127.0.0.1:5173';
   await page.waitForTimeout(500);
   await shot('continuous-elastic-3-bbs');
 
+  step('quantity estimation: a schedule of rates, a rate analysis and an estimate');
+  const fs = require('fs');
+  const designUrl = page.url();
+  const sorPath = `${out}/illustrative-sor.csv`;
+  fs.writeFileSync(sorPath, [
+    'Illustrative schedule of rates: made up for this walkthrough, not an official schedule',
+    'Code,Description,Unit,Rate',
+    ',Chapter 2: Earth work,,',
+    '2.6,"Earth work in excavation by mechanical means over areas, in all kinds of soil, disposal up to 50 m lead and 1.5 m lift",cum,212.40',
+    ',Chapter 5: Concrete work,,',
+    '5.1,"Providing and laying in position cement concrete of specified grade, excluding centering and shuttering, up to plinth level",,',
+    '5.1.2,M20 grade,cum,"7,240.00"',
+    '5.9,Centering and shuttering including strutting and removal of form for foundations and footings,sqm,318.60',
+    '5.22,"Steel reinforcement for R.C.C. work including straightening, cutting, bending, placing in position and binding",kg,96.75',
+  ].join('\n') + '\n');
+  await page.keyboard.press('Alt+4');
+  await page.getByRole('heading', { name: 'Quantity estimation' }).waitFor();
+  await page.getByRole('button', { name: 'Import a schedule' }).click();
+  const imp = page.getByRole('dialog', { name: 'Import a schedule of rates' });
+  await imp.getByLabel('Title').fill('Illustrative schedule 2026');
+  await imp.getByLabel('Authority').fill('Illustrative');
+  await imp.getByLabel('State').fill('Gujarat');
+  await imp.getByLabel('Year').fill('2026');
+  await page.getByLabel('Schedule of rates file').setInputFiles(sorPath);
+  await imp.getByRole('button', { name: 'Import', exact: true }).click();
+  await imp.getByText(/4 items imported/).waitFor({ timeout: 10000 });
+  await shot('e1-schedule-imported');
+  await imp.getByRole('button', { name: 'Done' }).click();
+
+  await page.getByRole('button', { name: 'New rate analysis' }).click();
+  const ra = page.getByRole('dialog', { name: 'New rate analysis' });
+  await ra.getByRole('textbox', { name: 'Item', exact: true }).fill('Plain cement concrete 1:4:8 (illustrative)');
+  await ra.getByRole('textbox', { name: 'Unit', exact: true }).fill('cum');
+  await ra.getByLabel('Description, line 1').fill('Cement');
+  await ra.getByLabel('Quantity, line 1').fill('3.4');
+  await ra.getByLabel('Rate, line 1').fill('410');
+  await ra.getByRole('button', { name: 'Add line' }).click();
+  await ra.getByRole('combobox').nth(1).click();
+  await page.getByRole('option', { name: 'Labour' }).click();
+  await ra.getByLabel('Description, line 2').fill('Mason and labour, per cum');
+  await ra.getByLabel('Quantity, line 2').fill('1');
+  await ra.getByLabel('Rate, line 2').fill('1250');
+  await ra.getByText('Rate per cum').waitFor({ timeout: 10000 });
+  await shot('e2-rate-analysis');
+  await ra.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Plain cement concrete 1:4:8 (illustrative)', exact: true }).waitFor();
+
+  await page.getByRole('button', { name: 'New estimate' }).click();
+  const ne = page.getByRole('dialog', { name: 'New estimate' });
+  await ne.getByLabel('Project').click();
+  await page.getByRole('option', { name: /Ward 12 Community Hall/ }).first().click();
+  await ne.getByLabel('Estimate title').fill('Foundations');
+  await ne.getByRole('button', { name: 'Create' }).click();
+  await page.waitForURL('**/estimates/*');
+  await page.getByRole('heading', { name: 'Foundations' }).waitFor();
+
+  await page.getByRole('button', { name: 'Add item' }).click();
+  await page.getByRole('menuitem', { name: 'From a schedule of rates' }).click();
+  const pick = page.getByRole('dialog', { name: 'Add an item from a schedule of rates' });
+  await pick.getByLabel('Search by code or words').fill('M20');
+  await pick.getByRole('button', { name: 'Add item 5.1.2' }).click();
+  await pick.getByLabel('Search by code or words').fill('reinforcement');
+  await pick.getByRole('button', { name: 'Add item 5.22' }).click();
+  await pick.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Add a measurement line, item 1' }).click();
+  await page.getByLabel('Measurement, item 1 line 1').fill('Footings F1 to F4');
+  await page.getByLabel('Nos, item 1 line 1').fill('4');
+  await page.getByLabel('Length, item 1 line 1').fill('1.8');
+  await page.getByLabel('Breadth, item 1 line 1').fill('1.8');
+  await page.getByLabel('Depth, item 1 line 1').fill('0.45');
+  await page.getByRole('cell', { name: '5.83' }).first().waitFor({ timeout: 10000 });
+  await page.getByLabel('Quantity from, item 2').selectOption('design');
+  const designQty = page.getByLabel('Design quantity, item 2');
+  const steel = await designQty.locator('option', { hasText: 'reinforcement steel' }).first().getAttribute('value');
+  await designQty.selectOption(steel);
+  await page.getByText(/recorded with its revision when the estimate is saved/).waitFor({ timeout: 10000 });
+  await page.getByRole('button', { name: 'Add a percentage addition' }).click();
+  await page.getByLabel('Label, addition 1').fill('Contingencies');
+  await page.getByLabel('Percentage, addition 1').fill('3');
+  await page.waitForTimeout(800);
+  await page.keyboard.press('Control+s');
+  await page.getByText('Estimate saved').first().waitFor({ timeout: 10000 });
+  await page.getByText(/taken at R\d+: /).first().waitFor({ timeout: 10000 });
+  await page.waitForTimeout(500);
+  await shot('e3-estimate');
+  for (const [label, ext] of [['Excel', 'xlsx'], ['PDF', 'pdf']]) {
+    const [file] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), page.getByRole('button', { name: label, exact: true }).click()]);
+    await file.saveAs(`${out}/estimate.${ext}`);
+    const magic = fs.readFileSync(`${out}/estimate.${ext}`).subarray(0, 4).toString('latin1');
+    if (magic !== (ext === 'pdf' ? '%PDF' : 'PK\u0003\u0004')) throw new Error(`the ${label} estimate is not a ${ext} file`);
+    console.log('download', file.suggestedFilename(), fs.statSync(`${out}/estimate.${ext}`).size);
+  }
+  await page.goto(designUrl);
+  await page.locator('[data-ribbon="project"]').waitFor({ timeout: 15000 });
+
   step('export a project and import it again');
   await page.locator('[data-ribbon="project"]').click();
   await page.getByRole('button', { name: 'Export project' }).waitFor();
   const [archive] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), page.getByRole('button', { name: 'Export project' }).click()]);
   const archivePath = `${out}/export-project.clp.json`;
   await archive.saveAs(archivePath);
-  const designsIn = JSON.parse(require('fs').readFileSync(archivePath, 'utf8')).designs.length;
-  console.log('download', archive.suggestedFilename(), designsIn, 'designs');
+  const archived = JSON.parse(require('fs').readFileSync(archivePath, 'utf8'));
+  console.log('download', archive.suggestedFilename(), archived.designs.length, 'designs', archived.estimates.length, 'estimates');
+  if (archived.estimates.length !== 1) throw new Error('the archive does not carry the estimate');
   await page.goto(BASE + '/projects');
   await page.getByLabel('Project archive file').setInputFiles(archivePath);
   await page.getByText(/Imported as job number .*-2 /).first().waitFor({ timeout: 15000 });

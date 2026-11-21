@@ -36,11 +36,11 @@ export function isTyping(target: EventTarget | null): boolean {
 
 export const SHORTCUTS: { keys: string; action: string }[] = [
   { keys: "Ctrl K", action: "Search everywhere and run commands" },
-  { keys: "Alt 1 / 2 / 3", action: "Dashboard / Projects / Structural design" },
+  { keys: "Alt 1 / 2 / 3 / 4", action: "Dashboard / Projects / Structural design / Quantity estimation" },
   { keys: "Alt C", action: "Floating calculator" },
   { keys: "Alt T", action: "Light or dark theme" },
   { keys: "Alt B", action: "Collapse or expand the sidebar" },
-  { keys: "Ctrl S", action: "Save the design (design workspace)" },
+  { keys: "Ctrl S", action: "Save the design or the estimate" },
   { keys: "Alt R", action: "Download the PDF report (design workspace)" },
   { keys: "Alt W", action: "Close the current tab" },
   { keys: "?", action: "Keyboard shortcuts" },

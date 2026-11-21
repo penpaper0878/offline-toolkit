@@ -2,7 +2,7 @@
 
 The standards the engines implement: their status, the clauses taken, every place where the text was interpreted, and what still has to be cross-checked against a printed copy. An engine is not released until its codes are entered here.
 
-Status last checked: 16 November 2026. Column clauses added 17 November 2026; slab and footing clauses 18 November 2026.
+Status last checked: 16 November 2026. Column clauses added 17 November 2026; slab and footing clauses 18 November 2026; estimation rules 21 November 2026.
 
 ## IS 456:2000, Plain and reinforced concrete: code of practice (fourth revision)
 
@@ -463,6 +463,29 @@ Used for nominal bar sizes and unit mass (7850 kg/m3).
 ## IS 875 (Part 1):1987, Dead loads
 
 Used for the default unit weight of reinforced concrete, 25 kN/m3 (an input).
+
+## IS 1200, Method of measurement of building and civil engineering works; CPWD analysis of rates (estimation, EST-001 to EST-003)
+
+| | |
+|---|---|
+| Publisher | IS 1200: Bureau of Indian Standards, in parts by trade (Part 1 earthwork, Part 2 concrete work, Part 5 formwork, and so on). Analysis of rates: Central Public Works Department (Delhi Analysis of Rates, published with the Delhi Schedule of Rates); state departments publish their own schedules and analyses in the same form. |
+| Status | IS 1200 parts are current in their latest revisions; the edition of each part was not checked. Schedules of rates are revised every year or two by each department. |
+| Used by | estimation module (`app/modules/estimation/domain/`): measurement, rate analysis, abstract of cost |
+| Not shipped | No schedule of rates and no analysis is shipped: schedules are copyright of their departments and go out of date. An organisation imports its own (CSV or Excel, format in `docs/modules/08-estimation.md`); the test and walkthrough schedules are made up and say so. |
+
+### Estimation: interpretations
+
+111. **Measurement.** Each line is number x length x breadth x depth, a blank dimension not entering the product, so one form serves numbers, lengths, areas and volumes. Each line's quantity is rounded to 0.01 of the item's unit, half up, and the item's quantity is the sum of its lines; a deduction is a negative line. Dimensions are taken as entered. This follows the general rules repeated in the parts of IS 1200 (dimensions to the nearest 0.01 m; areas and cubic contents worked out to the nearest 0.01 m2 and 0.01 m3), applied to every unit alike.
+112. **Rate analysis**, in the CPWD form: cost = materials + labour + plant and carriage + sundries; water charges are a percentage of the cost (default 1); overheads and profit a percentage of cost plus water charges (default 15); the rate is the total divided by the quantity of the item the lines produce, rounded to 0.01 (a paisa). Each line's amount is quantity x rate rounded to 0.01. The percentages are inputs, since departments and years differ.
+113. **Abstract of cost.** Each item's amount is its quantity x rate rounded to 0.01. Percentage additions (contingencies, work-charged establishment, a cost index, a tax) are each taken on the cost of the items, not compounded, each rounded to 0.01; the total is the sum, and the figure carried ("say") is the total rounded to the rupee, half up. A department that compounds an addition (a tax on cost plus contingencies, say) enters the compounded percentage.
+114. **Quantities from designs.** An item may take concrete (m3), formwork (m2) or reinforcement steel (kg) from a design of the same project: the design's own take-off, as its report states it, not a re-measurement to IS 1200. The design's revision and value are recorded when the link is made or refreshed; a later revision of the design, or a change of its value, marks the item stale, and a stale estimate is not issued. Units convert by factor: m3 and m2 to themselves, kg to kg, tonne (0.001) or quintal (0.01), whatever the schedule's spelling (cum, sqm, MT, qtl); a unit that does not convert from the design's is refused. The quantity is rounded to 0.001 of the item's unit.
+115. **Money** is worked in exact decimals (a rate entered as 96.75 is taken as exactly 96.75), and schedule rates, analysed rates and totals are stored in paise (integers). Amounts are not re-rounded once computed, so the workbook's live formulas (`ROUND(quantity * rate, 2)`) reproduce the PDF to the paisa.
+116. **Issue.** An estimate is issued by someone other than its preparer (unless the organisation allows self-approval, as for designs); an issued estimate is not changed but revised, as R+1.
+
+### Estimation: to cross-check against a printed copy
+
+* The IS 1200 clause numbers of the rounding rules in each part used (Parts 1, 2 and 5 at least), and whether any part asks for a different rounding of a quantity in kg or in numbers.
+* The CPWD analysis's order of percentages (water on cost; overheads and profit on cost plus water) against the current Delhi Analysis of Rates, and whether 1 and 15 percent are still its figures.
 
 ## Sources consulted for status
 

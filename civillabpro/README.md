@@ -17,7 +17,8 @@ An Indian civil engineering operating system: design to Indian Standards, estima
 | Structural design: RCC combined footing under two columns | built (engine 1.1.0) |
 | Structural design: RCC strap footing (a column at a property line) | built (engine 1.0.0) |
 | Structural design: trapezoidal footing, staircase, retaining wall and others | phase 2 |
-| Estimation, standards library, water, sewerage, highway, laboratory, GIS, project management, AI assistant | designed, not started |
+| Quantity estimation: schedules of rates, rate analysis, estimates with quantities from the designs | built (measurement book and bills next) |
+| Standards library, water, sewerage, highway, laboratory, GIS, project management, AI assistant | designed, not started |
 
 ## What works today
 
@@ -33,6 +34,7 @@ An Indian civil engineering operating system: design to Indian Standards, estima
 * Bar bending schedule, quantities and a to-scale drawing from the same calculation.
 * Calculation report (PDF), bar schedule (Excel), drawing (DXF).
 * Revisions, and approval by a second engineer.
+* Quantity estimation: the organisation's schedules of rates imported from CSV or Excel (none shipped), rate analyses in the CPWD form, and project estimates whose items are measured, entered or taken from the designs (concrete, formwork, steel, with the design's revision recorded and later revisions flagged); percentage additions and the abstract; issued by a second person, revised as R numbers; Excel with live formulas and PDF; carried with the project when it is exported.
 * Backup of the database, restore on the desktop, and projects exported and imported between installations as calculated.
 * A workspace with dockable panels, a ribbon, document tabs, Ctrl K search, a floating calculator, light and dark themes.
 
@@ -143,6 +145,7 @@ node e2e/walkthrough.js <folder for screenshots>      # both servers running
 | [docs/modules/05-anchorage-spans-desktop.md](docs/modules/05-anchorage-spans-desktop.md) | 0.5.0: U-hooks, anchorage in the continuous beam's bar selection, continuous beams of any spans and point loads by elastic analysis, the desktop shell |
 | [docs/modules/06-faces-cantilevers-backup-combined-footing.md](docs/modules/06-faces-cantilevers-backup-combined-footing.md) | 0.6.0: face moments and cantilever ends of continuous beams, backup and restore, the combined footing |
 | [docs/modules/07-footing-moments-strap-spans.md](docs/modules/07-footing-moments-strap-spans.md) | 0.7.0: column moments on combined footings, strap footings, supports of their own widths |
+| [docs/modules/08-estimation.md](docs/modules/08-estimation.md) | quantity estimation: schedules of rates, rate analysis, estimates (EST-001 to EST-003) |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Backup, restore and moving projects between installations |
 
 ## A note on engineering use

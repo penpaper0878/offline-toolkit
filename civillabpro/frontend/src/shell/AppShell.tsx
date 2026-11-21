@@ -25,7 +25,7 @@ export function AppShell() {
       const key = e.key.toLowerCase();
       if ((e.ctrlKey || e.metaKey) && key === "k") { e.preventDefault(); ui.setPaletteOpen(!ui.paletteOpen); return; }
       if (e.altKey && !e.ctrlKey && !e.metaKey) {
-        const routes: Record<string, string> = { "1": "/", "2": "/projects", "3": "/structural" };
+        const routes: Record<string, string> = { "1": "/", "2": "/projects", "3": "/structural", "4": "/estimation" };
         if (routes[key]) { e.preventDefault(); navigate(routes[key]); }
         else if (key === "c") { e.preventDefault(); ui.setCalculatorOpen(!ui.calculatorOpen); }
         else if (key === "t") { e.preventDefault(); theme.toggle(); }

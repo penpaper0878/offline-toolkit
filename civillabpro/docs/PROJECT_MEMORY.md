@@ -10,7 +10,7 @@ It lives in `civillabpro/` of the `offline-toolkit` repository. The rest of that
 
 ## Current status
 
-Version 0.7.0. Phase 1 is done: beams (rectangular, T and L; simple, cantilever and continuous, with curtailment, stirrup zones and anchorage at supports), columns, slabs, and isolated, combined and strap footings are designed, hand-checked and issued from one workspace. The desktop app runs on Windows and Linux, with backup and restore. 0.7.0 adds the strap footing, column moments on combined footings and supports of their own widths for continuous beams. Still open from phase 1: the comparison of the clauses with the printed code (STR-009, blocked on the code text).
+Version 0.7.0. Phase 1 is done: beams (rectangular, T and L; simple, cantilever and continuous, with curtailment, stirrup zones and anchorage at supports), columns, slabs, and isolated, combined and strap footings are designed, hand-checked and issued from one workspace. The desktop app runs on Windows and Linux, with backup and restore. 0.7.0 adds the strap footing, column moments on combined footings and supports of their own widths for continuous beams. Still open from phase 1: the comparison of the clauses with the printed code (STR-009, blocked on the code text). Phase 2 has begun, toward 0.8.0: the quantity estimation module (schedules of rates, rate analysis, estimates priced with quantities from the designs) is built.
 
 | Area | State |
 |---|---|
@@ -23,22 +23,23 @@ Version 0.7.0. Phase 1 is done: beams (rectangular, T and L; simple, cantilever 
 | Structural: isolated footing engine 1.1.0 | built, independent hand check passing; Cl. 34 wording to compare with the code |
 | Structural: combined footing engine 1.1.0 (two columns, rectangular, uniform depth; loads and moments along) | built (0.6.0, moments 0.7.0), independent hand check passing; the band width across is an interpretation (no clause) |
 | Structural: strap footing engine 1.0.0 (exterior column at a property line, strap to an interior column; pad 2 by the isolated footing engine) | built (0.7.0), independent hand check passing; pad 1's proportion and the strap's critical shear are interpretations |
+| Quantity estimation: schedules of rates (imported, none shipped), rate analysis, estimates with measured, entered and design quantities, additions, four-eyes issue, revisions, Excel and PDF | built for 0.8.0 (EST-001 to EST-003), independent hand check passing; measurement book and bills next |
 | Exports: PDF, Excel, DXF | built, reviewed page by page |
 | Deployment | single-process mode verified; Dockerfile and compose file written, compose validated, image not built (no Docker daemon in the build session) |
 | Desktop app (Electron) | built: shell, PyInstaller server bundle, Linux AppImage verified here (packaged smoke test, a killed shell's server stops itself); Windows NSIS built and smoke-tested by CI only (`civillabpro-desktop.yml`) |
 | Backup, restore, project transfer | built (0.6.0): project archive export and import, backup from the client for a single-organisation SQLite database, restore from the desktop menu; procedures in OPERATIONS.md |
-| Modules 3 to 11 | designed in ARCHITECTURE.md and DATABASE_SCHEMA.md, not started |
+| Modules 4 to 11 (standards library onward) | designed in ARCHITECTURE.md and DATABASE_SCHEMA.md, not started |
 | Cloud environment | personal environment `offline-toolkit` (allows law.resource.org; setup script installs the venv, npm packages and PostGIS). The script is unproven until a fresh session starts on it. |
 
 Test counts at 0.7.0: backend 385 passed and 1 skipped (the PostgreSQL-only migration test), covering engineering, architecture, hand checks, the server entry and the API, and run on SQLite and PostgreSQL 16; frontend 22; desktop launcher 10. Hand checks: beam 716 values over 27 cases, continuous beam 897 over 15, continuous beam by elastic analysis 1493 over 21, column 471 over 17, slab 379 over 18, footing 384 over 16, combined footing 1746 over 25, strap footing 826 over 14, with 1 to 4 stop states each. The browser walkthrough designs every element, exports and imports a project and downloads a backup, with 0 console errors. The desktop smoke test checks the packaged app, with backup and restore (Linux here; Linux and Windows in CI).
 
 ## NEXT STEPS
 
-1. **STR-009, blocked: compare the column, slab and footing clauses with the code text** (the three "To cross-check" lists in the code register). It needs the user: either approval of a direct download of the public copy, or the pages pasted into the session. Do not work around a declined download. Fix anything that differs and re-run every hand check.
-2. **The continuous beam's follow-ups**: STR-048 a section per span, STR-043 the coefficient method on the per-span path.
-3. **Desktop**: PLAT-022 code-signing (needs a certificate), PLAT-011 auto-update.
-4. **Footings**: STR-047 trapezoidal combined footing; STR-046 moments across combined footings and horizontal loads.
-5. **Phase 2's engineering**: the estimation module and the standards library (see ROADMAP.md).
+1. **Estimation follow-ups**: EST-004 measurement book, then EST-005 bills; EST-006 analyses from a schedule's basic rates; EST-007 more design quantities; EST-008 revision history. Then the standards library (STD-001 to STD-003) and release 0.8.0.
+2. **STR-009, blocked: compare the column, slab and footing clauses with the code text** (the three "To cross-check" lists in the code register). It needs the user: either approval of a direct download of the public copy, or the pages pasted into the session. Do not work around a declined download. Fix anything that differs and re-run every hand check.
+3. **The continuous beam's follow-ups**: STR-048 a section per span, STR-043 the coefficient method on the per-span path.
+4. **Desktop**: PLAT-022 code-signing (needs a certificate), PLAT-011 auto-update.
+5. **Footings**: STR-047 trapezoidal combined footing; STR-046 moments across combined footings and horizontal loads.
 
 ## Decisions (do not reopen without a reason recorded here)
 
@@ -80,6 +81,7 @@ Test counts at 0.7.0: backend 385 passed and 1 skipped (the PostgreSQL-only migr
 | D33 | The redistribution entered is a maximum: a support whose section cannot meet Cl. 37.1.1(d) with it takes 5 percent less, recorded on the sheet | the designer's intent survives a section that cannot take all of it, instead of a stop |
 | D35 | A project travels as a JSON archive and is imported as calculated, never recalculated, by a `transfer` context that copies rows across the projects and structural tables (the second sanctioned exception after the dashboard); the client's backup is offered only for SQLite holding one organisation | an issued calculation must arrive with the numbers it was issued with; the structural service would recalculate and revise; no owner may download another tenant's rows |
 | D36 | A combined footing with its plan left to the engine is centred on the resultant with the left end that balances the greatest sagging and hogging along it, among footings no wider than they are long, and the least width the bearing allows; its bands across are the column's depth plus 0.75 d each side | least concrete always pushed a column to the footing's end; balanced moments is the textbook economy and gives the least steel in the worked example; the band width is the middle of the published range (b + d to b + 2d) |
+| D38 | An estimate is one JSON document (items, measurement lines, design links, additions) worked out whole by the server, also for the unsaved document being edited (`preview`); money in exact decimals and paise; a design link records the design's revision and value, is flagged stale when the design changes and is refreshed only on request; schedules of rates are imported by the organisation, none shipped | the client never repeats the arithmetic, so the screen, the PDF and the workbook agree to the paisa; an issued estimate must keep the quantities it was priced on; schedules are copyright and go out of date |
 | D37 | A strap footing's pad 1 is the shortest no wider than twice its length; its strap takes column 1's width unless no depth suits it, then the least cross-section; pad 2 is the isolated footing engine's design for R_2 | the least eccentricity alone always wants the thinnest, widest pad, and the narrowest strap that works can be absurdly deep; reusing the isolated footing keeps one hand-checked path for every pad |
 
 Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not here.
@@ -118,6 +120,12 @@ Engineering interpretations are in [CODE_REGISTER.md](CODE_REGISTER.md), not her
 * Library versions at 0.1.0 are recent majors (React 19, MUI 9, Vite 8, Tailwind 4, TypeScript 7, dockview-react 8, recharts 3, FastAPI 0.16x, SQLAlchemy 2.1). Check the installed typings before assuming an older API.
 
 ## Log
+
+### 0.8.0 in progress (21 November 2026): EST-001 to EST-003 quantity estimation
+
+* Built: the `estimation` context (domain: money, measurement, rate analysis, abstract; models and migration 0002; service, router, exports) and its client (Quantity estimation page, estimate editor, Estimates card on the project page, Alt 4). Schedules of rates imported from CSV or Excel with a report of the rows skipped; rate analyses in the CPWD form, worked out live; estimates with measured, entered and design-linked quantities, percentage additions, the abstract from the server (also while editing), four-eyes issue, revisions, Excel with live formulas and PDF. Permissions `estimate:read`, `estimate:write`, `estimate:issue`, `rates:manage`. Project archives at format version 2 carry the estimates, their design links remapped on import. Interpretations 111 to 116, D38, module note `docs/modules/08-estimation.md`.
+* Found and fixed on the way: a unit spelled "cum" did not convert from the design's m3 (schedules' spellings are now normalised); the editor computed line amounts itself before the server returned them (now the server's); tooltips renamed the Excel and PDF buttons for screen readers (`describeChild`); an unsaved design link showed no quantity source (now says it is recorded on save).
+* Hand check: 709 values (60 analyses, 200 measurement lines, 40 abstracts, two worked examples). The walkthrough's new leg agrees with a hand calculation on screen.
 
 ### 0.7.0 released (21 November 2026)
 

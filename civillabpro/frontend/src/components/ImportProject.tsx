@@ -7,7 +7,7 @@ import { api, type ApiError } from "../api/client";
 import type { Project } from "../api/types";
 import { useUi } from "../stores/ui";
 
-interface ImportResult { project: Project; designs: number; revisions: number; code_changed: boolean; note: string }
+interface ImportResult { project: Project; designs: number; revisions: number; estimates: number; code_changed: boolean; note: string }
 
 /** Import a project archive (.clp.json) exported from this or another installation: a new project with its designs as recorded. */
 export function ImportProjectButton({ variant = "outlined" }: { variant?: "outlined" | "contained" }) {
@@ -24,7 +24,8 @@ export function ImportProjectButton({ variant = "outlined" }: { variant?: "outli
       try { archive = JSON.parse(await file.text()); } catch { throw new Error(`${file.name} is not a project archive (it is not JSON).`); }
       const r = await api<ImportResult>("/projects/import", { method: "POST", body: archive });
       await qc.invalidateQueries();
-      notify(`${r.note} ${r.designs} design${r.designs === 1 ? "" : "s"} and ${r.revisions} earlier revision${r.revisions === 1 ? "" : "s"} imported.`, "success");
+      notify(`${r.note} ${r.designs} design${r.designs === 1 ? "" : "s"}, ${r.revisions} earlier revision${r.revisions === 1 ? "" : "s"} and `
+        + `${r.estimates} estimate${r.estimates === 1 ? "" : "s"} imported.`, "success");
       navigate(`/projects/${r.project.id}`);
     } catch (e) {
       notify((e as ApiError | Error).message, "error");

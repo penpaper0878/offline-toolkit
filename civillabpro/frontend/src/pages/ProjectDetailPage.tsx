@@ -7,13 +7,15 @@ import IconButton from "@mui/material/IconButton";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, type ApiError, download } from "../api/client";
-import { useDesigns, useElements, useInvalidatingMutation, useProject } from "../api/hooks";
+import { useDesigns, useElements, useEstimates, useInvalidatingMutation, useProject } from "../api/hooks";
 import type { Project } from "../api/types";
 import { Card, Empty, PageHeader } from "../components/Card";
+import { EstimateStatus, NewEstimateDialog } from "../components/EstimateCommon";
 import { ReviewChip, StatusChip, Utilisation } from "../components/Status";
-import { fmtDate, timeAgo, titleCase } from "../lib/format";
+import { fmt, fmtDate, timeAgo, titleCase } from "../lib/format";
 import { useTab } from "../shell/hooks";
 import { useAuth } from "../stores/auth";
 import { useUi } from "../stores/ui";
@@ -24,6 +26,8 @@ export function ProjectDetailPage() {
   const project = useProject(projectId);
   const designs = useDesigns(projectId);
   const elements = useElements();
+  const estimates = useEstimates(projectId);
+  const [newEstimate, setNewEstimate] = useState(false);
   const can = useAuth((s) => s.can);
   const notify = useUi((s) => s.notify);
   const navigate = useNavigate();
@@ -49,7 +53,7 @@ export function ProjectDetailPage() {
         )}
         {can("project:delete") && (
           <Button color="error" onClick={() => {
-            if (window.confirm(`Delete project ${p.code} and its ${p.design_count} design(s)? This cannot be undone.`)) {
+            if (window.confirm(`Delete project ${p.code}, its ${p.design_count} design(s) and its ${estimates.data?.length ?? 0} estimate(s)? This cannot be undone.`)) {
               removeProject.mutate(undefined, { onSuccess: () => { notify(`Project ${p.code} deleted`, "success"); navigate("/projects"); }, onError: fail });
             }
           }}>Delete project</Button>
@@ -102,6 +106,47 @@ export function ProjectDetailPage() {
             </div>
           )}
       </Card>
+
+      <Card
+        title="Estimates"
+        className="mt-3"
+        action={can("estimate:write") && <Button variant="contained" startIcon={<AddOutlined />} onClick={() => setNewEstimate(true)}>New estimate</Button>}
+      >
+        {(estimates.data ?? []).length === 0 ? (
+          <Empty title="No estimates in this project yet">
+            <span>Price the work from a schedule of rates; concrete, formwork and steel can be taken from the designs above.</span>
+          </Empty>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13px] border-collapse">
+              <thead>
+                <tr className="text-left text-[11px] text-[var(--clp-ink-3)] border-b border-[var(--clp-border)]">
+                  <th className="py-2 px-3 font-semibold">Estimate</th><th className="py-2 px-2 font-semibold">Status</th><th className="py-2 px-2 font-semibold text-right">Items</th>
+                  <th className="py-2 px-2 font-semibold text-right">Total (Rs)</th><th className="py-2 px-2 font-semibold">Prepared by</th><th className="py-2 px-2 font-semibold">Issued by</th>
+                  <th className="py-2 px-2 font-semibold">Updated</th><th className="py-2 px-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {estimates.data!.map((x) => (
+                  <tr key={x.id} className="border-b border-[var(--clp-border)] last:border-0 hover:bg-[var(--clp-panel-2)]">
+                    <td className="py-1.5 px-3"><Link to={`/estimates/${x.id}`} className="font-semibold text-[var(--clp-accent)] no-underline hover:underline">{x.title}</Link></td>
+                    <td className="py-1.5 px-2"><EstimateStatus status={x.status} revision={x.revision} /></td>
+                    <td className="py-1.5 px-2 text-right num">{x.item_count}</td>
+                    <td className="py-1.5 px-2 text-right num font-semibold">{fmt(x.total, 0)}</td>
+                    <td className="py-1.5 px-2 text-[var(--clp-ink-2)]">{x.prepared_by_name}</td>
+                    <td className="py-1.5 px-2 text-[var(--clp-ink-2)]">{x.issued_by_name || "-"}</td>
+                    <td className="py-1.5 px-2 text-[var(--clp-ink-2)] whitespace-nowrap" title={fmtDate(x.updated_at)}>{timeAgo(x.updated_at)}</td>
+                    <td className="py-1.5 px-3 text-right whitespace-nowrap">
+                      <Tooltip title="Estimate (PDF)"><IconButton aria-label={`Estimate PDF for ${x.title}`} onClick={() => download(`/estimates/${x.id}/estimate.pdf`, "estimate.pdf").catch(fail)}><PictureAsPdfOutlined fontSize="small" /></IconButton></Tooltip>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+      <NewEstimateDialog open={newEstimate} onClose={() => setNewEstimate(false)} projectId={p.id} />
     </div>
   );
 }

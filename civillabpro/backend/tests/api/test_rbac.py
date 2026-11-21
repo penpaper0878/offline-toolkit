@@ -5,9 +5,12 @@ PROJECT = {"code": "P-1", "name": "Test project"}
 
 def test_roles_map_to_permissions(client, team):
     roles = {r["role"]: set(r["permissions"]) for r in client.get("/api/v1/users/roles", headers=team["viewer"]).json()}
-    assert roles["viewer"] == {"project:read", "design:read"}
+    assert roles["viewer"] == {"project:read", "design:read", "estimate:read"}
     assert "design:approve" in roles["reviewer"] and "design:write" not in roles["reviewer"]
     assert "design:write" in roles["engineer"] and "design:approve" not in roles["engineer"]
+    # estimates follow designs: engineers prepare them and keep the rates, reviewers issue them
+    assert {"estimate:write", "rates:manage"} <= roles["engineer"] and "estimate:issue" not in roles["engineer"]
+    assert "estimate:issue" in roles["reviewer"] and "estimate:write" not in roles["reviewer"]
     assert "org:manage" in roles["owner"] and "org:manage" not in roles["admin"]
 
 

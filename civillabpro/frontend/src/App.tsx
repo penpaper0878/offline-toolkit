@@ -15,6 +15,8 @@ const DashboardPage = lazy(() => import("./pages/DashboardPage").then((m) => ({ 
 const DesignWorkspacePage = lazy(() => import("./pages/DesignWorkspacePage").then((m) => ({ default: m.DesignWorkspacePage })));
 const UsersPage = lazy(() => import("./pages/UsersPage").then((m) => ({ default: m.UsersPage })));
 const DataPage = lazy(() => import("./pages/DataPage").then((m) => ({ default: m.DataPage })));
+const EstimationPage = lazy(() => import("./pages/EstimationPage").then((m) => ({ default: m.EstimationPage })));
+const EstimatePage = lazy(() => import("./pages/EstimatePage").then((m) => ({ default: m.EstimatePage })));
 
 const Splash = ({ label }: { label: string }) => (
   <div className="h-full flex flex-col items-center justify-center gap-3 text-[var(--clp-ink-2)]"><CircularProgress size={22} /><span>{label}</span></div>
@@ -55,6 +57,8 @@ export function App() {
           <Route path="projects/:projectId/designs/new/:elementType" element={<DesignWorkspacePage />} />
           <Route path="designs/:designId" element={<DesignWorkspacePage />} />
           <Route path="structural" element={<StructuralPage />} />
+          <Route path="estimation" element={<EstimationPage />} />
+          <Route path="estimates/:estimateId" element={<EstimatePage />} />
           <Route element={<RequirePermission permission="user:manage" />}>
             <Route path="admin/users" element={<UsersPage />} />
           </Route>

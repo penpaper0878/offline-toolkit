@@ -19,7 +19,7 @@ export const MODULES: ModuleEntry[] = [
   { id: "water", title: "Water engineering", phase: 3, status: "planned", summary: "Demand, networks, reservoirs, pumping (CPHEEO)" },
   { id: "sewerage", title: "Sewerage engineering", phase: 4, status: "planned", summary: "Sewer networks, STP, pumping stations" },
   { id: "highway", title: "Highway engineering", phase: 5, status: "planned", summary: "Pavement and geometric design (IRC, MoRTH)" },
-  { id: "estimation", title: "Quantity estimation", phase: 2, status: "planned", summary: "BOQ, rate analysis, SOR, measurement and bills" },
+  { id: "estimation", title: "Quantity estimation", path: "/estimation", phase: 2, status: "available", summary: "Estimates priced from schedules of rates and rate analyses, quantities measured or taken from designs" },
   { id: "lims", title: "Laboratory (LIMS)", phase: 6, status: "planned", summary: "Material tests and NABL reports" },
   { id: "gis", title: "GIS", phase: 7, status: "planned", summary: "Maps, utility networks, PostGIS" },
   { id: "pm", title: "Project management", phase: 8, status: "planned", summary: "Schedule, resources, DPR, quality and safety" },

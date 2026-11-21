@@ -21,6 +21,7 @@ from app.core.config import get_settings
 from app.core.database import get_engine
 from app.core.errors import NotFound, install_handlers
 from app.modules.dashboard.router import router as dashboard_router
+from app.modules.estimation.router import router as estimation_router
 from app.modules.identity.router import auth as auth_router
 from app.modules.identity.router import users as users_router
 from app.modules.projects.router import router as projects_router
@@ -84,7 +85,7 @@ def create_app() -> FastAPI:
             conn.execute(text("SELECT 1"))
         return {"status": "ok", "version": __version__, "database": get_engine().dialect.name, "environment": settings.env}
 
-    for r in (auth_router, users_router, transfer_router, projects_router, structural_router, dashboard_router):
+    for r in (auth_router, users_router, transfer_router, projects_router, structural_router, estimation_router, dashboard_router):
         v1.include_router(r)
     app.include_router(v1)
     if settings.static_dir is not None:

@@ -7,6 +7,7 @@ import KeyboardOutlined from "@mui/icons-material/KeyboardOutlined";
 import LightModeOutlined from "@mui/icons-material/LightModeOutlined";
 import LogoutOutlined from "@mui/icons-material/LogoutOutlined";
 import MenuOpenOutlined from "@mui/icons-material/MenuOpenOutlined";
+import ReceiptLongOutlined from "@mui/icons-material/ReceiptLongOutlined";
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
 import SpaceDashboardOutlined from "@mui/icons-material/SpaceDashboardOutlined";
 import ButtonBase from "@mui/material/ButtonBase";
@@ -63,6 +64,7 @@ export function Ribbon() {
       { id: "dashboard", label: "Dashboard", icon: <SpaceDashboardOutlined />, onClick: () => navigate("/"), shortcut: "Alt 1" },
       { id: "projects", label: "Projects", icon: <FolderOpenOutlined />, onClick: () => navigate("/projects"), shortcut: "Alt 2" },
       { id: "structural", label: "Structural", icon: <ArchitectureOutlined />, onClick: () => navigate("/structural"), shortcut: "Alt 3" },
+      { id: "estimation", label: "Estimation", icon: <ReceiptLongOutlined />, onClick: () => navigate("/estimation"), shortcut: "Alt 4" },
     ] },
     { title: "Create", actions: [
       { id: "new-project", label: "New project", icon: <CreateNewFolderOutlined />, onClick: () => navigate("/projects?new=1"), disabled: !me?.permissions.includes("project:write"), primary: true },

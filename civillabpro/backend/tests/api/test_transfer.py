@@ -24,7 +24,7 @@ def test_a_project_travels_whole_and_unchanged(client, team, project):
     r = client.get(f"/api/v1/projects/{project['id']}/export", headers=team["viewer"])
     assert r.status_code == 200 and r.headers["content-disposition"].endswith('.clp.json"')
     archive = r.json()
-    assert archive["format"] == "civillabpro.project" and archive["format_version"] == 1
+    assert archive["format"] == "civillabpro.project" and archive["format_version"] == 2
     assert {d["name"] for d in archive["designs"]} == {"B1", "CB2"}
     b1 = next(d for d in archive["designs"] if d["name"] == "B1")
     assert b1["revision"] == 1 and b1["review_status"] == "approved" and b1["approved_by_name"] == "Reviewer User" and len(b1["revisions"]) == 1
@@ -64,7 +64,7 @@ def test_import_refuses_what_it_cannot_trust(client, team, project):
     _design(client, team["engineer"], project, "beam", "B1")
     archive = client.get(f"/api/v1/projects/{project['id']}/export", headers=team["owner"]).json()
     bad = json.loads(json.dumps(archive))
-    bad["format_version"] = 2
+    bad["format_version"] = 3
     assert client.post("/api/v1/projects/import", headers=team["owner"], json=bad).status_code == 422
     bad = json.loads(json.dumps(archive))
     bad["designs"][0]["element_type"] = "pile_cap"
@@ -98,3 +98,41 @@ def test_backup_of_a_single_organisation_database(client, team, project, tmp_pat
     register(client, "owner@other.example", "Other Consultants", "Ravi Other")
     r = client.get("/api/v1/admin/backup", headers=team["owner"])
     assert r.status_code == 409 and "other organisations" in r.json()["error"]["message"]
+
+
+def test_estimates_travel_with_their_design_links(client, team, project):
+    footing = _design(client, team["engineer"], project, "footing", "F1")
+    est = client.post(f"/api/v1/projects/{project['id']}/estimates", headers=team["engineer"], json={"title": "Footings"}).json()
+    doc = {"items": [{"id": "s", "description": "Steel", "unit": "kg", "rate": 98.35, "quantity_mode": "design",
+                      "design": {"design_id": footing["id"], "key": "steel_kg"}},
+                     {"id": "m", "description": "Concrete", "unit": "cum", "rate": 6544.15, "quantity_mode": "measured",
+                      "measurements": [{"description": "F1", "nos": 4, "length": 2.2, "breadth": 2.05, "depth": 0.45}]}],
+           "additions": [{"label": "Contingencies", "pct": 3}]}
+    saved = client.put(f"/api/v1/estimates/{est['id']}", headers=team["engineer"], json={"title": "Footings", "doc": doc}).json()
+    client.post(f"/api/v1/estimates/{est['id']}/issue", headers=team["reviewer"])
+    archive = client.get(f"/api/v1/projects/{project['id']}/export", headers=team["viewer"]).json()
+    assert archive["designs"][0]["ref"] == footing["id"] and archive["estimates"][0]["status"] == "issued"
+
+    other = register(client, "owner@other.example", "Other Consultants", "Ravi Other")
+    out = client.post("/api/v1/projects/import", headers=other, json=archive).json()
+    assert out["estimates"] == 1
+    pid = out["project"]["id"]
+    (e,) = client.get(f"/api/v1/projects/{pid}/estimates", headers=other).json()
+    got = client.get(f"/api/v1/estimates/{e['id']}", headers=other).json()
+    new_design = client.get(f"/api/v1/projects/{pid}/designs", headers=other).json()[0]["id"]
+    assert got["doc"]["items"][0]["design"]["design_id"] == new_design  # the link follows the design
+    assert got["status"] == "issued" and got["issued_by_name"] == "Reviewer User" and got["result"]["stale"] == 0
+    assert got["result"]["abstract"] == saved["result"]["abstract"] and got["total"] == saved["result"]["abstract"]["rounded"]
+
+    # a link to a design the file does not hold is refused; a version 1 file (no estimates, no references) still imports
+    bad = json.loads(json.dumps(archive))
+    bad["designs"][0]["ref"] = "elsewhere"
+    r = client.post("/api/v1/projects/import", headers=other, json=bad)
+    assert r.status_code == 422 and "a design the file does not hold" in r.json()["error"]["message"]
+    v1 = json.loads(json.dumps(archive))
+    v1["format_version"] = 1
+    v1.pop("estimates")
+    for d in v1["designs"]:
+        d.pop("ref")
+    assert client.post("/api/v1/projects/import", headers=other, json=v1).json()["estimates"] == 0
+

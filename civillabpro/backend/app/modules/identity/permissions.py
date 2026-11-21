@@ -30,15 +30,19 @@ class P(StrEnum):
     DESIGN_WRITE = "design:write"
     DESIGN_DELETE = "design:delete"
     DESIGN_APPROVE = "design:approve"
+    ESTIMATE_READ = "estimate:read"
+    ESTIMATE_WRITE = "estimate:write"
+    ESTIMATE_ISSUE = "estimate:issue"
+    RATES_MANAGE = "rates:manage"  # schedules of rates and the organisation's rate analyses
 
 
-_READ = {P.PROJECT_READ, P.DESIGN_READ}
+_READ = {P.PROJECT_READ, P.DESIGN_READ, P.ESTIMATE_READ}
 
 ROLE_PERMISSIONS: dict[Role, frozenset[P]] = {
     Role.OWNER: frozenset(P),
     Role.ADMIN: frozenset(set(P) - {P.ORG_MANAGE}),
-    Role.ENGINEER: frozenset(_READ | {P.PROJECT_WRITE, P.DESIGN_WRITE, P.DESIGN_DELETE}),
-    Role.REVIEWER: frozenset(_READ | {P.DESIGN_APPROVE, P.AUDIT_READ}),
+    Role.ENGINEER: frozenset(_READ | {P.PROJECT_WRITE, P.DESIGN_WRITE, P.DESIGN_DELETE, P.ESTIMATE_WRITE, P.RATES_MANAGE}),
+    Role.REVIEWER: frozenset(_READ | {P.DESIGN_APPROVE, P.ESTIMATE_ISSUE, P.AUDIT_READ}),
     Role.VIEWER: frozenset(_READ),
 }
 
