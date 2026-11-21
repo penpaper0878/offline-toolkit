@@ -1,7 +1,7 @@
 {
   "name": "civillabpro-desktop",
   "productName": "CivilLabPro OS",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "CivilLabPro OS desktop: the design platform on this computer, with its data in a local SQLite file.",
   "author": "CivilLabPro OS",
   "license": "UNLICENSED",

@@ -1,6 +1,6 @@
 # Release note 0.7.0: column moments on combined footings, strap footings, supports of their own widths
 
-The next items after 0.6.0, built one at a time. This note grows with each item.
+Released 21 November 2026. Three items after 0.6.0, built one at a time: column moments on the combined footing, the strap footing as a new element, and supports of their own widths for the continuous beam. The comparison of the clauses with the printed code (STR-009) and the code-signing of the installers (PLAT-022) still wait on the code text and a certificate.
 
 | Item | State | Engine |
 |---|---|---|

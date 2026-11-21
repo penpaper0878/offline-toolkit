@@ -2,7 +2,7 @@
 
 An Indian civil engineering operating system: design to Indian Standards, estimation, laboratory, GIS and project control in one application, for the web, as a PWA and as a desktop install for Windows and Linux.
 
-**Version 0.6.0.** Phase 1 is complete: the platform core and the structural engines (beam, continuous beam, column, slab, isolated and combined footing) are built and tested. Release 0.6.0 adds the combined footing, face moments at monolithic supports and cantilever ends for continuous beams, and backup, restore and moving projects between installations. The remaining modules are designed and scheduled; see the roadmap.
+**Version 0.7.0.** Phase 1 is complete: the platform core and the structural engines (beam, continuous beam, column, slab, isolated, combined and strap footing) are built and tested. Release 0.7.0 adds the strap footing for a column at a property line, column moments on combined footings, and supports of their own widths for continuous beams. The remaining modules are designed and scheduled; see the roadmap.
 
 | Module | State |
 |---|---|
@@ -70,6 +70,12 @@ Combined footing: two columns on one footing, with its bending and shear along, 
 |---|---|
 | ![Combined footing](docs/screenshots/combined-footing.png) | ![Combined footing section](docs/screenshots/combined-footing-section.png) |
 
+Strap footing: a column at a property line on an eccentric pad, tied by a strap beam to an interior column:
+
+| Plan and summary | Section along the strap, and the schedule |
+|---|---|
+| ![Strap footing](docs/screenshots/strap-footing.png) | ![Strap footing section](docs/screenshots/strap-footing-section.png) |
+
 Backup and moving projects: a project exported from one installation and imported into another as calculated, and the backup page:
 
 | Imported project | Data and backup |
@@ -87,6 +93,7 @@ Sample output of the worked examples, produced by the running application:
 | Slab S1 | [PDF](docs/samples/slab_S1_R0_report.pdf) | [Excel](docs/samples/slab_S1_R0_bbs.xlsx) | [DXF](docs/samples/slab_S1_R0.dxf) |
 | Footing F1 | [PDF](docs/samples/footing_F1_R0_report.pdf) | [Excel](docs/samples/footing_F1_R0_bbs.xlsx) | [DXF](docs/samples/footing_F1_R0.dxf) |
 | Combined footing CF1 | [PDF](docs/samples/combined_footing_CF1_R0_report.pdf) | [Excel](docs/samples/combined_footing_CF1_R0_bbs.xlsx) | [DXF](docs/samples/combined_footing_CF1_R0.dxf) |
+| Strap footing SF1 | [PDF](docs/samples/strap_footing_SF1_R0_report.pdf) | [Excel](docs/samples/strap_footing_SF1_R0_bbs.xlsx) | [DXF](docs/samples/strap_footing_SF1_R0.dxf) |
 
 ## Run it
 
@@ -135,7 +142,7 @@ node e2e/walkthrough.js <folder for screenshots>      # both servers running
 | [docs/modules/04-beam-extensions.md](docs/modules/04-beam-extensions.md) | 0.4.0: T and L beams, continuous beams, curtailment and stirrup zones, anchorage at supports |
 | [docs/modules/05-anchorage-spans-desktop.md](docs/modules/05-anchorage-spans-desktop.md) | 0.5.0: U-hooks, anchorage in the continuous beam's bar selection, continuous beams of any spans and point loads by elastic analysis, the desktop shell |
 | [docs/modules/06-faces-cantilevers-backup-combined-footing.md](docs/modules/06-faces-cantilevers-backup-combined-footing.md) | 0.6.0: face moments and cantilever ends of continuous beams, backup and restore, the combined footing |
-| [docs/modules/07-footing-moments-strap-spans.md](docs/modules/07-footing-moments-strap-spans.md) | 0.7.0 (in progress): column moments on combined footings, strap footings, supports of their own widths |
+| [docs/modules/07-footing-moments-strap-spans.md](docs/modules/07-footing-moments-strap-spans.md) | 0.7.0: column moments on combined footings, strap footings, supports of their own widths |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Backup, restore and moving projects between installations |
 
 ## A note on engineering use
